@@ -1,3 +1,8 @@
+![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=c%2B%2B)
+![Qt](https://img.shields.io/badge/Qt-6.11.2-41CD52?logo=qt)
+![CMake](https://img.shields.io/badge/CMake-3.19%2B-064F8C?logo=cmake)
+![Minecraft](https://img.shields.io/badge/Minecraft-Launcher-62B47A?logo=minecraft)
+![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 # MysticTurtle Launcher
 
 MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。采用GNU General Public License v3.0许可证。
