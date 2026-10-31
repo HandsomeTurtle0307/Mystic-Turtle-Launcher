@@ -66,4 +66,5 @@ private:
     QPointer<QNetworkReply> m_reply;
     bool m_fetching = false;
     bool m_usingMirror = false;
+    bool m_fallbackTried = false;
 };

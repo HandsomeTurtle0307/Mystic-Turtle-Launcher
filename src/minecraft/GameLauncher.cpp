@@ -868,7 +868,7 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
 
     const QSettings settings;
     const int memoryGb = qBound(
-        2, settings.value(QStringLiteral("game/memoryGb"), 6).toInt(), 16);
+        2, settings.value(QStringLiteral("game/memoryGb"), 8).toInt(), 16);
     jvmArgs.append(QStringLiteral("-Xmx%1G").arg(memoryGb));
 
     QStringList gameArgs;

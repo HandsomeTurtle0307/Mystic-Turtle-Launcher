@@ -1,10 +1,28 @@
+![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=c%2B%2B)
+![Qt](https://img.shields.io/badge/Qt-6.11.2-41CD52?logo=qt)
+![CMake](https://img.shields.io/badge/CMake-3.19%2B-064F8C?logo=cmake)
+![Minecraft](https://img.shields.io/badge/Minecraft-Launcher-62B47A?logo=minecraft)
+![Status](https://img.shields.io/badge/Status-Active-brightgreen)
+
 # MysticTurtle Launcher
 
 MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。采用GNU General Public License v3.0许可证。
 
-## 写在前面
+> **非官方声明**：MysticTurtle 是独立开发的第三方 Minecraft 启动器，与 Mojang Studios、Microsoft 及其关联公司没有隶属、赞助、授权或认可关系。Minecraft 是 Mojang Studios 的商标。本项目不存储、不打包、不分发 Minecraft 游戏本体或资源文件；游戏文件仅由用户在本机通过官方或第三方镜像下载。请支持正版游戏，并遵守 [Minecraft EULA](https://www.minecraft.net/en-us/eula) 与 [使用指南](https://www.minecraft.net/en-us/usage-guidelines)。
 
-> 此启动器的初衷是便于玩家体验游戏，游戏内的内容和mod作者、整合包作者、数据包作者以及服务器运营商相关，和启动器无关。如果你对游戏内容存在问题，请寻找相关责任方，而不是启动器。本应用由作者本人和DeepSeek Harness合力完成（大肥鱼！）
+## 文档导航
+
+- [项目简介](#mysticturtle-launcher)
+- [一些你需要知道的](#一些你需要知道的)
+- [下载功能](#下载功能)
+- [构建](#构建)
+- [下载原理](#下载原理)
+- [第三方鸣谢与声明](#第三方鸣谢与声明)
+- [许可证](#许可证)
+
+## 一些你需要知道的
+
+> 此启动器的初衷是便于玩家体验游戏，游戏内的内容和mod作者、整合包作者、数据包作者以及服务器运营商相关，和启动器无关。如果你对游戏内容存在问题，请寻找相关责任方，而不是启动器。本应用由作者本人和DeepSeek Harness合力完成（大肥鱼！）。对于用户使用启动器在游玩游戏过程中，产生的任何纠纷，均和启动器无关，请广大玩家自行承担因自己的游戏行为而造成的任何后果。本项目为纯技术开源的本地工具，严格遵守GPL-3.0协议，不提供任何游戏本体的存储与分发，也不包含任何商业推广和充值入口，所包含功能均由API调用实现，请广大玩家支持正版游戏。对于如何实现下载功能，详细请见下方**下载原理**板块。由于作者还是学生，并且心理状况有些欠佳，不能保证此项目可以持续开发，请大家见谅啦ovo~
 
 ## 为啥要做这个
 
@@ -236,3 +254,181 @@ src/
   widgets/                   无边框标题栏、导航、动画容器、卡片、抽屉等
   pages/                     主页 / 下载游戏 / 加载器选择 / 下载模组 / 设置
 ```
+
+--- 
+
+## 下载原理：
+
+### 1. 获取版本清单
+
+`DownloadGamePage` 用 `VersionManifestClient` 请求：
+
+```text
+https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+```
+
+如果当前下载源是 BMCLAPI，则优先使用镜像清单；失败时回退另一来源。
+
+清单里每个版本包含：
+
+- 版本号
+- 版本类型
+- 版本 JSON 地址
+- 版本 JSON 的 SHA1
+
+### 2. 下载版本 JSON
+
+点击安装并选择加载器后，`GameInstaller::installFromManifest()` 下载：
+
+```text
+versions/<版本号>/<版本号>.json
+```
+
+下载完成后用 `VersionParser` 解析。
+
+### 3. 解析需要下载的文件
+
+版本 JSON 里主要有：
+
+- `downloads.client`：客户端 JAR
+- `assetIndex`：资源索引
+- `libraries`：依赖库和 natives
+
+解析时会处理：
+
+- Windows / Linux / macOS 规则
+- x86 / x64 / arm64 架构规则
+- 旧版缺少 `downloads` 时的 Maven 路径
+- natives classifier 的架构替换
+- 依赖库本地相对路径
+
+最终得到每个文件的：
+
+- 下载 URL
+- 本地保存路径
+- SHA1（如果有）
+- 是否需要下载
+
+### 4. 下载基础文件
+
+`GameInstaller` 把这些文件交给 `DownloadManager`：
+
+- 客户端 JAR
+- 资源索引
+- 依赖库 JAR
+- Windows natives JAR
+
+`DownloadManager` 默认最多同时下载 8 个任务。每个 `DownloadTask`：
+
+- 有自己的下载线程和网络管理器
+- 写文件前创建目录
+- 支持超时、失败重试
+- 有 SHA1 时校验
+- 根据下载源设置自动选择官方地址或 BMCLAPI
+- 镜像失败时尝试回退官方地址
+
+对应路径：
+
+```text
+libraries/
+versions/<版本号>/<版本号>.jar
+assets/indexes/
+```
+
+### 5. 下载资源对象
+
+基础文件下载完后，`GameInstaller::downloadAssets()` 会读取资源索引：
+
+```text
+assets/indexes/<资源索引 ID>.json
+```
+
+里面的 `objects` 记录每个资源的：
+
+- hash
+- size
+
+然后下载缺失资源到：
+
+```text
+assets/objects/<hash 前两位>/<hash>
+```
+
+已经存在且大小匹配的文件会跳过；下载后使用 SHA1 校验。
+
+### 6. 下载加载器
+
+基础文件和资源完成后，如果选择了加载器：
+
+- **Fabric**
+  - 获取 Fabric profile
+  - 下载加载器依赖库
+  - 下载 Fabric API 到 `mods`
+  - 生成独立版本配置
+- **Forge / NeoForge**
+  - 下载官方安装器到 `installers`
+  - 自动创建临时用户目录
+  - 调用官方安装器
+  - 检查是否生成新的版本配置
+- **OptiFine**
+  - 目前只下载安装器，需要手动运行
+
+### 7. 进度显示
+
+- 总进度按所有任务的平均进度汇总
+- 最后一个任务完成前最多显示 99%
+- 显示实时聚合下载速度
+- 下载完成后进入加载器安装阶段
+- 启动游戏时另有一个启动准备进度条
+
+### 8. 当前实现的特点
+
+- 不做整包校验，而是按单文件 SHA1 校验
+- 不实现断点续传，失败文件会重新下载
+- 已存在的正确资源会跳过
+- 适用于新下载的版本；旧版本不会自动补齐缺失资源
+- 加载器接口和游戏文件源是分开的，下载源设置主要影响 Minecraft 本体文件
+
+核心实现集中在：
+
+- [DownloadGamePage.cpp](src/pages/DownloadGamePage.cpp)
+- [GameInstaller.cpp](src/minecraft/GameInstaller.cpp)
+- [VersionParser.cpp](src/minecraft/VersionParser.cpp)
+- [DownloadManager.cpp](src/network/DownloadManager.cpp)
+- [DownloadTask.cpp](src/network/DownloadTask.cpp)
+- [LoaderDownloader.cpp](src/minecraft/LoaderDownloader.cpp)
+- [MojangMirror.cpp](src/network/MojangMirror.cpp)
+
+---
+
+## 第三方鸣谢与声明
+
+MysticTurtle 的实现依赖 Mojang 的公开元数据、第三方镜像、开源框架和社区项目。以下名称、商标和版权归各自权利人所有，仅用于说明用途和致谢，不代表任何隶属、赞助或背书关系。
+
+| 项目                                                | 在 MysticTurtle 中的用途                     | 一些说明                                                                                                                                              |
+| --------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Mojang Studios](https://www.minecraft.net/)        | Minecraft 版本清单、客户端、依赖库和资源文件 | Minecraft 及其相关内容的版权和商标归 Mojang Studios / Microsoft 所有；本项目不存储或重新分发游戏本体。                                                |
+| [BMCLAPI](https://bmclapidoc.bangbang93.com/)       | 国内下载镜像                                 | 由 bangbang93 及贡献者维护的第三方镜像，不是 Mojang 官方服务。感谢 BMCLAPI 为国内玩家提供加速；使用时应遵守其接口说明和频率限制。                     |
+| [Qt 6](https://www.qt.io/)                          | 图形界面、网络与跨平台基础库                 | Qt 开源版本按其 [LGPLv3/GPLv3 许可](https://www.qt.io/licensing/open-source-lgpl-obligations) 使用。本项目以 GPLv3 发布，并保留 Qt 的版权与许可声明。 |
+| [Eclipse Adoptium / Temurin](https://adoptium.net/) | 自动下载并解压 Java 运行时                   | JDK 由 Eclipse Adoptium 提供，遵循其 GPLv2 + Classpath Exception 等许可；本项目不随附或重新分发 JDK。                                                 |
+| [Fabric](https://fabricmc.net/)                     | Fabric Loader、Fabric Profile 与 Fabric API  | 版权归 FabricMC 及其贡献者所有，遵循各自项目许可证。                                                                                                  |
+| [MinecraftForge](https://files.minecraftforge.net/) | Forge 版本列表与官方安装器                   | 版权归 MinecraftForge 团队及其贡献者所有；本项目调用官方安装器完成安装，不重新分发安装器。                                                            |
+| [NeoForge](https://neoforged.net/)                  | NeoForge 版本列表与官方安装器                | 版权归 NeoForged 团队及其贡献者所有；本项目调用官方安装器完成安装，不重新分发安装器。                                                                 |
+| [OptiFine](https://optifine.net/)                   | OptiFine 安装器下载                          | 版权归 OptiFine 作者 sp614x 及相关权利人所有；本项目仅下载安装器，需用户手动运行，不重新分发。                                                        |
+| [Modrinth](https://modrinth.com/)                   | Fabric API 等 Mod 下载接口                   | 版权归 Modrinth 团队及相应 Mod 作者所有；下载内容遵循各 Mod 自身许可证。                                                                              |
+| [PCL](https://github.com/Meloong-Git/PCL)           | 界面设计灵感                                 | 感谢 PCL 项目及社区提供的设计参考；本项目与其没有隶属关系。                                                                                           |
+| DeepSeek Harness                                    | 开发协作                                     | 感谢大肥鱼（DeepSeek Harness）在开发过程中的协助！                                                                                                    |
+
+### Minecraft 非官方声明
+
+MysticTurtle 不是 Mojang Studios 或 Microsoft 的官方产品，也未获得其授权、赞助或认可。Minecraft、Mojang 及相关标识是 Mojang Studios 的商标或注册商标。本项目仅提供本地游戏管理、下载和启动工具，不提供游戏账号、正版验证绕过或在线服务器认证绕过。使用本项目下载或游玩游戏时，请确保你拥有合法的游戏副本，并遵守 Minecraft EULA、使用指南以及所连接服务器的规则。
+
+### 第三方许可证
+
+第三方组件、加载器、Mod、游戏文件和镜像服务分别遵循其自身许可证。本项目的 GPLv3 许可证不改变这些第三方内容的授权条件，也不对其作出任何额外保证。
+
+## 许可证
+
+本项目源代码采用 **GNU General Public License v3.0 or later（GPL-3.0-or-later）** 发布，完整许可证文本见 [LICENSE](LICENSE)。
+
+你可以按照 GPLv3 的条款使用、修改和分发本项目源代码；分发修改版本时，请保留版权与许可证声明，并按 GPLv3 提供相应的完整源代码。

@@ -127,8 +127,30 @@ bool gameWindowVisible(qint64 processId)
     EnumWindows(findGameWindow, reinterpret_cast<LPARAM>(&search));
     return search.found;
 }
+
+bool processStillRunning(qint64 processId)
+{
+    if (processId <= 0) {
+        return true;
+    }
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                                 static_cast<DWORD>(processId));
+    if (!process) {
+        // Access denied is not evidence that the game exited.
+        return true;
+    }
+    DWORD exitCode = 0;
+    const bool queried = GetExitCodeProcess(process, &exitCode) != FALSE;
+    CloseHandle(process);
+    return !queried || exitCode == STILL_ACTIVE;
+}
 #else
 bool gameWindowVisible(qint64)
+{
+    return true;
+}
+
+bool processStillRunning(qint64)
 {
     return true;
 }
@@ -579,7 +601,12 @@ void MainWindow::checkGameWindow()
         return;
     }
 
-    if (gameWindowVisible(m_launchPid)) {
+    ++m_gameWindowWaitTicks;
+    const bool byProcess = gameWindowVisible(m_launchPid);
+    // Some modded launch chains create the final window from a child process.
+    // Fall back to a Minecraft-titled window after a short grace period.
+    const bool byTitle = m_gameWindowWaitTicks > 15 && gameWindowVisible(0);
+    if (byProcess || byTitle) {
         closeLaunchProgress();
         if (!m_pendingLaunchToast.isEmpty()) {
             showToast(m_pendingLaunchToast);
@@ -588,11 +615,16 @@ void MainWindow::checkGameWindow()
         return;
     }
 
-    ++m_gameWindowWaitTicks;
-    if (m_gameWindowWaitTicks >= 300) {
-        if (m_gameWindowTimer) {
-            m_gameWindowTimer->stop();
-        }
+    if (m_gameWindowWaitTicks > 15
+        && m_launchPid > 0
+        && !processStillRunning(m_launchPid)) {
+        closeLaunchProgress();
+        showToast(QStringLiteral("游戏进程已退出，可能因内存不足或模组崩溃。"
+                                 "请尝试提高内存分配或查看游戏日志。"));
+        return;
+    }
+
+    if (m_gameWindowWaitTicks >= 2250) {
         closeLaunchProgress();
         showToast(QStringLiteral("游戏已启动，但等待窗口出现超时。"));
     }

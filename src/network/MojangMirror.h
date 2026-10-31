@@ -13,7 +13,15 @@
 
 namespace MojangMirror {
 
-// Rewrites the two Mojang CDN hosts used for version artifacts to BMCLAPI.
+enum class DownloadSource {
+    Bmclapi,
+    Official
+};
+
+void setDownloadSource(DownloadSource source);
+DownloadSource downloadSource();
+
+// Rewrites Mojang CDN hosts to BMCLAPI when the mirror source is selected.
 // Non-Mojang URLs are returned unchanged.
 QString optimizedUrl(const QString &originalUrl);
 

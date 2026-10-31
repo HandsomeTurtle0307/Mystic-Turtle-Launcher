@@ -9,6 +9,8 @@
 
 #include "VersionManifest.h"
 
+#include "MojangMirror.h"
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -58,7 +60,9 @@ void VersionManifestClient::fetch()
 
     m_fetching = true;
     m_usingMirror = false;
-    requestManifest(false);
+    m_fallbackTried = false;
+    requestManifest(
+        MojangMirror::downloadSource() == MojangMirror::DownloadSource::Bmclapi);
 }
 
 bool VersionManifestClient::isFetching() const
@@ -81,8 +85,9 @@ void VersionManifestClient::requestManifest(bool useMirror)
 
     QNetworkReply *reply = m_network->get(request);
     if (!reply) {
-        if (!useMirror) {
-            requestManifest(true);
+        if (!m_fallbackTried) {
+            m_fallbackTried = true;
+            requestManifest(!useMirror);
         } else {
             m_fetching = false;
             emit failed(QStringLiteral("无法发起版本清单请求。"));
@@ -179,8 +184,9 @@ void VersionManifestClient::handleReply()
         }
     }
 
-    if (m_fetching && !requestWasMirror) {
-        requestManifest(true);
+    if (m_fetching && !m_fallbackTried) {
+        m_fallbackTried = true;
+        requestManifest(!requestWasMirror);
         return;
     }
 

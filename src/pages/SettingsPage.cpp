@@ -15,7 +15,9 @@
 #include "MinecraftPaths.h"
 #include "Theme.h"
 #include "ToggleSwitch.h"
+#include "network/MojangMirror.h"
 
+#include <QComboBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFrame>
@@ -123,9 +125,12 @@ SettingsPage::SettingsPage(QWidget *parent)
     const bool animationsEnabled =
         initialSettings.value(QStringLiteral("ui/animations"), true).toBool();
     const int memoryGb = qBound(
-        2, initialSettings.value(QStringLiteral("game/memoryGb"), 6).toInt(), 16);
+        2, initialSettings.value(QStringLiteral("game/memoryGb"), 8).toInt(), 16);
     const QString savedJavaPath =
         initialSettings.value(QStringLiteral("game/javaPath")).toString();
+    const QString downloadSource =
+        initialSettings.value(QStringLiteral("network/downloadSource"),
+                              QStringLiteral("bmclapi")).toString();
 
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(32, 22, 32, 16);
@@ -294,6 +299,38 @@ SettingsPage::SettingsPage(QWidget *parent)
     gameLayout->addWidget(pathBlock(Icons::Type::Folder, QStringLiteral("游戏目录"),
                                     QStringLiteral("本地版本、模组与存档所在的根目录。"),
                                     m_gameDirEdit, gameDirBrowse, game));
+    gameLayout->addSpacing(12);
+
+    auto *sourceCombo = new QComboBox(game);
+    sourceCombo->setFixedWidth(220);
+    sourceCombo->addItem(QStringLiteral("BMCLAPI 镜像（国内推荐）"),
+                         QStringLiteral("bmclapi"));
+    sourceCombo->addItem(QStringLiteral("Mojang 官方源"),
+                         QStringLiteral("official"));
+    const int sourceIndex = sourceCombo->findData(
+        downloadSource == QStringLiteral("official")
+            ? QStringLiteral("official")
+            : QStringLiteral("bmclapi"));
+    sourceCombo->setCurrentIndex(qMax(0, sourceIndex));
+    connect(sourceCombo, &QComboBox::currentIndexChanged, this,
+            [this, sourceCombo](int) {
+                const QString source = sourceCombo->currentData().toString();
+                QSettings settings;
+                settings.setValue(QStringLiteral("network/downloadSource"), source);
+                settings.sync();
+                MojangMirror::setDownloadSource(
+                    source == QStringLiteral("official")
+                        ? MojangMirror::DownloadSource::Official
+                        : MojangMirror::DownloadSource::Bmclapi);
+                emit notifyRequested(
+                    source == QStringLiteral("official")
+                        ? QStringLiteral("已切换到 Mojang 官方下载源。")
+                        : QStringLiteral("已切换到 BMCLAPI 镜像下载源。"));
+            });
+    gameLayout->addWidget(settingRow(
+        Icons::Type::Download, QStringLiteral("游戏文件下载源"),
+        QStringLiteral("影响版本清单、客户端、依赖库和资源文件；加载器使用各自接口。"),
+        sourceCombo, game));
     gameLayout->addStretch();
 
     cardsRow->addWidget(appearance, 1);

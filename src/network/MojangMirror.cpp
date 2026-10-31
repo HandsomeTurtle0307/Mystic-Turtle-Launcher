@@ -9,12 +9,33 @@
 
 #include "MojangMirror.h"
 
+#include <QAtomicInt>
 #include <QUrl>
+
+namespace {
+
+QAtomicInt g_source(static_cast<int>(MojangMirror::DownloadSource::Bmclapi));
+
+} // namespace
 
 namespace MojangMirror {
 
+void setDownloadSource(DownloadSource source)
+{
+    g_source.storeRelease(static_cast<int>(source));
+}
+
+DownloadSource downloadSource()
+{
+    return static_cast<DownloadSource>(g_source.loadAcquire());
+}
+
 QString optimizedUrl(const QString &originalUrl)
 {
+    if (downloadSource() == DownloadSource::Official) {
+        return originalUrl;
+    }
+
     const QUrl original(originalUrl);
     if (!original.isValid()) {
         return originalUrl;
@@ -27,6 +48,15 @@ QString optimizedUrl(const QString &originalUrl)
         mirrored.setHost(QStringLiteral("bmclapi2.bangbang93.com"));
         mirrored.setPort(-1);
         mirrored.setPath(QStringLiteral("/maven") + original.path());
+        return mirrored.toString(QUrl::FullyEncoded);
+    }
+
+    if (host == QStringLiteral("resources.download.minecraft.net")) {
+        QUrl mirrored = original;
+        mirrored.setScheme(QStringLiteral("https"));
+        mirrored.setHost(QStringLiteral("bmclapi2.bangbang93.com"));
+        mirrored.setPort(-1);
+        mirrored.setPath(QStringLiteral("/assets") + original.path());
         return mirrored.toString(QUrl::FullyEncoded);
     }
 
