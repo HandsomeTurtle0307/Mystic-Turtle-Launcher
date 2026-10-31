@@ -1,0 +1,142 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 HandsomeTurtle0307
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License.
+ */
+
+#include "AboutPage.h"
+
+#include "AccentButton.h"
+#include "CardWidget.h"
+#include "IconFactory.h"
+#include "LogoMark.h"
+#include "Theme.h"
+
+#include <QDesktopServices>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QUrl>
+#include <QVBoxLayout>
+
+namespace {
+
+QWidget *infoRow(const QString &label, const QString &value, QWidget *parent)
+{
+    auto *row = new QWidget(parent);
+    auto *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(16);
+    auto *key = Theme::label(label, 11, QFont::DemiBold, Theme::TextMuted, row);
+    key->setFixedWidth(84);
+    layout->addWidget(key);
+    auto *text = Theme::label(value, 12, QFont::Normal, Theme::TextPrimary, row);
+    text->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(text, 1);
+    return row;
+}
+
+} // namespace
+
+AboutPage::AboutPage(QWidget *parent)
+    : QWidget(parent)
+{
+    setAttribute(Qt::WA_NoSystemBackground);
+    setAutoFillBackground(false);
+
+    auto *root = new QVBoxLayout(this);
+    root->setContentsMargins(34, 26, 34, 24);
+    root->setSpacing(0);
+
+    auto *eyebrow = Theme::label(QStringLiteral("关于  /  ABOUT"), 9, QFont::Bold,
+                                 Theme::Accent, this);
+    QFont eyebrowFont = eyebrow->font();
+    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
+    eyebrow->setFont(eyebrowFont);
+    root->addWidget(eyebrow);
+    root->addSpacing(3);
+    root->addWidget(Theme::label(QStringLiteral("关于 MysticTurtle"), 27, QFont::DemiBold,
+                                 Theme::TextPrimary, this, true));
+    root->addWidget(Theme::label(QStringLiteral("呜呜呜，可是乌龟真的很可爱啊ovo"),
+                                 11, QFont::Normal, Theme::TextMuted, this));
+    root->addSpacing(22);
+
+    auto *cardRow = new QHBoxLayout();
+    cardRow->setContentsMargins(0, 0, 0, 0);
+    cardRow->addStretch();
+
+    auto *card = new CardWidget(this);
+    card->setAccentColor(Theme::Accent);
+    card->setInteractive(false);
+    card->setMinimumWidth(620);
+    card->setMaximumWidth(760);
+    card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    auto *cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(30, 26, 30, 26);
+    cardLayout->setSpacing(0);
+
+    auto *head = new QHBoxLayout();
+    head->setContentsMargins(0, 0, 0, 0);
+    head->setSpacing(18);
+    head->addWidget(new LogoMark(64, card), 0, Qt::AlignVCenter);
+
+    auto *headText = new QVBoxLayout();
+    headText->setContentsMargins(0, 0, 0, 0);
+    headText->setSpacing(2);
+    headText->addWidget(Theme::label(QStringLiteral("MysticTurtle Launcher"),
+                                     20, QFont::DemiBold, Theme::TextPrimary, card, true));
+    head->addLayout(headText, 1);
+    head->addWidget(Theme::badge(QStringLiteral("v0.1"), Theme::Accent,
+                                 QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                        Theme::Accent.blue(), 22),
+                                 card, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                              Theme::Accent.blue(), 70)),
+                    0, Qt::AlignTop);
+    cardLayout->addLayout(head);
+    cardLayout->addSpacing(20);
+    cardLayout->addWidget(Theme::divider(card));
+    cardLayout->addSpacing(16);
+
+    cardLayout->addWidget(infoRow(QStringLiteral("作者"),
+                                  QStringLiteral("HandsomeTurtle0307"), card));
+    cardLayout->addSpacing(12);
+    cardLayout->addWidget(infoRow(QStringLiteral("当前版本"),
+                                  QStringLiteral("v0.1"), card));
+    cardLayout->addSpacing(12);
+    cardLayout->addWidget(infoRow(QStringLiteral("鸣谢"),
+                                  QStringLiteral("Qt  ·  DeepSeek Harness"), card));
+    cardLayout->addSpacing(18);
+    cardLayout->addWidget(Theme::divider(card));
+    cardLayout->addSpacing(16);
+
+    auto *repoRow = new QHBoxLayout();
+    repoRow->setContentsMargins(0, 0, 0, 0);
+    repoRow->setSpacing(12);
+    auto *repoText = new QVBoxLayout();
+    repoText->setContentsMargins(0, 0, 0, 0);
+    repoText->setSpacing(2);
+    repoText->addWidget(Theme::label(QStringLiteral("项目仓库"), 11, QFont::DemiBold,
+                                     Theme::TextPrimary, card));
+    repoText->addWidget(Theme::label(
+        QStringLiteral("https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher"),
+        10, QFont::Normal, Theme::TextMuted, card));
+    repoRow->addLayout(repoText, 1);
+
+    auto *repoButton = new AccentButton(QStringLiteral("打开 GitHub"), Icons::Type::External,
+                                        card);
+    repoButton->setVariant(AccentButton::Variant::Primary);
+    repoButton->setCompact(false);
+    connect(repoButton, &QAbstractButton::clicked, this, []() {
+        QDesktopServices::openUrl(QUrl(
+            QStringLiteral("https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher")));
+    });
+    repoRow->addWidget(repoButton, 0, Qt::AlignVCenter);
+    cardLayout->addLayout(repoRow);
+
+    cardRow->addWidget(card);
+    cardRow->addStretch();
+    root->addLayout(cardRow);
+    root->addStretch(1);
+}
