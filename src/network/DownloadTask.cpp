@@ -207,7 +207,7 @@ void DownloadWorker::beginAttempt()
     QNetworkRequest request(m_requestUrl);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("MysticTurtle/0.1"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("MysticTurtle/0.2"));
     request.setTransferTimeout(kTransferTimeoutMs);
 
     m_reply = m_manager->get(request);

@@ -413,16 +413,16 @@ MysticTurtle 的实现依赖 Mojang 的公开元数据、第三方镜像、开�
 
 | 项目                                                | 在 MysticTurtle 中的用途                     | 一些说明                                                                                                                                              |
 | --------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Mojang Studios](https://www.minecraft.net/)        | Minecraft 版本清单、客户端、依赖库和资源文件 | Minecraft 及其相关内容的版权和商标归 Mojang Studios / Microsoft 所有；本项目不存储或重新分发游戏本体。                                                |
-| [BMCLAPI](https://bmclapidoc.bangbang93.com/)       | 国内下载镜像                                 | 由 bangbang93 及贡献者维护的第三方镜像，不是 Mojang 官方服务。感谢 BMCLAPI 为国内玩家提供加速；使用时应遵守其接口说明和频率限制。                     |
+| [Mojang Studios](https://www.minecraft.net/)        | Minecraft 版本清单、客户端、依赖库和资源文件 | Minecraft 及其相关内容的版权和商标归 Mojang Studios / Microsoft 所有；本项目不存储或重新分发游戏本体，详细请见开篇的**非官方声明**。                  |
+| [BMCLAPI](https://bmclapidoc.bangbang93.com/)       | 国内下载镜像                                 | 由 bangbang93 及贡献者维护的第三方镜像，不是 Mojang 官方服务。感谢 BMCLAPI 为国内玩家提供加速；使用时应遵守其接口说明和频率限制...                    |
 | [Qt 6](https://www.qt.io/)                          | 图形界面、网络与跨平台基础库                 | Qt 开源版本按其 [LGPLv3/GPLv3 许可](https://www.qt.io/licensing/open-source-lgpl-obligations) 使用。本项目以 GPLv3 发布，并保留 Qt 的版权与许可声明。 |
 | [Eclipse Adoptium / Temurin](https://adoptium.net/) | 自动下载并解压 Java 运行时                   | JDK 由 Eclipse Adoptium 提供，遵循其 GPLv2 + Classpath Exception 等许可；本项目不随附或重新分发 JDK。                                                 |
 | [Fabric](https://fabricmc.net/)                     | Fabric Loader、Fabric Profile 与 Fabric API  | 版权归 FabricMC 及其贡献者所有，遵循各自项目许可证。                                                                                                  |
 | [MinecraftForge](https://files.minecraftforge.net/) | Forge 版本列表与官方安装器                   | 版权归 MinecraftForge 团队及其贡献者所有；本项目调用官方安装器完成安装，不重新分发安装器。                                                            |
 | [NeoForge](https://neoforged.net/)                  | NeoForge 版本列表与官方安装器                | 版权归 NeoForged 团队及其贡献者所有；本项目调用官方安装器完成安装，不重新分发安装器。                                                                 |
 | [OptiFine](https://optifine.net/)                   | OptiFine 安装器下载                          | 版权归 OptiFine 作者 sp614x 及相关权利人所有；本项目仅下载安装器，需用户手动运行，不重新分发。                                                        |
-| [Modrinth](https://modrinth.com/)                   | Fabric API 等 Mod 下载接口                   | 版权归 Modrinth 团队及相应 Mod 作者所有；下载内容遵循各 Mod 自身许可证。                                                                              |
-| [PCL](https://github.com/Meloong-Git/PCL)           | 界面设计灵感                                 | 感谢 PCL 项目及社区提供的设计参考；本项目与其没有隶属关系。                                                                                           |
+| [Modrinth](https://modrinth.com/)                   | Fabric API 等 Mod 下载接口                   | 版权归 Modrinth 团队及相应 的Mod 作者所有；下载内容遵循各 Mod 自身许可证。                                                                            |
+| [PCL](https://github.com/Meloong-Git/PCL)           | 界面设计灵感                                 | 感谢 PCL 项目及PCL-CE提供的设计参考！本项目与其没有隶属关系哦~                                                                                        |
 | DeepSeek Harness                                    | 开发协作                                     | 感谢大肥鱼（DeepSeek Harness）在开发过程中的协助！                                                                                                    |
 
 ### Minecraft 非官方声明

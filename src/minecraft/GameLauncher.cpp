@@ -837,7 +837,7 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
     values.insert(QStringLiteral("classpath"), QDir::toNativeSeparators(classPath));
     values.insert(QStringLiteral("classpath_separator"), QStringLiteral(";"));
     values.insert(QStringLiteral("launcher_name"), QStringLiteral("MysticTurtle"));
-    values.insert(QStringLiteral("launcher_version"), QStringLiteral("0.1.0"));
+    values.insert(QStringLiteral("launcher_version"), QStringLiteral("0.2.0"));
     values.insert(QStringLiteral("resolution_width"), QStringLiteral("854"));
     values.insert(QStringLiteral("resolution_height"), QStringLiteral("480"));
 

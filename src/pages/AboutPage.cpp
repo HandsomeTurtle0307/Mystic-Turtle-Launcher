@@ -88,7 +88,7 @@ AboutPage::AboutPage(QWidget *parent)
     headText->addWidget(Theme::label(QStringLiteral("MysticTurtle Launcher"),
                                      20, QFont::DemiBold, Theme::TextPrimary, card, true));
     head->addLayout(headText, 1);
-    head->addWidget(Theme::badge(QStringLiteral("v0.1"), Theme::Accent,
+    head->addWidget(Theme::badge(QStringLiteral("v0.2"), Theme::Accent,
                                  QColor(Theme::Accent.red(), Theme::Accent.green(),
                                         Theme::Accent.blue(), 22),
                                  card, QColor(Theme::Accent.red(), Theme::Accent.green(),
@@ -103,7 +103,7 @@ AboutPage::AboutPage(QWidget *parent)
                                   QStringLiteral("HandsomeTurtle0307"), card));
     cardLayout->addSpacing(12);
     cardLayout->addWidget(infoRow(QStringLiteral("当前版本"),
-                                  QStringLiteral("v0.1"), card));
+                                  QStringLiteral("v0.2"), card));
     cardLayout->addSpacing(12);
     cardLayout->addWidget(infoRow(QStringLiteral("鸣谢"),
                                   QStringLiteral("Qt  ·  DeepSeek Harness"), card));

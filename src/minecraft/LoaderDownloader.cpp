@@ -173,7 +173,7 @@ void LoaderDownloader::fetchFabricProfile()
     QNetworkRequest request{QUrl(urlString)};
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("MysticTurtle/0.1"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("MysticTurtle/0.2"));
     request.setTransferTimeout(30000);
 
     emit phaseChanged(QStringLiteral("正在获取 Fabric 安装配置…"));
