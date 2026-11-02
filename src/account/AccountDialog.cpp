@@ -24,9 +24,12 @@
 #include <QLineEdit>
 #include <QPainter>
 #include <QPoint>
+#include <QPainterPath>
+#include <QSettings>
 #include <QScrollArea>
 #include <QShowEvent>
 #include <QVBoxLayout>
+#include <QImageReader>
 
 namespace {
 
@@ -94,6 +97,17 @@ AccountDialog::AccountDialog(QWidget *parent)
     setAttribute(Qt::WA_TranslucentBackground);
     setModal(true);
     setFixedSize(600, 580);
+
+    const QSettings settings;
+    m_backgroundOpacity =
+        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
+    const QString backgroundPath =
+        settings.value(QStringLiteral("ui/backgroundImage")).toString();
+    if (!backgroundPath.isEmpty()) {
+        QImageReader reader(backgroundPath);
+        reader.setAutoTransform(true);
+        m_backgroundImage = reader.read();
+    }
 
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(18, 18, 18, 18);
@@ -192,6 +206,38 @@ AccountDialog::AccountDialog(QWidget *parent)
     });
 
     rebuildList();
+}
+
+void AccountDialog::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event)
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    QPainterPath clipPath;
+    clipPath.addRoundedRect(QRectF(rect()), 20.0, 20.0);
+    painter.setClipPath(clipPath);
+    painter.fillRect(rect(), Theme::BackgroundDeep);
+
+    if (!m_backgroundImage.isNull() && m_backgroundOpacity > 0) {
+        const qreal targetAspect = static_cast<qreal>(width()) / height();
+        const qreal imageAspect = static_cast<qreal>(m_backgroundImage.width())
+            / m_backgroundImage.height();
+        QRectF sourceRect(m_backgroundImage.rect());
+        if (imageAspect > targetAspect) {
+            const qreal croppedWidth = m_backgroundImage.height() * targetAspect;
+            sourceRect.setLeft((m_backgroundImage.width() - croppedWidth) / 2.0);
+            sourceRect.setWidth(croppedWidth);
+        } else {
+            const qreal croppedHeight = m_backgroundImage.width() / targetAspect;
+            sourceRect.setTop((m_backgroundImage.height() - croppedHeight) / 2.0);
+            sourceRect.setHeight(croppedHeight);
+        }
+
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.setOpacity(m_backgroundOpacity / 100.0);
+        painter.drawImage(rect(), m_backgroundImage, sourceRect);
+    }
 }
 
 void AccountDialog::showEvent(QShowEvent *event)

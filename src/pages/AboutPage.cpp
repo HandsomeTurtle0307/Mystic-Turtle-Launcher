@@ -18,6 +18,7 @@
 #include <QDesktopServices>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -36,6 +37,34 @@ QWidget *infoRow(const QString &label, const QString &value, QWidget *parent)
     text->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(text, 1);
     return row;
+}
+
+QToolButton *creditLink(const QString &name,
+                        Icons::Type icon,
+                        const QColor &accent,
+                        const QString &url,
+                        QWidget *parent)
+{
+    auto *button = new QToolButton(parent);
+    button->setText(name);
+    button->setIcon(Icons::icon(icon, accent, 20));
+    button->setIconSize(QSize(20, 20));
+    button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    button->setCursor(Qt::PointingHandCursor);
+    button->setAutoRaise(true);
+    button->setStyleSheet(QStringLiteral(
+        "QToolButton { color: %1; border: 1px solid %2; border-radius: 9px;"
+        "padding: 9px 12px; text-align: left; }"
+        "QToolButton:hover { background: rgba(%3, %4, %5, 24); }")
+        .arg(Theme::TextPrimary.name(), Theme::Border.name())
+        .arg(accent.red())
+        .arg(accent.green())
+        .arg(accent.blue()));
+    button->setToolTip(QStringLiteral("打开 %1 官网").arg(name));
+    QObject::connect(button, &QToolButton::clicked, button, [url]() {
+        QDesktopServices::openUrl(QUrl(url));
+    });
+    return button;
 }
 
 } // namespace
@@ -88,7 +117,7 @@ AboutPage::AboutPage(QWidget *parent)
     headText->addWidget(Theme::label(QStringLiteral("MysticTurtle Launcher"),
                                      20, QFont::DemiBold, Theme::TextPrimary, card, true));
     head->addLayout(headText, 1);
-    head->addWidget(Theme::badge(QStringLiteral("v0.2"), Theme::Accent,
+    head->addWidget(Theme::badge(QStringLiteral("v1.0"), Theme::Accent,
                                  QColor(Theme::Accent.red(), Theme::Accent.green(),
                                         Theme::Accent.blue(), 22),
                                  card, QColor(Theme::Accent.red(), Theme::Accent.green(),
@@ -103,10 +132,31 @@ AboutPage::AboutPage(QWidget *parent)
                                   QStringLiteral("HandsomeTurtle0307"), card));
     cardLayout->addSpacing(12);
     cardLayout->addWidget(infoRow(QStringLiteral("当前版本"),
-                                  QStringLiteral("v0.2"), card));
+                                  QStringLiteral("v1.0"), card));
     cardLayout->addSpacing(12);
-    cardLayout->addWidget(infoRow(QStringLiteral("鸣谢"),
-                                  QStringLiteral("Qt  ·  DeepSeek Harness"), card));
+    cardLayout->addWidget(Theme::label(QStringLiteral("鸣谢"), 11, QFont::DemiBold,
+                                       Theme::TextMuted, card));
+    cardLayout->addSpacing(10);
+    auto *credits = new QGridLayout();
+    credits->setContentsMargins(0, 0, 0, 0);
+    credits->setHorizontalSpacing(10);
+    credits->setVerticalSpacing(8);
+    credits->addWidget(creditLink(QStringLiteral("Qt"), Icons::Type::Package,
+                                  Theme::AccentStrong, QStringLiteral("https://www.qt.io/"),
+                                  card), 0, 0);
+    credits->addWidget(creditLink(QStringLiteral("DeepSeek Harness"),
+                                  Icons::Type::Sparkles, Theme::Purple,
+                                  QStringLiteral("https://www.deepseek.com/"), card),
+                       0, 1);
+    credits->addWidget(creditLink(QStringLiteral("Visual Studio Code"),
+                                  Icons::Type::Cpu, Theme::Blue,
+                                  QStringLiteral("https://code.visualstudio.com/"), card),
+                       1, 0);
+    credits->addWidget(creditLink(QStringLiteral("GitHub Copilot"),
+                                  Icons::Type::External, Theme::Accent,
+                                  QStringLiteral("https://github.com/features/copilot"), card),
+                       1, 1);
+    cardLayout->addLayout(credits);
     cardLayout->addSpacing(18);
     cardLayout->addWidget(Theme::divider(card));
     cardLayout->addSpacing(16);

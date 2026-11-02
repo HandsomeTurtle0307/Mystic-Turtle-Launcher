@@ -6,11 +6,9 @@
 
 # MysticTurtle Launcher
 
-MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。采用GNU General Public License v3.0许可证。
+MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。采用GNU General Public License v3.0许可证，致力于给广大MC玩家打造简便的游戏体验，并汲取了PCL启动器的设计理念，让广大玩家可以方便的从PCL启动器迁移至MysticTurtle Launcher。
 
 > **非官方声明**：MysticTurtle 是独立开发的第三方 Minecraft 启动器，与 Mojang Studios、Microsoft 及其关联公司没有隶属、赞助、授权或认可关系。Minecraft 是 Mojang Studios 的商标。本项目不存储、不打包、不分发 Minecraft 游戏本体或资源文件；游戏文件仅由用户在本机通过官方或第三方镜像下载。请支持正版游戏，并遵守 [Minecraft EULA](https://www.minecraft.net/en-us/eula) 与 [使用指南](https://www.minecraft.net/en-us/usage-guidelines)。
-
-
 
 > 注意：由于作者还是学生，并且心理状况有些欠佳，不能保证此项目可以持续开发，请大家见谅啦ovo~
 
@@ -19,6 +17,7 @@ MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。
 - [项目简介](#mysticturtle-launcher)
 - [一些你需要知道的](#一些你需要知道的)
 - [下载功能](#下载功能)
+- [功能与修复实现说明](#功能与修复实现说明)
 - [构建](#构建)
 - [下载原理](#下载原理)
 - [第三方鸣谢与声明](#第三方鸣谢与声明)
@@ -65,6 +64,61 @@ MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。
 5. 通过镜像加速与 SHA1 校验保证文件完整
 
 默认下载目录为 `%APPDATA%\.minecraft`，可在主页右侧通过「游戏目录」修改。下载会包含版本 JSON、客户端、依赖库、natives、资源索引和资源对象。
+「下载游戏」默认筛选正式版；安装时可自定义版本显示名称，并可选择 Fabric、Forge、NeoForge 或 OptiFine 等加载器。
+
+## 功能与修复实现说明
+
+本节记录启动、版本管理和模组管理中的主要功能及实现方式。
+
+### 启动前自动修复游戏文件
+
+启动游戏前，`GameLauncher` 会根据所选版本及其继承的版本 JSON 检查运行所需文件。缺失或大小、SHA1 不匹配的文件会通过现有 `DownloadTask` / `DownloadManager` 自动下载，创建所需的多级目录，并在下载后再次校验。
+
+自动修复范围包括：
+
+- 客户端 JAR
+- 适用于当前操作系统和架构的普通依赖库、natives
+- 资源索引和索引中列出的资源对象
+- 版本 JSON 声明的客户端日志配置
+
+资源对象按 SHA1 存放在 `assets/objects/<hash 前两位>/<hash>`。下载支持进度、取消和明确的失败提示。修复只处理版本配置明确要求的游戏运行文件，不扫描或覆盖 `mods`、存档、配置等用户数据。
+
+### Java 检测和启动诊断
+
+启动时会检查 Java 可执行文件和版本兼容性；版本 JSON 未声明所需 Java 主版本时，会根据 Minecraft 版本推断。未找到合适的 Java 时，启动器可提示安装合适的运行时。进程启动失败会提供可执行文件路径和日志位置，便于排查，而不是将错误当作用户取消。
+
+### 版本隔离与模组管理
+
+版本隔离默认开启，并在启动器主页提示：
+
+- 每个版本的模组位于 `versions/<版本 ID>/mods`；不同 Minecraft 版本或加载器版本互不混用。
+- 版本隔离当前固定开启，设置页面暂不提供切换选项。
+- 根目录 `mods` 不会自动迁移或导入到版本列表。
+- 删除版本会删除对应的 `versions/<版本 ID>`，包括其中的隔离模组；共享的 `libraries`、`assets` 和根目录 `mods` 不会因此删除。
+
+扫描本地版本时会解析加载器 JSON 的 `inheritsFrom`。原版基础版本已被已安装的加载器版本继承时，不再将它重复显示为独立版本卡片；基础版本元数据会标记其加载器依赖用途，因此删除加载器配置后也不会把残留基础文件误显示成一个新的原版实例。版本详情中的模组开关通过将 `.jar` 重命名为 `.jar.disabled` 停用，恢复 `.jar` 后重新启用；下载完成或启停状态改变后，主页会重新扫描并更新模组数量和详情。
+
+### 自定义版本显示名称
+
+下载 Minecraft 版本时可指定显示名称。纯原版版本的名称保存在该版本目录的 `launcher.json`；选择 Fabric、Forge 等加载器时，名称写入最终加载器版本，而不是它继承的原版基础版本。主页据此显示名称，同时保留原始版本 ID 和文件路径用于启动、扫描和删除。
+
+### Modrinth 模组版本选择
+
+模组详情按 Minecraft 版本整理可下载版本，并按发布日期从新到旧排列。搜索页选择了游戏版本或加载器时，详情页会显示对应的「推荐下载」区块，完整版本列表仍保留在下方。下载时会优先定位匹配游戏版本及加载器的已安装版本，并将文件放入该实例的 `mods` 目录。
+
+### 首次启动设置
+
+启动器在启动游戏前为当前实例准备 `options.txt`。首次生成时默认使用简体中文（`lang:zh_cn`）、关闭讲述人（`narrator:0`），并设置 `onboardAccessibility:true` 跳过首次无障碍引导页。已有选项会保留；文件无需更新时不会重复写入。若文件因权限等原因无法初始化，会记录诊断信息但继续尝试启动游戏，避免可选的默认设置阻断启动。
+
+### 加载状态、错误提示和取消操作
+
+- 网络加载中的页面使用加载指示器；请求或解析失败时显示具体错误提示。
+- 下载游戏版本、模组和启动准备过程均显示进度，支持取消并反馈结果。
+- 启动游戏时取消操作由独立的取消按钮触发，不会因进度窗口关闭而误判为取消。
+
+### 动画设置
+
+「设置 → 外观 → 丝滑动画」用于统一控制页面切换、平滑滚动、按钮反馈、下拉菜单、进度条和加载指示器等界面动画。选择会保存并在下次启动时生效。
 
 ## 下载模块基础类
 
@@ -392,7 +446,7 @@ assets/objects/<hash 前两位>/<hash>
 - 不做整包校验，而是按单文件 SHA1 校验
 - 不实现断点续传，失败文件会重新下载
 - 已存在的正确资源会跳过
-- 适用于新下载的版本；旧版本不会自动补齐缺失资源
+- 启动前会再次检查并补齐版本 JSON 声明的客户端、依赖库、资源索引和资源对象
 - 加载器接口和游戏文件源是分开的，下载源设置主要影响 Minecraft 本体文件
 
 核心实现集中在：
@@ -423,7 +477,9 @@ MysticTurtle 的实现依赖 Mojang 的公开元数据、第三方镜像、开�
 | [OptiFine](https://optifine.net/)                   | OptiFine 安装器下载                          | 版权归 OptiFine 作者 sp614x 及相关权利人所有；本项目仅下载安装器，需用户手动运行，不重新分发。                                                        |
 | [Modrinth](https://modrinth.com/)                   | Fabric API 等 Mod 下载接口                   | 版权归 Modrinth 团队及相应 的Mod 作者所有；下载内容遵循各 Mod 自身许可证。                                                                            |
 | [PCL](https://github.com/Meloong-Git/PCL)           | 界面设计灵感                                 | 感谢 PCL 项目及PCL-CE提供的设计参考！本项目与其没有隶属关系哦~                                                                                        |
-| DeepSeek Harness                                    | 开发协作                                     | 感谢大肥鱼（DeepSeek Harness）在开发过程中的协助！                                                                                                    |
+| [DeepSeek Harness](https://www.deepseek.com/)       | 开发协作                                     | 感谢大肥鱼（DeepSeek Harness）在开发过程中的协助！                                                                                                    |
+| [Visual Studio Code](https://code.visualstudio.com/) | 开发工具                                     | 感谢 Visual Studio Code 提供的编辑器与开发环境。                                                                                                    |
+| [GitHub Copilot](https://github.com/features/copilot) | AI 开发协助                                  | 感谢 GitHub Copilot 在代码开发与问题排查中的协助。                                                                                                   |
 
 ### Minecraft 非官方声明
 

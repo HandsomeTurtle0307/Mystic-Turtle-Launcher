@@ -87,6 +87,31 @@ bool GameInstaller::isBusy() const
     return m_busy;
 }
 
+void GameInstaller::cancel()
+{
+    if (!m_busy) {
+        return;
+    }
+    m_cancelled = true;
+
+    if (m_manifestReply) {
+        QNetworkReply *reply = m_manifestReply.data();
+        m_manifestReply = nullptr;
+        disconnect(reply, nullptr, this, nullptr);
+        reply->abort();
+        reply->deleteLater();
+    }
+    if (m_manager->isRunning()) {
+        m_manager->cancel();
+        return;
+    }
+
+    m_busy = false;
+    m_phase = Phase::Idle;
+    emit phaseChanged(QStringLiteral("下载已取消"));
+    emit cancelled();
+}
+
 void GameInstaller::installFromManifest(const QString &versionId,
                                         const QUrl &versionJsonUrl,
                                         const QString &versionJsonSha1)
@@ -104,6 +129,7 @@ void GameInstaller::installFromManifest(const QString &versionId,
     }
 
     m_busy = true;
+    m_cancelled = false;
     m_phase = Phase::DownloadingVersionJson;
     m_versionId = versionId;
     m_versionJsonUrl = versionJsonUrl;
@@ -128,6 +154,7 @@ void GameInstaller::install(const QString &versionId)
     }
 
     m_busy = true;
+    m_cancelled = false;
     m_phase = Phase::FetchingManifest;
     m_versionId = versionId;
     m_versionJsonUrl.clear();
@@ -389,6 +416,13 @@ void GameInstaller::downloadAssets()
 
 void GameInstaller::handleManagerFinished()
 {
+    if (m_cancelled) {
+        m_busy = false;
+        m_phase = Phase::Idle;
+        emit phaseChanged(QStringLiteral("下载已取消"));
+        emit cancelled();
+        return;
+    }
     if (!m_busy) {
         return;
     }

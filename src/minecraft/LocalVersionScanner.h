@@ -23,8 +23,8 @@ struct Result {
     QString error;
 };
 
-// Reads <gameDirectory>/versions/*/*.json and <gameDirectory>/mods/*.jar.
-// Returns an empty versions list when the directory has no installed profiles.
+// Reads <gameDirectory>/versions/*/*.json and resolves mods according to the
+// version-isolation setting. Each version records its launch game-data directory.
 Result scan(const QString &gameDirectory);
 
 } // namespace LocalVersionScanner

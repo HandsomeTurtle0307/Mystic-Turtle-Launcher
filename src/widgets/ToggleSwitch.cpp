@@ -70,6 +70,10 @@ QSize ToggleSwitch::minimumSizeHint() const
 void ToggleSwitch::animateTo(qreal target)
 {
     m_animation->stop();
+    if (!Theme::animationsEnabled()) {
+        setKnobPosition(target);
+        return;
+    }
     m_animation->setStartValue(m_knobPosition);
     m_animation->setEndValue(target);
     m_animation->start();

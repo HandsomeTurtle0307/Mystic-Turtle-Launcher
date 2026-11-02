@@ -16,6 +16,7 @@
 class QApplication;
 class QFrame;
 class QLabel;
+class QProgressBar;
 class QWidget;
 
 namespace Theme {
@@ -60,5 +61,8 @@ inline bool isDarkMode()
 }
 
 void apply(QApplication &app);
+bool animationsEnabled();
+void setAnimationsEnabled(bool enabled);
+void setProgressValue(QProgressBar *progressBar, int value);
 
 } // namespace Theme

@@ -39,6 +39,7 @@ public:
     // Starts a new batch. Returns false if a batch is already running or any
     // task is null, duplicated, already running, or already finished.
     bool start(const QList<DownloadTask *> &tasks);
+    void cancel();
 
     // Allowed range is 1..8. The default is 8. Lowering the limit does not
     // cancel active downloads; new tasks wait until the active count drops.
@@ -92,4 +93,5 @@ private:
     int m_lastOverallPercent = -1;
     bool m_running = false;
     bool m_finished = false;
+    bool m_cancelling = false;
 };

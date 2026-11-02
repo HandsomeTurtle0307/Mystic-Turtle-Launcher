@@ -20,6 +20,7 @@ class AccentButton;
 class LoaderRow;
 class QJsonDocument;
 class QLabel;
+class LoadingIndicator;
 class QNetworkAccessManager;
 
 class LoaderSetupView : public QWidget
@@ -61,6 +62,7 @@ private:
     void requestJson(const QString &url,
                      const std::function<void(const QJsonDocument &, const QString &)> &handler);
     void updateRowStates();
+    void maybeShowCatalogErrors();
     void updateStartButton();
     void chooseLoader(const QString &loader);
     void chooseFabricApi();
@@ -81,6 +83,7 @@ private:
     bool m_fabricLoaded = false;
     bool m_optiFineLoaded = false;
     bool m_fabricApiLoaded = false;
+    bool m_catalogErrorReported = false;
     QString m_forgeError;
     QString m_neoForgeError;
     QString m_fabricError;

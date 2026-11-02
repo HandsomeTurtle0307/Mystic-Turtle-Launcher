@@ -10,6 +10,7 @@
 #include "SettingsPage.h"
 
 #include "AccentButton.h"
+#include "AnimatedComboBox.h"
 #include "CardWidget.h"
 #include "IconFactory.h"
 #include "MinecraftPaths.h"
@@ -20,10 +21,12 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QImageReader>
 #include <QScrollArea>
 #include <QSettings>
 #include <QSlider>
@@ -65,7 +68,9 @@ QWidget *settingRow(Icons::Type icon,
     text->setContentsMargins(0, 1, 0, 0);
     text->setSpacing(1);
     text->addWidget(Theme::label(title, 12, QFont::DemiBold, Theme::TextPrimary, row));
-    text->addWidget(Theme::label(description, 10, QFont::Normal, Theme::TextMuted, row));
+    if (!description.isEmpty()) {
+        text->addWidget(Theme::label(description, 10, QFont::Normal, Theme::TextMuted, row));
+    }
     layout->addLayout(text, 1);
 
     if (control) {
@@ -124,6 +129,10 @@ SettingsPage::SettingsPage(QWidget *parent)
         initialSettings.value(QStringLiteral("ui/acrylic"), false).toBool();
     const bool animationsEnabled =
         initialSettings.value(QStringLiteral("ui/animations"), true).toBool();
+    const QString backgroundImage =
+        initialSettings.value(QStringLiteral("ui/backgroundImage")).toString();
+    m_backgroundOpacity = qBound(
+        0, initialSettings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
     const int memoryGb = qBound(
         2, initialSettings.value(QStringLiteral("game/memoryGb"), 8).toInt(), 16);
     const QString savedJavaPath =
@@ -182,14 +191,14 @@ SettingsPage::SettingsPage(QWidget *parent)
     // Appearance
     auto *appearance = new CardWidget(content);
     appearance->setAccentColor(Theme::Accent);
-    appearance->setMinimumHeight(360);
+    appearance->setMinimumHeight(450);
     appearance->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     auto *appearanceLayout = new QVBoxLayout(appearance);
     appearanceLayout->setContentsMargins(22, 19, 22, 19);
     appearanceLayout->setSpacing(0);
     appearanceLayout->addWidget(Theme::label(QStringLiteral("外观"), 17, QFont::DemiBold,
                                              Theme::TextPrimary, appearance));
-    appearanceLayout->addWidget(Theme::label(QStringLiteral("界面材质、主题与过渡动效。"),
+    appearanceLayout->addWidget(Theme::label(QStringLiteral("界面材质、背景与过渡动效。"),
                                              10, QFont::Normal, Theme::TextMuted, appearance));
     appearanceLayout->addSpacing(12);
     appearanceLayout->addWidget(Theme::divider(appearance));
@@ -212,9 +221,99 @@ SettingsPage::SettingsPage(QWidget *parent)
             this, &SettingsPage::animationsEnabledChanged);
     appearanceLayout->addWidget(settingRow(
         Icons::Type::Refresh, QStringLiteral("丝滑动画"),
-        QStringLiteral("页面切换、导航指示器与悬停过渡。"),
+        QStringLiteral("控制平滑滚动、按钮点击、页面切换、进度条、下拉菜单及其他界面动效。"),
         animationsSwitch, appearance));
     appearanceLayout->addSpacing(11);
+
+    m_backgroundPathEdit = new QLineEdit(appearance);
+    m_backgroundPathEdit->setReadOnly(true);
+    m_backgroundPathEdit->setPlaceholderText(QStringLiteral("未设置背景图片"));
+    if (!backgroundImage.isEmpty()) {
+        m_backgroundPathEdit->setText(QDir::toNativeSeparators(backgroundImage));
+    }
+
+    auto *backgroundBrowse = new AccentButton(
+        QStringLiteral("选择"), Icons::Type::Palette, appearance);
+    backgroundBrowse->setCompact(true);
+    backgroundBrowse->setVariant(AccentButton::Variant::Ghost);
+    connect(backgroundBrowse, &QAbstractButton::clicked, this, [this]() {
+        const QString file = QFileDialog::getOpenFileName(
+            this, QStringLiteral("选择背景图片"), QString(),
+            QStringLiteral("图片文件 (*.png *.jpg *.jpeg *.bmp *.webp);;所有文件 (*)"));
+        if (file.isEmpty()) {
+            return;
+        }
+
+        QImageReader reader(file);
+        reader.setAutoTransform(true);
+        if (reader.read().isNull()) {
+            emit notifyRequested(QStringLiteral("无法读取所选图片：%1").arg(reader.errorString()));
+            return;
+        }
+        setBackgroundImage(file);
+        emit notifyRequested(QStringLiteral("背景图片已更新。"));
+    });
+
+    auto *backgroundClear = new AccentButton(
+        QStringLiteral("清除"), Icons::Type::Close, appearance);
+    backgroundClear->setCompact(true);
+    backgroundClear->setVariant(AccentButton::Variant::Ghost);
+    connect(backgroundClear, &QAbstractButton::clicked, this, [this]() {
+        if (m_backgroundPathEdit->text().isEmpty()) {
+            return;
+        }
+        setBackgroundImage(QString());
+        emit notifyRequested(QStringLiteral("已清除自定义背景图片。"));
+    });
+
+    auto *backgroundBlock = new QWidget(appearance);
+    auto *backgroundLayout = new QVBoxLayout(backgroundBlock);
+    backgroundLayout->setContentsMargins(0, 0, 0, 0);
+    backgroundLayout->setSpacing(7);
+    backgroundLayout->addWidget(settingRow(
+        Icons::Type::Palette, QStringLiteral("自定义背景图片"),
+        QStringLiteral("选择本地图片作为启动器界面背景。"),
+        nullptr, backgroundBlock));
+    auto *backgroundPathRow = new QHBoxLayout();
+    backgroundPathRow->setContentsMargins(0, 0, 0, 0);
+    backgroundPathRow->setSpacing(8);
+    m_backgroundPathEdit->setFixedHeight(38);
+    m_backgroundPathEdit->setFont(Theme::font(11));
+    backgroundPathRow->addWidget(m_backgroundPathEdit, 1);
+    backgroundPathRow->addWidget(backgroundBrowse);
+    backgroundPathRow->addWidget(backgroundClear);
+    backgroundLayout->addLayout(backgroundPathRow);
+    appearanceLayout->addWidget(backgroundBlock);
+    appearanceLayout->addSpacing(9);
+
+    auto *opacityControl = new QWidget(appearance);
+    auto *opacityLayout = new QVBoxLayout(opacityControl);
+    opacityLayout->setContentsMargins(0, 0, 0, 0);
+    opacityLayout->setSpacing(2);
+    const int backgroundTransparency = 100 - m_backgroundOpacity;
+    auto *opacityValue = Theme::label(
+        QStringLiteral("%1%").arg(m_backgroundOpacity), 11,
+        QFont::DemiBold, Theme::Accent, opacityControl);
+    opacityValue->setAlignment(Qt::AlignRight);
+    opacityLayout->addWidget(opacityValue);
+    auto *opacitySlider = new QSlider(Qt::Horizontal, opacityControl);
+    opacitySlider->setRange(0, 100);
+    opacitySlider->setValue(backgroundTransparency);
+    // The stored value remains transparency; only the visual direction is
+    // inverted so the UI reads as opacity (0% left, 100% right).
+    opacitySlider->setInvertedAppearance(true);
+    opacitySlider->setFixedWidth(170);
+    opacityLayout->addWidget(opacitySlider);
+    connect(opacitySlider, &QSlider::valueChanged, this, [this, opacityValue](int value) {
+        m_backgroundOpacity = 100 - value;
+        opacityValue->setText(QStringLiteral("%1%").arg(m_backgroundOpacity));
+        QSettings settings;
+        settings.setValue(QStringLiteral("ui/backgroundOpacity"), m_backgroundOpacity);
+        emit backgroundChanged(m_backgroundPathEdit->text(), m_backgroundOpacity);
+    });
+    appearanceLayout->addWidget(settingRow(
+        Icons::Type::Sparkles, QStringLiteral("背景透明度"), QString(),
+        opacityControl, appearance));
 
     appearanceLayout->addStretch();
 
@@ -301,7 +400,7 @@ SettingsPage::SettingsPage(QWidget *parent)
                                     m_gameDirEdit, gameDirBrowse, game));
     gameLayout->addSpacing(12);
 
-    auto *sourceCombo = new QComboBox(game);
+    auto *sourceCombo = new AnimatedComboBox(game);
     sourceCombo->setFixedWidth(220);
     sourceCombo->addItem(QStringLiteral("BMCLAPI 镜像（国内推荐）"),
                          QStringLiteral("bmclapi"));
@@ -356,4 +455,21 @@ void SettingsPage::setJavaPath(const QString &path)
         return;
     }
     m_javaEdit->setText(QDir::toNativeSeparators(path));
+}
+
+void SettingsPage::setBackgroundImage(const QString &imagePath)
+{
+    const QString absolutePath = imagePath.isEmpty()
+        ? QString()
+        : QDir::toNativeSeparators(QFileInfo(imagePath).absoluteFilePath());
+    m_backgroundPathEdit->setText(absolutePath);
+
+    QSettings settings;
+    if (absolutePath.isEmpty()) {
+        settings.remove(QStringLiteral("ui/backgroundImage"));
+    } else {
+        settings.setValue(QStringLiteral("ui/backgroundImage"), absolutePath);
+    }
+    settings.sync();
+    emit backgroundChanged(absolutePath, m_backgroundOpacity);
 }

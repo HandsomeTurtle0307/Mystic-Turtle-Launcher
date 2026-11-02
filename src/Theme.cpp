@@ -9,18 +9,205 @@
 
 #include "Theme.h"
 
+#include <QAbstractAnimation>
+#include <QAbstractButton>
+#include <QAbstractScrollArea>
 #include <QApplication>
+#include <QEvent>
 #include <QFrame>
+#include <QGraphicsOpacityEffect>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QPalette>
+#include <QPointer>
+#include <QProgressBar>
+#include <QPropertyAnimation>
+#include <QScrollBar>
+#include <QHash>
 #include <QStringList>
 #include <QStyleFactory>
+#include <QWheelEvent>
 
 namespace {
 
 // Theme colors are mutable so the light/dark palette can be selected before
 // the main window is constructed.
 bool g_darkMode = true;
+bool g_animationsEnabled = true;
+QHash<QProgressBar *, QPointer<QPropertyAnimation>> g_progressAnimations;
+QPointer<QObject> g_smoothScrollFilter;
+
+class SmoothScrollFilter final : public QObject
+{
+public:
+    using QObject::QObject;
+
+    void resetButtonEffects()
+    {
+        for (auto it = m_buttonEffects.cbegin(); it != m_buttonEffects.cend(); ++it) {
+            if (!it.key()) {
+                continue;
+            }
+            if (it.value()) {
+                it.value()->setOpacity(1.0);
+            }
+        }
+        m_buttonAnimations.clear();
+        m_buttonEffects.clear();
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (auto *button = qobject_cast<QAbstractButton *>(watched)) {
+            if (event->type() == QEvent::MouseButtonPress
+                || event->type() == QEvent::MouseButtonDblClick) {
+                animateButton(button, 0.78, 70);
+            } else if (event->type() == QEvent::MouseButtonRelease) {
+                animateButton(button, 1.0, 150);
+            } else if (event->type() == QEvent::KeyPress) {
+                const auto *key = static_cast<QKeyEvent *>(event);
+                if (!key->isAutoRepeat()
+                    && (key->key() == Qt::Key_Space || key->key() == Qt::Key_Return
+                        || key->key() == Qt::Key_Enter)) {
+                    animateButton(button, 0.78, 70);
+                }
+            } else if (event->type() == QEvent::KeyRelease) {
+                const auto *key = static_cast<QKeyEvent *>(event);
+                if (!key->isAutoRepeat()
+                    && (key->key() == Qt::Key_Space || key->key() == Qt::Key_Return
+                        || key->key() == Qt::Key_Enter)) {
+                    animateButton(button, 1.0, 150);
+                }
+            }
+        }
+
+        if (event->type() != QEvent::Wheel) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        auto *wheel = static_cast<QWheelEvent *>(event);
+        if (wheel->modifiers().testFlag(Qt::ControlModifier)) {
+            return false;
+        }
+
+        auto *widget = qobject_cast<QWidget *>(watched);
+        QAbstractScrollArea *area = nullptr;
+        for (QWidget *parent = widget; parent; parent = parent->parentWidget()) {
+            area = qobject_cast<QAbstractScrollArea *>(parent);
+            if (area) {
+                break;
+            }
+        }
+        if (!area) {
+            return false;
+        }
+
+        const QPoint pixelDelta = wheel->pixelDelta();
+        const QPoint angleDelta = wheel->angleDelta();
+        const bool horizontal = qAbs(angleDelta.x()) > qAbs(angleDelta.y())
+            || (angleDelta.y() == 0 && pixelDelta.x() != 0);
+        QScrollBar *scrollBar = horizontal ? area->horizontalScrollBar()
+                                           : area->verticalScrollBar();
+        const int wheelDelta = horizontal ? angleDelta.x() : angleDelta.y();
+        const int pixelMovement = horizontal ? pixelDelta.x() : pixelDelta.y();
+        const qreal movement = pixelMovement != 0
+            ? -pixelMovement
+            : -wheelDelta / 120.0 * scrollBar->singleStep() * 3.0;
+        if (qFuzzyIsNull(movement) || scrollBar->maximum() <= scrollBar->minimum()) {
+            return false;
+        }
+
+        QPointer<QPropertyAnimation> &current = m_animations[scrollBar];
+        const int currentTarget = current
+            ? current->endValue().toInt()
+            : scrollBar->value();
+        const int target = qBound(scrollBar->minimum(),
+                                  qRound(currentTarget + movement),
+                                  scrollBar->maximum());
+        if (target == currentTarget) {
+            return false;
+        }
+
+        if (current) {
+            current->stop();
+            current->deleteLater();
+        }
+
+        auto *animation = new QPropertyAnimation(scrollBar, "value", scrollBar);
+        current = animation;
+        animation->setDuration(210);
+        animation->setEasingCurve(QEasingCurve::OutCubic);
+        animation->setStartValue(scrollBar->value());
+        animation->setEndValue(target);
+        QObject::connect(animation, &QPropertyAnimation::finished, scrollBar,
+                         [this, scrollBar, animation]() {
+            if (m_animations.value(scrollBar) == animation) {
+                m_animations.remove(scrollBar);
+            }
+            animation->deleteLater();
+        });
+        QObject::connect(scrollBar, &QObject::destroyed, animation,
+                         [this, scrollBar]() { m_animations.remove(scrollBar); });
+        animation->start();
+        wheel->accept();
+        return true;
+    }
+
+private:
+    void animateButton(QAbstractButton *button, qreal opacity, int duration)
+    {
+        if (!button->isEnabled()) {
+            return;
+        }
+
+        auto *effect = qobject_cast<QGraphicsOpacityEffect *>(button->graphicsEffect());
+        if (!effect) {
+            if (button->graphicsEffect()) {
+                return;
+            }
+            effect = new QGraphicsOpacityEffect(button);
+            effect->setOpacity(1.0);
+            effect->setProperty("uiPressAnimationEffect", true);
+            button->setGraphicsEffect(effect);
+            m_buttonEffects.insert(button, effect);
+            QObject::connect(button, &QObject::destroyed, this,
+                             [this, button]() {
+                m_buttonAnimations.remove(button);
+                m_buttonEffects.remove(button);
+            });
+        } else if (!effect->property("uiPressAnimationEffect").toBool()) {
+            return;
+        }
+
+        QPointer<QPropertyAnimation> &current = m_buttonAnimations[button];
+        if (current) {
+            current->stop();
+            current->deleteLater();
+        }
+
+        auto *animation = new QPropertyAnimation(effect, "opacity", this);
+        current = animation;
+        animation->setDuration(duration);
+        animation->setEasingCurve(opacity < effect->opacity()
+                                      ? QEasingCurve::InCubic
+                                      : QEasingCurve::OutCubic);
+        animation->setStartValue(effect->opacity());
+        animation->setEndValue(opacity);
+        QObject::connect(animation, &QPropertyAnimation::finished, this,
+                         [this, button, animation]() {
+            if (m_buttonAnimations.value(button) == animation) {
+                m_buttonAnimations.remove(button);
+            }
+            animation->deleteLater();
+        });
+        animation->start();
+    }
+
+    QHash<QScrollBar *, QPointer<QPropertyAnimation>> m_animations;
+    QHash<QAbstractButton *, QPointer<QPropertyAnimation>> m_buttonAnimations;
+    QHash<QAbstractButton *, QPointer<QGraphicsOpacityEffect>> m_buttonEffects;
+};
 
 QString rgba(const QColor &color)
 {
@@ -284,6 +471,85 @@ QString controlStyleSheet()
 
 namespace Theme {
 
+bool animationsEnabled()
+{
+    return g_animationsEnabled;
+}
+
+void setAnimationsEnabled(bool enabled)
+{
+    g_animationsEnabled = enabled;
+    auto *app = qobject_cast<QApplication *>(QApplication::instance());
+    if (!app) {
+        return;
+    }
+
+    if (enabled) {
+        if (!g_smoothScrollFilter) {
+            g_smoothScrollFilter = new SmoothScrollFilter(app);
+            app->installEventFilter(g_smoothScrollFilter);
+        }
+        return;
+    }
+
+    auto *filter = dynamic_cast<SmoothScrollFilter *>(g_smoothScrollFilter.data());
+    if (g_smoothScrollFilter) {
+        app->removeEventFilter(g_smoothScrollFilter);
+        g_smoothScrollFilter = nullptr;
+    }
+
+    for (QAbstractAnimation *animation : app->findChildren<QAbstractAnimation *>()) {
+        if (animation->state() == QAbstractAnimation::Running
+            && animation->duration() >= 0) {
+            animation->setCurrentTime(animation->duration());
+            animation->stop();
+        }
+    }
+    if (filter) {
+        filter->resetButtonEffects();
+        filter->deleteLater();
+    }
+}
+
+void setProgressValue(QProgressBar *progressBar, int value)
+{
+    if (!progressBar) {
+        return;
+    }
+
+    QPointer<QPropertyAnimation> &current = g_progressAnimations[progressBar];
+    if (!animationsEnabled() || progressBar->minimum() == progressBar->maximum()) {
+        if (current) {
+            current->stop();
+            current->deleteLater();
+            current = nullptr;
+        }
+        progressBar->setValue(value);
+        return;
+    }
+
+    if (current) {
+        current->stop();
+        current->deleteLater();
+    }
+    auto *animation = new QPropertyAnimation(progressBar, "value", progressBar);
+    current = animation;
+    animation->setDuration(180);
+    animation->setEasingCurve(QEasingCurve::OutCubic);
+    animation->setStartValue(progressBar->value());
+    animation->setEndValue(value);
+    QObject::connect(animation, &QPropertyAnimation::finished, progressBar,
+                     [progressBar, animation]() {
+        if (g_progressAnimations.value(progressBar) == animation) {
+            g_progressAnimations.remove(progressBar);
+        }
+        animation->deleteLater();
+    });
+    QObject::connect(progressBar, &QObject::destroyed, animation,
+                     [progressBar]() { g_progressAnimations.remove(progressBar); });
+    animation->start();
+}
+
 QFont font(int pixelSize, QFont::Weight weight, bool display)
 {
     QFont result;
@@ -326,12 +592,14 @@ QLabel *badge(const QString &text,
               QWidget *parent,
               const QColor &border)
 {
+    Q_UNUSED(background)
+    Q_UNUSED(border)
     auto *result = label(text, 11, QFont::DemiBold, foreground, parent);
     result->setAlignment(Qt::AlignCenter);
     result->setStyleSheet(QStringLiteral(
-                              "background: %1; color: %2; border: 1px solid %3;"
-                              "border-radius: 8px; padding: 4px 9px;")
-                              .arg(rgba(background), foreground.name(), rgba(border)));
+                              "background: transparent; color: %1; border: none;"
+                              "padding: 4px 9px;")
+                              .arg(foreground.name()));
     return result;
 }
 

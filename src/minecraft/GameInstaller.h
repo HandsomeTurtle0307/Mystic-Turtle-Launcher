@@ -44,6 +44,7 @@ public:
 
 public slots:
     void install(const QString &versionId);
+    void cancel();
 
 signals:
     void phaseChanged(const QString &text);
@@ -52,6 +53,7 @@ signals:
     void speedChanged(qint64 bytesPerSecond);
     void succeeded(const QString &versionId);
     void failed(const QString &reason);
+    void cancelled();
 
 private:
     enum class Phase {
@@ -86,6 +88,7 @@ private:
 
     Phase m_phase = Phase::Idle;
     bool m_busy = false;
+    bool m_cancelled = false;
     int m_batchFailures = 0;
     QString m_lastFailure;
 };

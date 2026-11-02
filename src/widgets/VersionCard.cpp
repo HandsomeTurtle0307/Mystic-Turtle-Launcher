@@ -49,14 +49,14 @@ VersionCard::VersionCard(const VersionInfo &version, int index, QWidget *parent)
     , m_accent(version.accent)
 {
     setAccentColor(version.accent);
-    setMinimumHeight(196);
-    setMaximumHeight(196);
+    setMinimumHeight(160);
+    setMaximumHeight(160);
     setMinimumWidth(0);
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     setCursor(Qt::PointingHandCursor);
 
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(20, 17, 20, 16);
+    layout->setContentsMargins(16, 13, 16, 12);
     layout->setSpacing(0);
     layout->setSizeConstraint(QLayout::SetNoConstraint);
 
@@ -77,27 +77,22 @@ VersionCard::VersionCard(const VersionInfo &version, int index, QWidget *parent)
     m_statusLabel = status;
     topRow->addWidget(status);
     layout->addLayout(topRow);
-    layout->addSpacing(14);
+    layout->addSpacing(9);
 
-    auto *eyebrow = Theme::label(QStringLiteral("MINECRAFT"), 9, QFont::Bold,
-                                 Theme::TextMuted, this);
-    QFont eyebrowFont = eyebrow->font();
-    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.8);
-    eyebrow->setFont(eyebrowFont);
-    layout->addWidget(eyebrow);
-    layout->addSpacing(1);
-
-    m_versionLabel = Theme::label(version.minecraft, 28, QFont::DemiBold,
+    const QString displayName = version.displayName.isEmpty()
+        ? version.minecraft
+        : version.displayName;
+    m_versionLabel = Theme::label(displayName, 23, QFont::DemiBold,
                                   Theme::TextPrimary, this, true);
     m_versionLabel->setMinimumWidth(0);
     m_versionLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    m_fullVersionText = version.minecraft;
+    m_fullVersionText = displayName;
     layout->addWidget(m_versionLabel);
-    layout->addSpacing(9);
+    layout->addSpacing(6);
 
     auto *metaRow = new QHBoxLayout();
     metaRow->setContentsMargins(0, 0, 0, 0);
-    metaRow->setSpacing(12);
+    metaRow->setSpacing(8);
     if (version.mods.isEmpty()) {
         metaRow->addWidget(metaItem(
             Icons::Type::Cube,
@@ -112,9 +107,6 @@ VersionCard::VersionCard(const VersionInfo &version, int index, QWidget *parent)
                                         .arg(enabled),
                                     this));
     }
-    metaRow->addWidget(metaItem(Icons::Type::Clock,
-                                QStringLiteral("更新于 %1").arg(version.lastModified),
-                                this));
     metaRow->addStretch();
     layout->addLayout(metaRow);
     layout->addStretch();

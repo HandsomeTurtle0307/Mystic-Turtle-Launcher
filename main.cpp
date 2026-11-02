@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QApplication app(argc, argv);
-    QApplication::setApplicationVersion(QStringLiteral("0.2.0"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0.0"));
     QLocale::setDefault(QLocale(QLocale::Chinese, QLocale::China));
 
     QCoreApplication::setOrganizationName(QStringLiteral("MysticTurtle"));

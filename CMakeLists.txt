@@ -7,13 +7,13 @@
 
 cmake_minimum_required(VERSION 3.21)
 
-project(MysticTurtle VERSION 0.2.0 LANGUAGES CXX)
+project(MysticTurtle VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent)
 
 qt_standard_project_setup()
 
@@ -63,6 +63,8 @@ set(MYSTIC_TURTLE_SOURCES
 
     src/widgets/AccentButton.cpp
     src/widgets/AccentButton.h
+    src/widgets/AnimatedComboBox.cpp
+    src/widgets/AnimatedComboBox.h
     src/widgets/AnimatedStackedWidget.cpp
     src/widgets/AnimatedStackedWidget.h
     src/widgets/AvatarWidget.cpp
@@ -73,6 +75,8 @@ set(MYSTIC_TURTLE_SOURCES
     src/widgets/HeaderBar.h
     src/widgets/LogoMark.cpp
     src/widgets/LogoMark.h
+    src/widgets/LoadingIndicator.cpp
+    src/widgets/LoadingIndicator.h
     src/widgets/ModsDrawer.cpp
     src/widgets/ModsDrawer.h
     src/widgets/NavButton.cpp
@@ -124,6 +128,7 @@ target_link_libraries(Mystic-Turtle-Launcher
         Qt6::Gui
         Qt6::Widgets
         Qt6::Network
+        Qt6::Concurrent
 )
 
 if(WIN32)

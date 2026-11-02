@@ -12,6 +12,7 @@
 #include "AccentButton.h"
 #include "CardWidget.h"
 #include "IconFactory.h"
+#include "LoadingIndicator.h"
 #include "Theme.h"
 
 #include <QFileInfo>
@@ -26,6 +27,7 @@
 #include <QJsonValue>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -80,17 +82,16 @@ public:
                                    .arg(Theme::Border.alpha());
         setStyleSheet(QStringLiteral(
             "QFrame#loaderRow {"
-            "background: %1;"
-            "border: 1px solid %2;"
+            "background: transparent;"
+            "border: 1px solid %1;"
             "border-radius: 14px; }"
             "QFrame#loaderRow:hover {"
-            "background: %3;"
-            "border-color: %4; }"
+            "background: rgba(110, 231, 183, 12);"
+            "border-color: %2; }"
             "QFrame#loaderRow[selected=\"true\"] {"
-            "background: rgba(47, 128, 237, 28);"
+            "background: rgba(110, 231, 183, 18);"
             "border-color: #2F80ED; }")
-            .arg(Theme::Surface.name(), border, Theme::SurfaceSoft.name(),
-                 Theme::Accent.name()));
+            .arg(border, Theme::Accent.name()));
 
         auto *layout = new QHBoxLayout(this);
         layout->setContentsMargins(20, 10, 18, 10);
@@ -101,10 +102,18 @@ public:
         layout->addWidget(m_title);
         layout->addStretch();
 
+        auto *statusWidget = new QWidget(this);
+        auto *statusLayout = new QHBoxLayout(statusWidget);
+        statusLayout->setContentsMargins(0, 0, 0, 0);
+        statusLayout->setSpacing(6);
+        m_loadingIndicator = new LoadingIndicator(statusWidget, Theme::Accent);
+        m_loadingIndicator->setFixedSize(16, 16);
+        statusLayout->addWidget(m_loadingIndicator);
         m_status = Theme::label(QStringLiteral("正在获取…"), 11, QFont::Normal,
-                                Theme::TextMuted, this);
+                                Theme::TextMuted, statusWidget);
         m_status->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        layout->addWidget(m_status);
+        statusLayout->addWidget(m_status);
+        layout->addWidget(statusWidget);
 
         m_chevron = new QLabel(this);
         m_chevron->setPixmap(Icons::icon(Icons::Type::ChevronRight,
@@ -121,6 +130,11 @@ public:
         palette.setColor(QPalette::WindowText, color);
         palette.setColor(QPalette::Text, color);
         m_status->setPalette(palette);
+    }
+
+    void setLoading(bool loading)
+    {
+        m_loadingIndicator->setVisible(loading);
     }
 
     void setSelected(bool selected)
@@ -159,6 +173,7 @@ protected:
 private:
     QLabel *m_title = nullptr;
     QLabel *m_status = nullptr;
+    LoadingIndicator *m_loadingIndicator = nullptr;
     QLabel *m_chevron = nullptr;
     std::function<void()> m_clickHandler;
 };
@@ -323,6 +338,9 @@ void LoaderSetupView::fetchCatalogs()
                                                             const QString &error) {
         m_fabricLoaded = true;
         m_fabricError = error;
+        if (m_fabricError.isEmpty() && !document.isArray()) {
+            m_fabricError = QStringLiteral("服务器返回了无效的数据格式");
+        }
         if (error.isEmpty() && document.isArray()) {
             for (const QJsonValue &value : document.array()) {
                 const QJsonObject object = value.toObject();
@@ -350,6 +368,9 @@ void LoaderSetupView::fetchCatalogs()
                                                 const QString &error) {
         m_fabricApiLoaded = true;
         m_fabricApiError = error;
+        if (m_fabricApiError.isEmpty() && !document.isArray()) {
+            m_fabricApiError = QStringLiteral("服务器返回了无效的数据格式");
+        }
         if (error.isEmpty() && document.isArray()) {
             for (const QJsonValue &value : document.array()) {
                 const QJsonObject object = value.toObject();
@@ -391,6 +412,9 @@ void LoaderSetupView::fetchCatalogs()
                                                          const QString &error) {
         m_forgeLoaded = true;
         m_forgeError = error;
+        if (m_forgeError.isEmpty() && !document.isArray()) {
+            m_forgeError = QStringLiteral("服务器返回了无效的数据格式");
+        }
         if (error.isEmpty() && document.isArray()) {
             const QJsonArray entries = document.array();
             for (int i = entries.size() - 1; i >= 0; --i) {
@@ -428,6 +452,9 @@ void LoaderSetupView::fetchCatalogs()
                                                             const QString &error) {
         m_neoForgeLoaded = true;
         m_neoForgeError = error;
+        if (m_neoForgeError.isEmpty() && !document.isArray()) {
+            m_neoForgeError = QStringLiteral("服务器返回了无效的数据格式");
+        }
         if (error.isEmpty() && document.isArray()) {
             const QJsonArray entries = document.array();
             for (int i = entries.size() - 1; i >= 0; --i) {
@@ -453,6 +480,9 @@ void LoaderSetupView::fetchCatalogs()
                                                             const QString &error) {
         m_optiFineLoaded = true;
         m_optiFineError = error;
+        if (m_optiFineError.isEmpty() && !document.isArray()) {
+            m_optiFineError = QStringLiteral("服务器返回了无效的数据格式");
+        }
         if (error.isEmpty() && document.isArray()) {
             for (const QJsonValue &value : document.array()) {
                 const QJsonObject object = value.toObject();
@@ -501,6 +531,10 @@ void LoaderSetupView::requestJson(
         }
         const int status =
             reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status == 404) {
+            handler(QJsonDocument(QJsonArray()), QString());
+            return;
+        }
         if (status >= 400) {
             handler(QJsonDocument(), QStringLiteral("HTTP %1").arg(status));
             return;
@@ -524,6 +558,7 @@ void LoaderSetupView::updateRowStates()
         if (!row) {
             return;
         }
+        row->setLoading(!loaded && m_selectedLoader != loader);
         if (m_selectedLoader == loader) {
             row->setStatus(formatLoaderVersion(loader, m_selectedLoaderOption.version),
                            Theme::Accent);
@@ -564,6 +599,7 @@ void LoaderSetupView::updateRowStates()
     m_fabricApiRow->setVisible(fabricSelected);
     if (!fabricSelected) {
         updateStartButton();
+        maybeShowCatalogErrors();
         return;
     }
 
@@ -579,6 +615,7 @@ void LoaderSetupView::updateRowStates()
         m_fabricApiRow->setChevronVisible(true);
     } else {
         m_fabricApiRow->setSelected(false);
+        m_fabricApiRow->setLoading(!m_fabricApiLoaded);
         if (!m_fabricApiLoaded) {
             m_fabricApiRow->setStatus(QStringLiteral("正在获取…"), Theme::TextMuted);
             m_fabricApiRow->setChevronVisible(false);
@@ -595,6 +632,41 @@ void LoaderSetupView::updateRowStates()
     }
 
     updateStartButton();
+    maybeShowCatalogErrors();
+}
+
+void LoaderSetupView::maybeShowCatalogErrors()
+{
+    if (m_catalogErrorReported || !m_forgeLoaded || !m_neoForgeLoaded
+        || !m_fabricLoaded || !m_optiFineLoaded || !m_fabricApiLoaded) {
+        return;
+    }
+
+    QStringList failures;
+    if (!m_forgeError.isEmpty()) {
+        failures.append(QStringLiteral("Forge：%1").arg(m_forgeError));
+    }
+    if (!m_neoForgeError.isEmpty()) {
+        failures.append(QStringLiteral("NeoForge：%1").arg(m_neoForgeError));
+    }
+    if (!m_fabricError.isEmpty()) {
+        failures.append(QStringLiteral("Fabric：%1").arg(m_fabricError));
+    }
+    if (!m_optiFineError.isEmpty()) {
+        failures.append(QStringLiteral("OptiFine：%1").arg(m_optiFineError));
+    }
+    if (!m_fabricApiError.isEmpty()) {
+        failures.append(QStringLiteral("Fabric API：%1").arg(m_fabricApiError));
+    }
+    if (failures.isEmpty()) {
+        return;
+    }
+
+    m_catalogErrorReported = true;
+    QMessageBox::warning(
+        this, QStringLiteral("加载器版本加载失败"),
+        QStringLiteral("部分加载器版本目录无法加载：\n%1")
+            .arg(failures.join(QLatin1Char('\n'))));
 }
 
 void LoaderSetupView::updateStartButton()

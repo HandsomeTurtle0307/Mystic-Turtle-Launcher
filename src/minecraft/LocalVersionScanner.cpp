@@ -14,12 +14,12 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
-#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QFileInfo>
 #include <QSet>
 #include <QStringList>
 
@@ -134,7 +134,8 @@ QVector<ModInfo> scanMods(const QString &modsDirectory)
 }
 
 QVector<ModInfo> versionMods(const QDir &versionDirectory,
-                             const QVector<ModInfo> &globalMods)
+                             const QVector<ModInfo> &globalMods,
+                             bool isolateVersions)
 {
     const QString isolatedMods = versionDirectory.filePath(QStringLiteral("mods"));
     if (QDir(isolatedMods).exists()) {
@@ -147,7 +148,7 @@ QVector<ModInfo> versionMods(const QDir &versionDirectory,
         return scanMods(nestedMods);
     }
 
-    return globalMods;
+    return isolateVersions ? QVector<ModInfo>() : globalMods;
 }
 
 QString formatLastModified(const QDateTime &dateTime)
@@ -173,6 +174,25 @@ QString formatLastModified(const QDateTime &dateTime)
         .arg(local.date().day());
 }
 
+QString gameDataDirectory(const QDir &versionDirectory,
+                          const QString &defaultDirectory,
+                          bool isolateVersions)
+{
+    const QString isolatedMods =
+        versionDirectory.filePath(QStringLiteral("mods"));
+    if (QDir(isolatedMods).exists()) {
+        return versionDirectory.absolutePath();
+    }
+
+    const QString nestedGameDirectory =
+        versionDirectory.filePath(QStringLiteral(".minecraft"));
+    if (QDir(QDir(nestedGameDirectory).filePath(QStringLiteral("mods"))).exists()) {
+        return nestedGameDirectory;
+    }
+
+    return isolateVersions ? versionDirectory.absolutePath() : defaultDirectory;
+}
+
 struct VersionFileCandidate {
     QFileInfo jsonFile;
 };
@@ -185,6 +205,7 @@ Result scan(const QString &gameDirectory)
 {
     Result result;
     result.gameDirectory = QDir(gameDirectory).absolutePath();
+    const bool isolateVersions = true;
 
     const QVector<ModInfo> globalMods =
         scanMods(QDir(result.gameDirectory).filePath(QStringLiteral("mods")));
@@ -214,6 +235,66 @@ Result scan(const QString &gameDirectory)
         candidates.append(VersionFileCandidate{jsonFile});
     }
 
+    QHash<QString, QString> legacyInheritedDisplayNames;
+    QSet<QString> loaderBaseVersions;
+    for (const VersionFileCandidate &candidate : candidates) {
+        QFile versionFile(candidate.jsonFile.absoluteFilePath());
+        if (!versionFile.open(QIODevice::ReadOnly)) {
+            continue;
+        }
+        const QJsonDocument versionDocument =
+            QJsonDocument::fromJson(versionFile.readAll());
+        if (!versionDocument.isObject()) {
+            continue;
+        }
+        const QJsonObject childRoot = versionDocument.object();
+        const QString inheritsFrom =
+            childRoot.value(QStringLiteral("inheritsFrom"))
+                .toString().trimmed();
+        const QString childVersionId =
+            childRoot.value(QStringLiteral("id")).toString().trimmed();
+        if (inheritsFrom.isEmpty()
+            || loaderFromJson(childRoot,
+                              childVersionId.isEmpty()
+                                  ? candidate.jsonFile.dir().dirName()
+                                  : childVersionId,
+                              inheritsFrom).name == QStringLiteral("原版")) {
+            continue;
+        }
+        loaderBaseVersions.insert(inheritsFrom);
+
+        QFile childMetadata(QDir(candidate.jsonFile.dir().absolutePath())
+                                .filePath(QStringLiteral("launcher.json")));
+        if (childMetadata.open(QIODevice::ReadOnly)) {
+            const QJsonDocument childDocument =
+                QJsonDocument::fromJson(childMetadata.readAll());
+            if (childDocument.isObject()
+                && !childDocument.object()
+                        .value(QStringLiteral("displayName")).toString()
+                        .trimmed().isEmpty()) {
+                continue;
+            }
+        }
+
+        QFile baseMetadata(QDir(result.gameDirectory)
+                               .filePath(QStringLiteral("versions/%1/launcher.json")
+                                             .arg(inheritsFrom)));
+        if (!baseMetadata.open(QIODevice::ReadOnly)) {
+            continue;
+        }
+        const QJsonDocument baseDocument =
+            QJsonDocument::fromJson(baseMetadata.readAll());
+        if (!baseDocument.isObject()) {
+            continue;
+        }
+        const QString displayName =
+            baseDocument.object().value(QStringLiteral("displayName"))
+                .toString().trimmed();
+        if (!displayName.isEmpty()) {
+            legacyInheritedDisplayNames.insert(inheritsFrom, displayName);
+        }
+    }
+
     std::sort(candidates.begin(), candidates.end(),
               [](const VersionFileCandidate &left, const VersionFileCandidate &right) {
                   return left.jsonFile.lastModified() > right.jsonFile.lastModified();
@@ -239,21 +320,52 @@ Result scan(const QString &gameDirectory)
 
         const QString inheritsFrom =
             root.value(QStringLiteral("inheritsFrom")).toString().trimmed();
+        const LoaderInfo loader =
+            loaderFromJson(root, versionId, inheritsFrom.isEmpty() ? versionId : inheritsFrom);
+        if (inheritsFrom.isEmpty() && loaderBaseVersions.contains(versionId)) {
+            continue;
+        }
         const QString minecraftVersion =
             inheritsFrom.isEmpty() ? versionId : inheritsFrom;
-        const LoaderInfo loader =
-            loaderFromJson(root, versionId, minecraftVersion);
-
+        QFile metadataFile(QDir(candidate.jsonFile.dir().absolutePath())
+                               .filePath(QStringLiteral("launcher.json")));
+        QString displayName;
+        bool loaderBaseOnly = false;
+        if (metadataFile.open(QIODevice::ReadOnly)) {
+            const QJsonDocument metadata =
+                QJsonDocument::fromJson(metadataFile.readAll());
+            if (metadata.isObject()) {
+                const QJsonObject metadataObject = metadata.object();
+                displayName = metadataObject.value(QStringLiteral("displayName"))
+                                  .toString().trimmed();
+                loaderBaseOnly =
+                    metadataObject.value(QStringLiteral("loaderBaseOnly")).toBool();
+            }
+        }
+        if (inheritsFrom.isEmpty() && loaderBaseOnly) {
+            continue;
+        }
+        if (inheritsFrom.isEmpty()
+            && legacyInheritedDisplayNames.contains(versionId)) {
+            displayName.clear();
+        } else if (displayName.isEmpty() && !inheritsFrom.isEmpty()) {
+            displayName = legacyInheritedDisplayNames.value(minecraftVersion);
+        }
         VersionInfo version;
         version.minecraft = minecraftVersion;
+        version.displayName = displayName;
         version.loader = loader.name;
         version.loaderVersion = loader.version;
         version.lastModified = formatLastModified(candidate.jsonFile.lastModified());
         version.playTimeMinutes = 0;
         version.accent = loader.color;
-        version.mods = versionMods(candidate.jsonFile.dir(), globalMods);
+        version.mods = versionMods(candidate.jsonFile.dir(), globalMods,
+                                   isolateVersions);
         version.versionId = candidate.jsonFile.dir().dirName();
         version.versionDirectory = candidate.jsonFile.dir().absolutePath();
+        version.gameDataDirectory =
+            gameDataDirectory(candidate.jsonFile.dir(), result.gameDirectory,
+                              isolateVersions);
         result.versions.append(version);
     }
 

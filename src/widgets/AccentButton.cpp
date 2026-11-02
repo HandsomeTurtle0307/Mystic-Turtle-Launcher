@@ -33,6 +33,7 @@ QColor mix(const QColor &first, const QColor &second, qreal amount)
 AccentButton::AccentButton(const QString &text, QWidget *parent)
     : QPushButton(text, parent)
     , m_hoverAnimation(new QPropertyAnimation(this, "hoverProgress", this))
+    , m_pressAnimation(new QPropertyAnimation(this, "pressProgress", this))
 {
     setCursor(Qt::PointingHandCursor);
     setFocusPolicy(Qt::StrongFocus);
@@ -46,10 +47,12 @@ AccentButton::AccentButton(const QString &text, QWidget *parent)
 
     m_hoverAnimation->setDuration(170);
     m_hoverAnimation->setEasingCurve(QEasingCurve::OutCubic);
+    m_pressAnimation->setDuration(90);
+    m_pressAnimation->setEasingCurve(QEasingCurve::OutCubic);
 
     connect(this, &QAbstractButton::toggled, this, [this]() { update(); });
-    connect(this, &QAbstractButton::pressed, this, [this]() { update(); });
-    connect(this, &QAbstractButton::released, this, [this]() { update(); });
+    connect(this, &QAbstractButton::pressed, this, [this]() { animatePress(1.0); });
+    connect(this, &QAbstractButton::released, this, [this]() { animatePress(0.0); });
 }
 
 AccentButton::AccentButton(const QString &text, Icons::Type icon, QWidget *parent)
@@ -128,6 +131,17 @@ void AccentButton::setHoverProgress(qreal progress)
     update();
 }
 
+qreal AccentButton::pressProgress() const
+{
+    return m_pressProgress;
+}
+
+void AccentButton::setPressProgress(qreal progress)
+{
+    m_pressProgress = qBound(0.0, progress, 1.0);
+    update();
+}
+
 QFont AccentButton::paintFont() const
 {
     return Theme::font(m_compact ? 12 : 13, QFont::DemiBold);
@@ -156,9 +170,25 @@ QSize AccentButton::minimumSizeHint() const
 void AccentButton::animateHover(qreal target)
 {
     m_hoverAnimation->stop();
+    if (!Theme::animationsEnabled()) {
+        setHoverProgress(target);
+        return;
+    }
     m_hoverAnimation->setStartValue(m_hoverProgress);
     m_hoverAnimation->setEndValue(target);
     m_hoverAnimation->start();
+}
+
+void AccentButton::animatePress(qreal target)
+{
+    m_pressAnimation->stop();
+    if (!Theme::animationsEnabled()) {
+        setPressProgress(target);
+        return;
+    }
+    m_pressAnimation->setStartValue(m_pressProgress);
+    m_pressAnimation->setEndValue(target);
+    m_pressAnimation->start();
 }
 
 void AccentButton::enterEvent(QEnterEvent *event)
@@ -180,6 +210,10 @@ void AccentButton::paintEvent(QPaintEvent *event)
     Q_UNUSED(event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
+    const qreal scale = 1.0 - 0.045 * m_pressProgress;
+    painter.translate(width() / 2.0, height() / 2.0);
+    painter.scale(scale, scale);
+    painter.translate(-width() / 2.0, -height() / 2.0);
 
     const qreal radius = m_compact ? height() / 2.0 : 10.0;
     const QRectF buttonRect = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
@@ -201,9 +235,10 @@ void AccentButton::paintEvent(QPaintEvent *event)
     case Variant::Secondary:
         background = checked
             ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 24)
-            : Theme::SurfaceRaised;
+            : QColor(0, 0, 0, 0);
         if (!checked && hover > 0.0) {
-            background = mix(background, m_accent, 0.06 * hover);
+            background = QColor(m_accent.red(), m_accent.green(), m_accent.blue(),
+                                static_cast<int>(18 * hover));
         }
         border = checked
             ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 120)
@@ -258,14 +293,15 @@ void AccentButton::paintEvent(QPaintEvent *event)
 
     const int iconSize = m_compact ? 15 : 16;
     const int gap = text().isEmpty() ? 0 : 8;
-    const QFontMetrics metrics(paintFont());
-    const int textWidth = metrics.horizontalAdvance(text());
-    const int contentWidth = (m_hasIcon ? iconSize : 0) + gap + textWidth;
-    int cursorX = qRound((width() - contentWidth) / 2.0);
-    int offsetY = isDown() && enabled ? 1 : 0;
+    const QFontMetricsF metrics(paintFont());
+    const qreal textWidth = metrics.horizontalAdvance(text());
+    const qreal contentWidth = (m_hasIcon ? iconSize : 0) + gap + textWidth;
+    const qreal contentLeft = (width() - contentWidth) / 2.0;
+    qreal cursorX = contentLeft;
+    int offsetY = enabled ? qRound(m_pressProgress) : 0;
 
     if (m_hasIcon) {
-        const QRectF iconRect(cursorX, (height() - iconSize) / 2.0 + offsetY,
+        const QRectF iconRect(qRound(cursorX), (height() - iconSize) / 2.0 + offsetY,
                               iconSize, iconSize);
         Icons::paint(painter, m_iconType, iconRect, foreground, 1.7);
         cursorX += iconSize + gap;
@@ -274,7 +310,7 @@ void AccentButton::paintEvent(QPaintEvent *event)
     if (!text().isEmpty()) {
         painter.setFont(paintFont());
         painter.setPen(foreground);
-        const QRectF textRect(cursorX, offsetY, textWidth + 1, height());
-        painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, text());
+        const QRectF textRect(cursorX, offsetY, textWidth, height());
+        painter.drawText(textRect, Qt::AlignCenter, text());
     }
 }

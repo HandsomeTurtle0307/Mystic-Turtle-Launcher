@@ -12,11 +12,9 @@
 #include "Theme.h"
 
 #include <QEnterEvent>
-#include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPropertyAnimation>
-#include <QRadialGradient>
 
 namespace {
 
@@ -92,6 +90,10 @@ void CardWidget::setHoverProgress(qreal progress)
 void CardWidget::animateHover(qreal target)
 {
     m_hoverAnimation->stop();
+    if (!Theme::animationsEnabled()) {
+        setHoverProgress(target);
+        return;
+    }
     m_hoverAnimation->setStartValue(m_hoverProgress);
     m_hoverAnimation->setEndValue(target);
     m_hoverAnimation->start();
@@ -123,23 +125,6 @@ void CardWidget::paintEvent(QPaintEvent *event)
     QPainterPath clip;
     clip.addRoundedRect(cardRect, m_cornerRadius, m_cornerRadius);
     painter.setClipPath(clip);
-
-    QColor top = mix(Theme::Surface, m_accent, 0.012);
-    QColor bottom = mix(Theme::SurfaceSoft, m_accent, 0.018);
-    top = mix(top, m_accent, 0.018 * m_hoverProgress);
-
-    QLinearGradient base(cardRect.topLeft(), cardRect.bottomLeft());
-    base.setColorAt(0.0, top);
-    base.setColorAt(1.0, bottom);
-    painter.fillRect(cardRect, base);
-
-    QRadialGradient glow(QPointF(cardRect.right() - cardRect.width() * 0.12,
-                                 cardRect.top() + cardRect.height() * 0.05),
-                         cardRect.width() * 0.7);
-    glow.setColorAt(0.0, QColor(m_accent.red(), m_accent.green(), m_accent.blue(),
-                                static_cast<int>(8 + 10 * m_hoverProgress)));
-    glow.setColorAt(1.0, QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 0));
-    painter.fillRect(cardRect, glow);
 
     const QColor borderBase = Theme::isDarkMode()
         ? Theme::Border

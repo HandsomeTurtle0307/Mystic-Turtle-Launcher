@@ -53,7 +53,7 @@ void NavButton::setActive(bool active, bool animated)
 {
     m_active = active;
     m_activeAnimation->stop();
-    if (!animated) {
+    if (!animated || !Theme::animationsEnabled()) {
         setActiveProgress(active ? 1.0 : 0.0);
         return;
     }
@@ -105,6 +105,10 @@ void NavButton::enterEvent(QEnterEvent *event)
 {
     QAbstractButton::enterEvent(event);
     m_hoverAnimation->stop();
+    if (!Theme::animationsEnabled()) {
+        setHoverProgress(1.0);
+        return;
+    }
     m_hoverAnimation->setStartValue(m_hoverProgress);
     m_hoverAnimation->setEndValue(1.0);
     m_hoverAnimation->start();
@@ -114,6 +118,10 @@ void NavButton::leaveEvent(QEvent *event)
 {
     QAbstractButton::leaveEvent(event);
     m_hoverAnimation->stop();
+    if (!Theme::animationsEnabled()) {
+        setHoverProgress(0.0);
+        return;
+    }
     m_hoverAnimation->setStartValue(m_hoverProgress);
     m_hoverAnimation->setEndValue(0.0);
     m_hoverAnimation->start();
@@ -146,20 +154,19 @@ void NavButton::paintEvent(QPaintEvent *event)
 
     const int iconSize = 17;
     const int gap = 8;
-    const QFontMetrics metrics(font());
-    const int textWidth = metrics.horizontalAdvance(text());
-    const int contentWidth = iconSize + gap + textWidth;
-    int x = qRound((width() - contentWidth) / 2.0);
+    const QFontMetricsF metrics(font());
+    const qreal textWidth = metrics.horizontalAdvance(text());
+    const qreal contentWidth = iconSize + gap + textWidth;
+    qreal x = (width() - contentWidth) / 2.0;
     const int centerY = height() / 2;
 
-    const QRectF iconRect(x, centerY - iconSize / 2.0, iconSize, iconSize);
+    const QRectF iconRect(qRound(x), centerY - iconSize / 2.0, iconSize, iconSize);
     Icons::paint(painter, m_icon, iconRect, color, 1.65);
     x += iconSize + gap;
 
     painter.setFont(font());
     painter.setPen(color);
-    painter.drawText(QRectF(x, 0, textWidth + 2, height()),
-                     Qt::AlignLeft | Qt::AlignVCenter, text());
+    painter.drawText(QRectF(x, 0, textWidth, height()), Qt::AlignCenter, text());
 
     if (m_activeProgress > 0.05) {
         painter.setPen(Qt::NoPen);

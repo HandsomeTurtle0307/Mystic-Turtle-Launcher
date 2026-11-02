@@ -11,6 +11,7 @@
 
 #include "SampleData.h"
 
+#include <QImage>
 #include <QList>
 #include <QWidget>
 
@@ -67,6 +68,8 @@ private:
     QList<QString> m_rowSearchKeys;
     QList<ToggleSwitch *> m_switches;
     QPropertyAnimation *m_animation = nullptr;
+    QImage m_backgroundImage;
+    int m_backgroundOpacity = 35;
     qreal m_progress = 0.0;
     bool m_closing = false;
 };

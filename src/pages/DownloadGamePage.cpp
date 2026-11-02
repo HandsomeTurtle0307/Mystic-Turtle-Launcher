@@ -16,25 +16,35 @@
 #include "AccentButton.h"
 #include "CardWidget.h"
 #include "IconFactory.h"
+#include "LoadingIndicator.h"
 #include "SearchField.h"
 #include "Theme.h"
 
 #include <QButtonGroup>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLayoutItem>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLineEdit>
 #include <QLocale>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPainterPath>
 #include <QProgressBar>
+#include <QSaveFile>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QShowEvent>
 #include <QStringList>
+#include <QInputDialog>
 #include <QVBoxLayout>
 
 namespace {
@@ -84,6 +94,117 @@ QColor typeColor(const QString &category)
         return Theme::Accent;
     }
     return Theme::TextMuted;
+}
+
+bool saveVersionDisplayName(const QString &gameDirectory,
+                            const QString &versionId,
+                            const QString &displayName,
+                            QString *errorMessage)
+{
+    const QString metadataPath = QDir(gameDirectory).filePath(
+        QStringLiteral("versions/%1/launcher.json").arg(versionId));
+    if (displayName == versionId) {
+        if (QFileInfo::exists(metadataPath) && !QFile::remove(metadataPath)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("无法清除旧的自定义名称。");
+            }
+            return false;
+        }
+        return true;
+    }
+
+    QSaveFile metadataFile(metadataPath);
+    const QJsonObject metadata{{QStringLiteral("displayName"), displayName}};
+    const QByteArray metadataJson =
+        QJsonDocument(metadata).toJson(QJsonDocument::Compact);
+    if (!metadataFile.open(QIODevice::WriteOnly)
+        || metadataFile.write(metadataJson) != metadataJson.size()
+        || !metadataFile.commit()) {
+        if (errorMessage) {
+            *errorMessage = metadataFile.errorString();
+        }
+        return false;
+    }
+    return true;
+}
+
+bool removeMatchingVersionDisplayName(const QString &gameDirectory,
+                                      const QString &versionId,
+                                      const QString &displayName,
+                                      QString *errorMessage)
+{
+    const QString metadataPath = QDir(gameDirectory).filePath(
+        QStringLiteral("versions/%1/launcher.json").arg(versionId));
+    QFile metadataFile(metadataPath);
+    if (!metadataFile.exists()) {
+        return true;
+    }
+    if (!metadataFile.open(QIODevice::ReadOnly)) {
+        if (errorMessage) {
+            *errorMessage = metadataFile.errorString();
+        }
+        return false;
+    }
+    const QJsonDocument document = QJsonDocument::fromJson(metadataFile.readAll());
+    if (document.isObject()
+        && document.object().value(QStringLiteral("displayName")).toString()
+               == displayName) {
+        if (!QFile::remove(metadataPath)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("无法移除基础版本的重复自定义名称。");
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
+bool setVersionMetadataFlag(const QString &gameDirectory,
+                            const QString &versionId,
+                            const QString &key,
+                            bool value,
+                            QString *errorMessage)
+{
+    const QString metadataPath = QDir(gameDirectory).filePath(
+        QStringLiteral("versions/%1/launcher.json").arg(versionId));
+    QJsonObject metadata;
+    QFile existingFile(metadataPath);
+    if (existingFile.exists()) {
+        if (!existingFile.open(QIODevice::ReadOnly)) {
+            if (errorMessage) {
+                *errorMessage = existingFile.errorString();
+            }
+            return false;
+        }
+        const QJsonDocument existingDocument =
+            QJsonDocument::fromJson(existingFile.readAll());
+        if (!existingDocument.isObject()) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("版本元数据格式无效。");
+            }
+            return false;
+        }
+        metadata = existingDocument.object();
+    }
+
+    if (value) {
+        metadata.insert(key, true);
+    } else {
+        metadata.remove(key);
+    }
+
+    QSaveFile output(metadataPath);
+    const QByteArray contents =
+        QJsonDocument(metadata).toJson(QJsonDocument::Compact);
+    if (!output.open(QIODevice::WriteOnly)
+        || output.write(contents) != contents.size()
+        || !output.commit()) {
+        if (errorMessage) {
+            *errorMessage = output.errorString();
+        }
+        return false;
+    }
+    return true;
 }
 
 QString formatReleaseDate(const QDateTime &dateTime)
@@ -207,6 +328,9 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     auto *manifestRow = new QHBoxLayout();
     manifestRow->setContentsMargins(2, 0, 2, 0);
     manifestRow->setSpacing(8);
+    m_manifestLoadingIndicator = new LoadingIndicator(m_listPage, Theme::Accent);
+    m_manifestLoadingIndicator->setFixedSize(17, 17);
+    manifestRow->addWidget(m_manifestLoadingIndicator);
     m_manifestStatusLabel = Theme::label(QStringLiteral("正在获取官方版本清单…"),
                                          10, QFont::Normal, Theme::TextMuted, m_listPage);
     manifestRow->addWidget(m_manifestStatusLabel);
@@ -245,6 +369,23 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     progressTop->addWidget(m_progressSpeed);
     progressTop->addSpacing(10);
     progressTop->addWidget(m_progressPercent);
+    m_cancelDownloadButton = new AccentButton(QStringLiteral("取消"), m_progressPanel);
+    m_cancelDownloadButton->setVariant(AccentButton::Variant::Ghost);
+    m_cancelDownloadButton->setCompact(true);
+    m_cancelDownloadButton->hide();
+    connect(m_cancelDownloadButton, &QAbstractButton::clicked, this, [this]() {
+        if (!m_installing) {
+            return;
+        }
+        m_cancelDownloadButton->setEnabled(false);
+        m_progressDetail->setText(QStringLiteral("正在取消…"));
+        if (m_loaderDownloadActive && m_loaderDownloader) {
+            m_loaderDownloader->cancel();
+        } else {
+            m_installer->cancel();
+        }
+    });
+    progressTop->addWidget(m_cancelDownloadButton);
     progressLayout->addLayout(progressTop);
     progressLayout->addSpacing(7);
 
@@ -273,7 +414,7 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
             });
     connect(m_installer, &GameInstaller::overallPercentChanged, this,
             [this](int percent) {
-                m_progressBar->setValue(percent);
+                Theme::setProgressValue(m_progressBar, percent);
                 m_progressPercent->setText(QStringLiteral("%1%").arg(percent));
             });
     connect(m_installer, &GameInstaller::speedChanged, this,
@@ -282,6 +423,40 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
             });
     connect(m_installer, &GameInstaller::succeeded, this,
             [this](const QString &versionId) {
+                if (m_loaderSelection.hasLoader()) {
+                    QString metadataError;
+                    if (!removeMatchingVersionDisplayName(
+                            m_installer->gameDirectory(), versionId,
+                            m_customVersionName, &metadataError)) {
+                        emit notifyRequested(
+                            QStringLiteral("基础版本已下载，但清理重复名称失败：%1")
+                                .arg(metadataError));
+                    }
+                    metadataError.clear();
+                    if (!setVersionMetadataFlag(m_installer->gameDirectory(), versionId,
+                                                QStringLiteral("loaderBaseOnly"), true,
+                                                &metadataError)) {
+                        emit notifyRequested(
+                            QStringLiteral("加载器基础版本已下载，但无法记录基础版本标记：%1")
+                                .arg(metadataError));
+                    }
+                } else {
+                    QString metadataError;
+                    if (!saveVersionDisplayName(m_installer->gameDirectory(), versionId,
+                                                m_customVersionName, &metadataError)) {
+                        emit notifyRequested(
+                            QStringLiteral("版本已下载，但无法保存自定义名称：%1")
+                                .arg(metadataError));
+                    }
+                    metadataError.clear();
+                    if (!setVersionMetadataFlag(m_installer->gameDirectory(), versionId,
+                                                QStringLiteral("loaderBaseOnly"), false,
+                                                &metadataError)) {
+                        emit notifyRequested(
+                            QStringLiteral("版本已下载，但无法清除旧的基础版本标记：%1")
+                                .arg(metadataError));
+                    }
+                }
                 if (m_loaderSelection.hasLoader()) {
                     m_progressTitle->setText(
                         QStringLiteral("Minecraft %1 基础文件下载完成").arg(versionId));
@@ -298,14 +473,29 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
                 m_installing = false;
                 m_loaderDownloadActive = false;
                 m_loaderSelection = LoaderSelection();
+                m_cancelDownloadButton->hide();
                 updateInstallButtonsEnabled();
                 m_progressTitle->setText(QStringLiteral("下载失败"));
                 m_progressDetail->setText(reason);
                 m_progressPercent->setText(QStringLiteral("—"));
                 m_progressSpeed->setText(QStringLiteral("—"));
-                m_progressBar->setValue(0);
+                Theme::setProgressValue(m_progressBar, 0);
                 emit notifyRequested(QStringLiteral("下载失败：%1").arg(reason));
             });
+    connect(m_installer, &GameInstaller::cancelled, this, [this]() {
+        m_installing = false;
+        m_loaderDownloadActive = false;
+        m_loaderSelection = LoaderSelection();
+        m_cancelDownloadButton->hide();
+        m_cancelDownloadButton->setEnabled(true);
+        updateInstallButtonsEnabled();
+        m_progressTitle->setText(QStringLiteral("下载已取消"));
+        m_progressDetail->setText(QStringLiteral("已取消未完成的下载文件。"));
+        m_progressPercent->setText(QStringLiteral("—"));
+        m_progressSpeed->setText(QStringLiteral("—"));
+        Theme::setProgressValue(m_progressBar, 0);
+        emit notifyRequested(QStringLiteral("游戏版本下载已取消。"));
+    });
 
     auto *scroll = new QScrollArea(m_listPage);
     scroll->setWidgetResizable(true);
@@ -448,7 +638,20 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     connect(m_manifestClient, &VersionManifestClient::failed,
             this, &DownloadGamePage::handleManifestFailed);
 
-    fetchManifest();
+}
+
+void DownloadGamePage::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (!m_pendingManifestError.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("版本清单加载失败"),
+                             m_pendingManifestError);
+        m_pendingManifestError.clear();
+    }
+    if (!m_initialManifestStarted) {
+        m_initialManifestStarted = true;
+        fetchManifest();
+    }
 }
 
 void DownloadGamePage::fetchManifest()
@@ -472,6 +675,7 @@ void DownloadGamePage::fetchManifest()
 
     m_manifestStatusLabel->setText(QStringLiteral("正在获取官方版本清单…"));
     m_manifestStatusLabel->show();
+    m_manifestLoadingIndicator->show();
     m_retryManifestButton->hide();
 
     refreshCards();
@@ -481,6 +685,7 @@ void DownloadGamePage::fetchManifest()
 void DownloadGamePage::handleManifestReady(const MinecraftVersionManifest &manifest)
 {
     m_manifestLoading = false;
+    m_manifestLoadingIndicator->hide();
     m_versions = manifest.versions;
     m_latestReleaseId = manifest.latestRelease;
     m_latestSnapshotId = manifest.latestSnapshot;
@@ -496,6 +701,7 @@ void DownloadGamePage::handleManifestReady(const MinecraftVersionManifest &manif
 void DownloadGamePage::handleManifestFailed(const QString &reason)
 {
     m_manifestLoading = false;
+    m_manifestLoadingIndicator->hide();
     m_versions.clear();
     m_page = 0;
 
@@ -511,6 +717,13 @@ void DownloadGamePage::handleManifestFailed(const QString &reason)
     m_retryManifestButton->show();
 
     refreshCards();
+    m_pendingManifestError =
+        QStringLiteral("%1\n\n请检查网络连接后重试。").arg(reason);
+    if (isVisible()) {
+        QMessageBox::warning(this, QStringLiteral("版本清单加载失败"),
+                             m_pendingManifestError);
+        m_pendingManifestError.clear();
+    }
 }
 
 void DownloadGamePage::updateFeatured()
@@ -763,6 +976,8 @@ void DownloadGamePage::beginSelectedDownload()
     m_loaderDownloadActive = false;
     updateInstallButtonsEnabled();
     m_progressPanel->show();
+    m_cancelDownloadButton->setEnabled(true);
+    m_cancelDownloadButton->show();
     m_progressTitle->setText(
         QStringLiteral("正在下载 Minecraft %1").arg(m_baseVersion));
     m_progressPercent->setText(QStringLiteral("0%"));
@@ -771,7 +986,7 @@ void DownloadGamePage::beginSelectedDownload()
         QStringLiteral("目标目录：%1")
             .arg(QDir::toNativeSeparators(m_installer->gameDirectory())));
     m_progressBar->setRange(0, 100);
-    m_progressBar->setValue(0);
+    Theme::setProgressValue(m_progressBar, 0);
 
     m_installer->installFromManifest(m_baseVersion, m_baseJsonUrl, m_baseSha1);
 }
@@ -803,7 +1018,7 @@ void DownloadGamePage::startLoaderDownload()
             });
     connect(m_loaderDownloader, &LoaderDownloader::percentChanged, this,
             [this](int percent) {
-                m_progressBar->setValue(percent);
+                Theme::setProgressValue(m_progressBar, percent);
                 m_progressPercent->setText(QStringLiteral("%1%").arg(percent));
             });
     connect(m_loaderDownloader, &LoaderDownloader::speedChanged, this,
@@ -813,20 +1028,61 @@ void DownloadGamePage::startLoaderDownload()
     connect(m_loaderDownloader, &LoaderDownloader::finished, this,
             [this](const QString &summary) {
                 m_loaderDownloadActive = false;
+                QString versionId = m_loaderDownloader
+                    ? m_loaderDownloader->installedVersionId()
+                    : QString();
+                if (versionId.isEmpty()) {
+                    versionId = m_baseVersion;
+                }
+                QString metadataError;
+                if (!saveVersionDisplayName(m_installer->gameDirectory(), versionId,
+                                            m_customVersionName, &metadataError)) {
+                    emit notifyRequested(
+                        QStringLiteral("加载器已安装，但无法保存自定义名称：%1")
+                            .arg(metadataError));
+                }
                 finalizeDownload(summary);
             });
     connect(m_loaderDownloader, &LoaderDownloader::failed, this,
             [this](const QString &reason) {
                 m_loaderDownloadActive = false;
+                QString metadataError;
+                if (!saveVersionDisplayName(m_installer->gameDirectory(), m_baseVersion,
+                                            m_customVersionName, &metadataError)) {
+                    emit notifyRequested(
+                        QStringLiteral("基础游戏已下载，但无法保存自定义名称：%1")
+                            .arg(metadataError));
+                }
                 handleLoaderFailed(reason);
             });
+    connect(m_loaderDownloader, &LoaderDownloader::cancelled, this, [this]() {
+        QString metadataError;
+        if (!saveVersionDisplayName(m_installer->gameDirectory(), m_baseVersion,
+                                    m_customVersionName, &metadataError)) {
+            emit notifyRequested(
+                QStringLiteral("基础游戏已下载，但无法保存自定义名称：%1")
+                    .arg(metadataError));
+        }
+        m_installing = false;
+        m_loaderDownloadActive = false;
+        m_loaderSelection = LoaderSelection();
+        m_cancelDownloadButton->hide();
+        m_cancelDownloadButton->setEnabled(true);
+        updateInstallButtonsEnabled();
+        m_progressTitle->setText(QStringLiteral("下载已取消"));
+        m_progressDetail->setText(QStringLiteral("已取消加载器下载或安装。"));
+        m_progressPercent->setText(QStringLiteral("—"));
+        m_progressSpeed->setText(QStringLiteral("—"));
+        Theme::setProgressValue(m_progressBar, 0);
+        emit notifyRequested(QStringLiteral("加载器下载已取消。"));
+    });
 
     m_progressTitle->setText(
         QStringLiteral("正在下载 %1 %2")
             .arg(m_loaderSelection.loader, m_loaderSelection.loaderVersion));
     m_progressPercent->setText(QStringLiteral("0%"));
     m_progressSpeed->setText(QStringLiteral("—"));
-    m_progressBar->setValue(0);
+    Theme::setProgressValue(m_progressBar, 0);
     m_progressDetail->setText(QStringLiteral("正在准备下载组件…"));
     m_loaderDownloader->start(m_baseVersion, m_loaderSelection);
 }
@@ -836,13 +1092,14 @@ void DownloadGamePage::finalizeDownload(const QString &summary)
     m_installing = false;
     m_loaderDownloadActive = false;
     m_loaderSelection = LoaderSelection();
+    m_cancelDownloadButton->hide();
     updateInstallButtonsEnabled();
 
     m_progressTitle->setText(QStringLiteral("下载完成"));
     m_progressDetail->setText(summary);
     m_progressPercent->setText(QStringLiteral("100%"));
     m_progressSpeed->setText(QStringLiteral("—"));
-    m_progressBar->setValue(100);
+    Theme::setProgressValue(m_progressBar, 100);
     emit installSucceeded(m_baseVersion);
     emit notifyRequested(summary);
 }
@@ -852,13 +1109,14 @@ void DownloadGamePage::handleLoaderFailed(const QString &reason)
     m_installing = false;
     m_loaderDownloadActive = false;
     m_loaderSelection = LoaderSelection();
+    m_cancelDownloadButton->hide();
     updateInstallButtonsEnabled();
 
     m_progressTitle->setText(QStringLiteral("加载器下载失败"));
     m_progressDetail->setText(reason);
     m_progressPercent->setText(QStringLiteral("—"));
     m_progressSpeed->setText(QStringLiteral("—"));
-    m_progressBar->setValue(0);
+    Theme::setProgressValue(m_progressBar, 0);
     emit baseInstallFinished(m_baseVersion);
     emit notifyRequested(QStringLiteral("加载器下载失败：%1").arg(reason));
 }
@@ -868,6 +1126,24 @@ void DownloadGamePage::startInstall(const QString &version)
     if (m_installing || m_manifestLoading) {
         return;
     }
+
+    QInputDialog nameDialog(this);
+    nameDialog.setWindowTitle(QStringLiteral("自定义版本名称"));
+    nameDialog.setLabelText(QStringLiteral("为 Minecraft %1 设置一个显示名称：").arg(version));
+    nameDialog.setInputMode(QInputDialog::TextInput);
+    nameDialog.setTextValue(version);
+    if (QLineEdit *input = nameDialog.findChild<QLineEdit *>()) {
+        input->setMaxLength(64);
+        input->selectAll();
+    }
+    if (nameDialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    m_customVersionName = nameDialog.textValue().trimmed();
+    if (m_customVersionName.isEmpty()) {
+        m_customVersionName = version;
+    }
+
     openLoaderSetup(version);
 }
 

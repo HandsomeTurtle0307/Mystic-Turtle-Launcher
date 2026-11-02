@@ -21,6 +21,7 @@
 #include "SettingsPage.h"
 #include "AboutPage.h"
 #include "Theme.h"
+#include "LoadingIndicator.h"
 #include "account/AccountDialog.h"
 #include "account/AccountManager.h"
 #include "minecraft/GameLauncher.h"
@@ -29,12 +30,17 @@
 
 #include <QAbstractAnimation>
 #include <QApplication>
+#include <QDialog>
+#include <QDir>
 #include <QEnterEvent>
 #include <QEvent>
+#include <QFile>
+#include <QFileInfo>
 #include <QGraphicsOpacityEffect>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QImageReader>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLinearGradient>
@@ -42,10 +48,9 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QPushButton>
 #include <QProgressBar>
-#include <QProgressDialog>
 #include <QPropertyAnimation>
-#include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QSettings>
@@ -55,6 +60,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWindow>
+#include <QDebug>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -136,13 +142,28 @@ bool processStillRunning(qint64 processId)
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
                                  static_cast<DWORD>(processId));
     if (!process) {
-        // Access denied is not evidence that the game exited.
-        return true;
+        const DWORD error = GetLastError();
+        return error != ERROR_INVALID_PARAMETER;
     }
     DWORD exitCode = 0;
     const bool queried = GetExitCodeProcess(process, &exitCode) != FALSE;
     CloseHandle(process);
     return !queried || exitCode == STILL_ACTIVE;
+}
+
+void terminateProcess(qint64 processId)
+{
+    if (processId <= 0) {
+        return;
+    }
+    HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE,
+                                 static_cast<DWORD>(processId));
+    if (!process) {
+        return;
+    }
+    TerminateProcess(process, 1);
+    WaitForSingleObject(process, 3000);
+    CloseHandle(process);
 }
 #else
 bool gameWindowVisible(qint64)
@@ -154,7 +175,25 @@ bool processStillRunning(qint64)
 {
     return true;
 }
+
+void terminateProcess(qint64)
+{
+}
 #endif
+
+QString readLaunchLog(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+    QByteArray contents = file.readAll();
+    constexpr qsizetype maxCharacters = 6000;
+    if (contents.size() > maxCharacters) {
+        contents = contents.right(maxCharacters);
+    }
+    return QString::fromLocal8Bit(contents).trimmed();
+}
 
 } // namespace
 
@@ -177,6 +216,16 @@ MainWindow::MainWindow(QWidget *parent)
     const QSettings settings;
     m_acrylicEnabled = settings.value(QStringLiteral("ui/acrylic"), false).toBool();
     m_animationsEnabled = settings.value(QStringLiteral("ui/animations"), true).toBool();
+    Theme::setAnimationsEnabled(m_animationsEnabled);
+    m_backgroundOpacity =
+        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
+    const QString backgroundImage =
+        settings.value(QStringLiteral("ui/backgroundImage")).toString();
+    if (!backgroundImage.isEmpty()) {
+        QImageReader reader(backgroundImage);
+        reader.setAutoTransform(true);
+        m_backgroundImage = reader.read();
+    }
 
     if (QScreen *screen = QGuiApplication::primaryScreen()) {
         const QRect available = screen->availableGeometry();
@@ -188,6 +237,13 @@ MainWindow::MainWindow(QWidget *parent)
 
     setupUi();
     updateWindowChrome();
+    if (!backgroundImage.isEmpty() && m_backgroundImage.isNull()) {
+        showToast(QStringLiteral("无法加载已保存的背景图片，请重新选择或清除。"));
+    }
+    QTimer::singleShot(900, this, [this]() {
+        showToast(QStringLiteral(
+            "版本隔离已开启：各版本模组分开存放；根目录 mods 不会自动迁移或删除。"));
+    });
 }
 
 MainWindow::~MainWindow() = default;
@@ -216,6 +272,7 @@ void MainWindow::setupUi()
     m_pages->setAnimationsEnabled(m_animationsEnabled);
     m_header->navigationBar()->setAnimationsEnabled(m_animationsEnabled);
     m_downloadGamePage->setGameDirectory(m_homePage->gameDirectory());
+    m_downloadModsPage->setGameDirectory(m_homePage->gameDirectory());
     root->addWidget(m_pages, 1);
 
     connect(m_header, &HeaderBar::minimizeRequested, this, &QWidget::showMinimized);
@@ -235,8 +292,9 @@ void MainWindow::setupUi()
     for (int i = 1; i < m_pages->count(); ++i) {
         navigation->setItemEnabled(i, false);
     }
-    // Game downloads and settings are available; the unfinished mod browser stays locked.
+    // Keep the unfinished general mod browser locked; the Modrinth browser is available.
     navigation->setItemEnabled(1, true);
+    navigation->setItemEnabled(2, true);
     navigation->setItemEnabled(3, true);
     navigation->setItemEnabled(4, true);
 
@@ -248,6 +306,7 @@ void MainWindow::setupUi()
     connect(m_homePage, &HomePage::gameDirectoryChanged, this,
             [this](const QString &directory) {
                 m_downloadGamePage->setGameDirectory(directory);
+                m_downloadModsPage->setGameDirectory(directory);
                 m_settingsPage->setGameDirectory(directory);
             });
     connect(m_downloadGamePage, &DownloadGamePage::installSucceeded, this,
@@ -262,23 +321,34 @@ void MainWindow::setupUi()
             this, &MainWindow::showToast);
     connect(m_downloadModsPage, &DownloadModsPage::notifyRequested,
             this, &MainWindow::showToast);
+    connect(m_downloadModsPage, &DownloadModsPage::modsChanged,
+            m_homePage, &HomePage::reloadLocalVersions);
     connect(m_settingsPage, &SettingsPage::notifyRequested, this, &MainWindow::showToast);
     connect(m_settingsPage, &SettingsPage::acrylicEnabledChanged,
             this, &MainWindow::applyAcrylic);
+    connect(m_settingsPage, &SettingsPage::backgroundChanged,
+            this, &MainWindow::applyBackground);
     connect(m_settingsPage, &SettingsPage::animationsEnabledChanged,
             this, [this](bool enabled) {
                 m_animationsEnabled = enabled;
+                Theme::setAnimationsEnabled(enabled);
                 m_pages->setAnimationsEnabled(enabled);
                 m_header->navigationBar()->setAnimationsEnabled(enabled);
+                for (QWidget *widget : findChildren<QWidget *>()) {
+                    if (auto *indicator = dynamic_cast<LoadingIndicator *>(widget)) {
+                        indicator->setAnimationsEnabled(enabled);
+                    }
+                }
                 QSettings settings;
                 settings.setValue(QStringLiteral("ui/animations"), enabled);
                 showToast(enabled ? QStringLiteral("已启用丝滑动画。")
-                                  : QStringLiteral("已关闭界面过渡动画。"));
+                                  : QStringLiteral("已关闭丝滑动画。"));
             });
     connect(m_settingsPage, &SettingsPage::gameDirectoryChanged, this,
             [this](const QString &directory) {
                 m_homePage->setGameDirectory(directory);
                 m_downloadGamePage->setGameDirectory(directory);
+                m_downloadModsPage->setGameDirectory(directory);
                 showToast(QStringLiteral("游戏目录已更新。"));
             });
 
@@ -418,6 +488,9 @@ void MainWindow::openVersionDetails(int versionIndex)
 
 void MainWindow::launchSelectedVersion()
 {
+    m_launchCancelled = false;
+    m_launchPid = 0;
+    m_pendingLaunchToast.clear();
     const VersionInfo version = m_homePage->selectedVersion();
     if (version.minecraft.isEmpty() || version.versionId.isEmpty()) {
         showToast(QStringLiteral("请先选择一个本地游戏版本。"));
@@ -464,6 +537,14 @@ void MainWindow::launchSelectedVersion()
         return;
     }
 
+    QTimer::singleShot(0, this, [this, version, account]() {
+        startSelectedVersion(version, account);
+    });
+}
+
+void MainWindow::startSelectedVersion(const VersionInfo &version,
+                                      const PlayerAccount &account)
+{
     const QString gameDirectory = m_homePage->gameDirectory();
 
     updateLaunchProgress(8, QStringLiteral("正在检查 Java 运行时…"));
@@ -472,17 +553,27 @@ void MainWindow::launchSelectedVersion()
     QString javaError;
     QString javaPath = GameLauncher::findCompatibleJava(
         gameDirectory, requiredJava, &javaError);
+    if (m_launchCancelled) {
+        closeLaunchProgress();
+        showToast(QStringLiteral("游戏启动已取消。"));
+        return;
+    }
 
     if (javaPath.isEmpty()) {
         closeLaunchProgress();
         const int downloadMajor = requiredJava > 0 ? requiredJava : 17;
+        const QString javaDiagnostic = javaError.isEmpty()
+            ? QStringLiteral("未找到可运行且版本兼容的 Java。")
+            : javaError;
         const QMessageBox::StandardButton answer = QMessageBox::question(
             this, QStringLiteral("需要安装 Java"),
             QStringLiteral("没有找到适用于 Minecraft %1 的 Java %2。\n\n"
+                           "检测详情：%3\n\n"
                            "是否自动下载并安装 Temurin JDK %2？\n"
                            "下载大小约 150–250 MB。")
                 .arg(version.minecraft)
-                .arg(downloadMajor),
+                .arg(downloadMajor)
+                .arg(javaDiagnostic),
             QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
         if (answer != QMessageBox::Yes) {
             showToast(QStringLiteral("已取消启动：需要安装 Java。"));
@@ -492,7 +583,21 @@ void MainWindow::launchSelectedVersion()
         QString installError;
         if (!JavaRuntimeInstaller::download(gameDirectory, downloadMajor, this,
                                             &javaPath, &installError)) {
-            QMessageBox::warning(this, QStringLiteral("Java 安装失败"), installError);
+            if (installError.contains(QStringLiteral("已取消"))) {
+                showToast(QStringLiteral("Java 下载已取消，游戏未启动。"));
+                return;
+            }
+            QMessageBox::warning(this, QStringLiteral("Java 安装失败"),
+                                 QStringLiteral("%1\n\nJava 检测详情：%2")
+                                     .arg(installError, javaDiagnostic));
+            return;
+        }
+        if (javaPath.isEmpty() || !QFileInfo::exists(javaPath)) {
+            closeLaunchProgress();
+            QMessageBox::warning(
+                this, QStringLiteral("Java 安装失败"),
+                QStringLiteral("安装程序返回成功，但找不到 Java 可执行文件：%1")
+                    .arg(javaPath.isEmpty() ? QStringLiteral("（路径为空）") : javaPath));
             return;
         }
         updateLaunchProgress(30, QStringLiteral("Java 安装完成，正在准备启动…"));
@@ -509,17 +614,36 @@ void MainWindow::launchSelectedVersion()
 
     QString error;
     qint64 processId = 0;
+    const QString gameDataDirectory = version.gameDataDirectory.trimmed().isEmpty()
+        ? gameDirectory
+        : version.gameDataDirectory;
+    m_launchStderrLogPath =
+        QDir(gameDataDirectory).filePath(
+            QStringLiteral("logs/mysticturtle-launcher.stderr.log"));
     const bool launched = GameLauncher::launch(
         gameDirectory, version.versionId, account, javaPath,
         [this](int percent, const QString &status) {
             updateLaunchProgress(30 + qRound(percent * 0.7), status);
         },
         &processId,
-        &error);
+        &error,
+        gameDataDirectory,
+        [this]() { return m_launchCancelled; });
 
     if (!launched) {
         closeLaunchProgress();
+        if (m_launchCancelled) {
+            showToast(QStringLiteral("游戏启动已取消。"));
+            return;
+        }
         showToast(QStringLiteral("启动失败：%1").arg(error));
+        return;
+    }
+
+    if (m_launchCancelled) {
+        terminateProcess(processId);
+        closeLaunchProgress();
+        showToast(QStringLiteral("游戏启动已取消。"));
         return;
     }
 
@@ -532,36 +656,70 @@ void MainWindow::launchSelectedVersion()
 void MainWindow::updateLaunchProgress(int percent, const QString &status)
 {
     if (!m_launchProgress) {
-        m_launchProgress = new QProgressDialog(status, QString(), 0, 100, this);
+        auto *dialog = new QDialog(this);
+        m_launchProgress = dialog;
+        dialog->setObjectName(QStringLiteral("launchProgressDialog"));
+        dialog->setWindowModality(Qt::ApplicationModal);
         m_launchProgress->setWindowTitle(QStringLiteral("启动游戏"));
-        m_launchProgress->setWindowModality(Qt::ApplicationModal);
-        m_launchProgress->setCancelButton(nullptr);
-        m_launchProgress->setMinimumDuration(0);
-        m_launchProgress->setAutoClose(false);
-        m_launchProgress->setAutoReset(false);
-        m_launchProgress->setWindowFlag(Qt::WindowCloseButtonHint, false);
-        m_launchProgress->setAttribute(Qt::WA_DeleteOnClose);
-        m_launchProgress->setMinimumSize(680, 200);
-        m_launchProgress->resize(680, 200);
+        dialog->setWindowFlag(Qt::WindowCloseButtonHint, false);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setMinimumSize(680, 200);
+        dialog->resize(680, 200);
 
-        if (QProgressBar *bar = m_launchProgress->findChild<QProgressBar *>()) {
-            bar->setFixedHeight(20);
-            bar->setTextVisible(false);
-            bar->setStyleSheet(QStringLiteral(
-                "QProgressBar { min-height: 20px; max-height: 20px;"
-                "border: none; border-radius: 10px; background: #1B2530; }"
-                "QProgressBar::chunk { border-radius: 10px; background: #6EE7B7; }"));
-        }
-        if (QLabel *label = m_launchProgress->findChild<QLabel *>()) {
-            label->setFont(Theme::font(13, QFont::DemiBold));
-            label->setAlignment(Qt::AlignCenter);
-            label->setWordWrap(true);
-        }
-        m_launchProgress->show();
+        auto *layout = new QVBoxLayout(dialog);
+        layout->setContentsMargins(26, 22, 26, 22);
+        layout->setSpacing(15);
+        auto *label = new QLabel(status, dialog);
+        label->setObjectName(QStringLiteral("launchProgressLabel"));
+        label->setFont(Theme::font(13, QFont::DemiBold));
+        label->setAlignment(Qt::AlignCenter);
+        label->setWordWrap(true);
+        layout->addWidget(label, 1);
+
+        auto *bar = new QProgressBar(dialog);
+        bar->setObjectName(QStringLiteral("launchProgressBar"));
+        bar->setRange(0, 100);
+        bar->setTextVisible(false);
+        bar->setFixedHeight(20);
+        bar->setStyleSheet(QStringLiteral(
+            "QProgressBar { min-height: 20px; max-height: 20px;"
+            "border: none; border-radius: 10px; background: #1B2530; }"
+            "QProgressBar::chunk { border-radius: 10px; background: #6EE7B7; }"));
+        layout->addWidget(bar);
+
+        auto *cancelButton = new QPushButton(QStringLiteral("取消启动"), dialog);
+        cancelButton->setObjectName(QStringLiteral("cancelLaunchButton"));
+        layout->addWidget(cancelButton, 0, Qt::AlignHCenter);
+        connect(cancelButton, &QPushButton::clicked, this, [this]() {
+            m_launchCancelled = true;
+            if (m_launchPid > 0) {
+                terminateProcess(m_launchPid);
+                m_pendingLaunchToast.clear();
+                closeLaunchProgress();
+                showToast(QStringLiteral("已中断游戏启动。"));
+            }
+        });
+        connect(dialog, &QDialog::rejected, this, [this]() {
+            if (m_closingLaunchProgress) {
+                return;
+            }
+            m_launchCancelled = true;
+            m_pendingLaunchToast.clear();
+            if (m_launchPid > 0) {
+                terminateProcess(m_launchPid);
+            }
+        });
+        dialog->show();
     }
 
-    m_launchProgress->setLabelText(status);
-    m_launchProgress->setValue(qBound(0, percent, 100));
+    if (QLabel *label = m_launchProgress->findChild<QLabel *>(
+            QStringLiteral("launchProgressLabel"))) {
+        label->setText(status);
+    }
+    if (QProgressBar *bar = m_launchProgress->findChild<QProgressBar *>(
+            QStringLiteral("launchProgressBar"))) {
+        Theme::setProgressValue(bar, qBound(0, percent, 100));
+    }
     QApplication::processEvents();
 }
 
@@ -571,9 +729,11 @@ void MainWindow::closeLaunchProgress()
         m_gameWindowTimer->stop();
     }
     if (m_launchProgress) {
-        QProgressDialog *dialog = m_launchProgress.data();
+        QDialog *dialog = m_launchProgress.data();
         m_launchProgress = nullptr;
+        m_closingLaunchProgress = true;
         dialog->close();
+        m_closingLaunchProgress = false;
     }
 }
 
@@ -602,6 +762,14 @@ void MainWindow::checkGameWindow()
     }
 
     ++m_gameWindowWaitTicks;
+    if (m_launchCancelled) {
+        terminateProcess(m_launchPid);
+        closeLaunchProgress();
+        m_pendingLaunchToast.clear();
+        showToast(QStringLiteral("已中断游戏启动。"));
+        return;
+    }
+
     const bool byProcess = gameWindowVisible(m_launchPid);
     // Some modded launch chains create the final window from a child process.
     // Fall back to a Minecraft-titled window after a short grace period.
@@ -612,6 +780,7 @@ void MainWindow::checkGameWindow()
             showToast(m_pendingLaunchToast);
             m_pendingLaunchToast.clear();
         }
+
         return;
     }
 
@@ -619,8 +788,22 @@ void MainWindow::checkGameWindow()
         && m_launchPid > 0
         && !processStillRunning(m_launchPid)) {
         closeLaunchProgress();
-        showToast(QStringLiteral("游戏进程已退出，可能因内存不足或模组崩溃。"
-                                 "请尝试提高内存分配或查看游戏日志。"));
+        QString details = readLaunchLog(m_launchStderrLogPath);
+        if (details.isEmpty()) {
+            const QString stdoutPath = m_launchStderrLogPath
+                .left(m_launchStderrLogPath.size()
+                      - QStringLiteral("stderr.log").size())
+                + QStringLiteral("stdout.log");
+            details = readLaunchLog(stdoutPath);
+        }
+        if (details.isEmpty()) {
+            details = QStringLiteral("Java 已退出，但没有写入启动错误输出。");
+        }
+        QMessageBox::warning(
+            this, QStringLiteral("游戏启动失败"),
+            QStringLiteral("Minecraft Java 进程已退出，未能创建游戏窗口。\n\n%1\n\n"
+                           "启动错误日志：%2")
+                .arg(details, m_launchStderrLogPath));
         return;
     }
 
@@ -743,31 +926,25 @@ void MainWindow::paintEvent(QPaintEvent *event)
     }
     painter.fillPath(surfacePath, background);
 
-    QRadialGradient topGlow(QPointF(surface.right() - 180, surface.top() + 18), 640);
-    const QColor topGlowColor = Theme::isDarkMode() ? Theme::Accent : Theme::Blue;
-    topGlow.setColorAt(0.0, QColor(topGlowColor.red(), topGlowColor.green(),
-                                   topGlowColor.blue(), Theme::isDarkMode() ? 22 : 26));
-    topGlow.setColorAt(0.48, QColor(topGlowColor.red(), topGlowColor.green(),
-                                    topGlowColor.blue(), Theme::isDarkMode() ? 8 : 9));
-    topGlow.setColorAt(1.0, QColor(topGlowColor.red(), topGlowColor.green(),
-                                   topGlowColor.blue(), 0));
-    painter.fillRect(surface, topGlow);
-
-    QRadialGradient bottomGlow(QPointF(surface.left() - 40, surface.bottom() + 20), 520);
-    const QColor bottomGlowColor = Theme::isDarkMode() ? Theme::Blue : Theme::Blue;
-    bottomGlow.setColorAt(0.0, QColor(bottomGlowColor.red(), bottomGlowColor.green(),
-                                      bottomGlowColor.blue(), Theme::isDarkMode() ? 14 : 18));
-    bottomGlow.setColorAt(1.0, QColor(bottomGlowColor.red(), bottomGlowColor.green(),
-                                      bottomGlowColor.blue(), 0));
-    painter.fillRect(surface, bottomGlow);
-
-    const QColor dotColor = Theme::isDarkMode() ? Theme::Accent : QColor(47, 128, 237);
-    painter.setPen(QPen(QColor(dotColor.red(), dotColor.green(), dotColor.blue(),
-                               Theme::isDarkMode() ? 10 : 9), 1.0));
-    for (qreal y = surface.top() + 22; y < surface.bottom(); y += 30) {
-        for (qreal x = surface.left() + 22; x < surface.right(); x += 30) {
-            painter.drawPoint(QPointF(x, y));
+    if (!m_backgroundImage.isNull() && m_backgroundOpacity > 0) {
+        const qreal targetAspect = surface.width() / surface.height();
+        const qreal imageAspect = static_cast<qreal>(m_backgroundImage.width())
+            / m_backgroundImage.height();
+        QRectF sourceRect(m_backgroundImage.rect());
+        if (imageAspect > targetAspect) {
+            const qreal croppedWidth = m_backgroundImage.height() * targetAspect;
+            sourceRect.setLeft((m_backgroundImage.width() - croppedWidth) / 2.0);
+            sourceRect.setWidth(croppedWidth);
+        } else {
+            const qreal croppedHeight = m_backgroundImage.width() / targetAspect;
+            sourceRect.setTop((m_backgroundImage.height() - croppedHeight) / 2.0);
+            sourceRect.setHeight(croppedHeight);
         }
+
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.setOpacity(m_backgroundOpacity / 100.0);
+        painter.drawImage(surface, m_backgroundImage, sourceRect);
+        painter.setOpacity(1.0);
     }
 
     painter.restore();
@@ -789,6 +966,24 @@ void MainWindow::paintEvent(QPaintEvent *event)
         painter.drawLine(QPointF(surface.left() + radius, surface.top() + 1.0),
                          QPointF(surface.right() - radius, surface.top() + 1.0));
     }
+}
+
+void MainWindow::applyBackground(const QString &imagePath, int opacity)
+{
+    QImage image;
+    if (!imagePath.isEmpty()) {
+        QImageReader reader(imagePath);
+        reader.setAutoTransform(true);
+        image = reader.read();
+        if (image.isNull()) {
+            showToast(QStringLiteral("无法加载背景图片：%1").arg(reader.errorString()));
+            return;
+        }
+    }
+
+    m_backgroundImage = image;
+    m_backgroundOpacity = qBound(0, opacity, 100);
+    update();
 }
 
 bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)

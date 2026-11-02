@@ -32,6 +32,8 @@ struct VersionInfo {
     QVector<ModInfo> mods;
     QString versionId;
     QString versionDirectory;
+    QString gameDataDirectory;
+    QString displayName;
 };
 
 struct GameRelease {

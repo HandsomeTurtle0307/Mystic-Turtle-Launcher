@@ -21,6 +21,7 @@ class AccentButton : public QPushButton
 {
     Q_OBJECT
     Q_PROPERTY(qreal hoverProgress READ hoverProgress WRITE setHoverProgress)
+    Q_PROPERTY(qreal pressProgress READ pressProgress WRITE setPressProgress)
 
 public:
     enum class Variant {
@@ -49,6 +50,8 @@ public:
 
     qreal hoverProgress() const;
     void setHoverProgress(qreal progress);
+    qreal pressProgress() const;
+    void setPressProgress(qreal progress);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -60,6 +63,7 @@ protected:
 
 private:
     void animateHover(qreal target);
+    void animatePress(qreal target);
     QFont paintFont() const;
 
     Variant m_variant = Variant::Secondary;
@@ -68,5 +72,7 @@ private:
     bool m_compact = false;
     QColor m_accent = QColor(QStringLiteral("#6EE7B7"));
     qreal m_hoverProgress = 0.0;
+    qreal m_pressProgress = 0.0;
     QPropertyAnimation *m_hoverAnimation = nullptr;
+    QPropertyAnimation *m_pressAnimation = nullptr;
 };

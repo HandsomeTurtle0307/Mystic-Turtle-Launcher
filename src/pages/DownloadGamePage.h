@@ -22,8 +22,10 @@ class GameInstaller;
 class LoaderSetupView;
 class QGridLayout;
 class QLabel;
+class LoadingIndicator;
 class QProgressBar;
 class QScrollArea;
+class QShowEvent;
 class QStackedWidget;
 class SearchField;
 class VersionManifestClient;
@@ -43,6 +45,7 @@ signals:
     void baseInstallFinished(const QString &versionId);
 
 private:
+    void showEvent(QShowEvent *event) override;
     void fetchManifest();
     void handleManifestReady(const MinecraftVersionManifest &manifest);
     void handleManifestFailed(const QString &reason);
@@ -63,6 +66,7 @@ private:
     LoaderDownloader *m_loaderDownloader = nullptr;
     LoaderSelection m_loaderSelection;
     QString m_baseVersion;
+    QString m_customVersionName;
     QUrl m_baseJsonUrl;
     QString m_baseSha1;
     bool m_loaderDownloadActive = false;
@@ -72,14 +76,17 @@ private:
     QLabel *m_countLabel = nullptr;
     QLabel *m_emptyLabel = nullptr;
     QLabel *m_manifestStatusLabel = nullptr;
+    LoadingIndicator *m_manifestLoadingIndicator = nullptr;
     AccentButton *m_retryManifestButton = nullptr;
-    QString m_filter = QStringLiteral("全部");
+    QString m_filter = QStringLiteral("正式版");
 
     VersionManifestClient *m_manifestClient = nullptr;
     QVector<MinecraftVersionEntry> m_versions;
     QString m_latestReleaseId;
     QString m_latestSnapshotId;
     bool m_manifestLoading = false;
+    bool m_initialManifestStarted = false;
+    QString m_pendingManifestError;
     int m_page = 0;
     static constexpr int kPageSize = 20;
 
@@ -90,6 +97,7 @@ private:
     QLabel *m_progressSpeed = nullptr;
     QLabel *m_progressDetail = nullptr;
     QProgressBar *m_progressBar = nullptr;
+    AccentButton *m_cancelDownloadButton = nullptr;
     AccentButton *m_featuredInstallButton = nullptr;
     QLabel *m_featuredVersionLabel = nullptr;
     QLabel *m_featuredMetaLabel = nullptr;

@@ -19,16 +19,20 @@ class GameLauncher
 {
 public:
     using ProgressCallback = std::function<void(int percent, const QString &status)>;
+    using CancelCallback = std::function<bool()>;
 
-    // Builds and starts the Minecraft process. Returns false and fills error
-    // when required local files or Java are missing.
+    // Builds and starts the Minecraft process. gameDirectory contains shared
+    // versions/libraries/assets; gameDataDirectory is the selected instance's
+    // working directory, or empty to use gameDirectory for both.
     static bool launch(const QString &gameDirectory,
                        const QString &versionId,
                        const PlayerAccount &account,
                        const QString &javaExecutable = QString(),
                        const ProgressCallback &progress = {},
                        qint64 *processId = nullptr,
-                       QString *errorMessage = nullptr);
+                       QString *errorMessage = nullptr,
+                       const QString &gameDataDirectory = QString(),
+                       const CancelCallback &cancel = {});
 
     static QString findJavaExecutable(const QString &gameDirectory);
     static QString findCompatibleJava(const QString &gameDirectory,

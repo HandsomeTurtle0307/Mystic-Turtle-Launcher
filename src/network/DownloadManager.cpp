@@ -67,6 +67,7 @@ bool DownloadManager::start(const QList<DownloadTask *> &tasks)
     m_speedTimer.invalidate();
     m_running = m_total > 0;
     m_finished = false;
+    m_cancelling = false;
 
     for (int i = 0; i < m_tasks.size(); ++i) {
         DownloadTask *task = m_tasks.at(i);
@@ -123,6 +124,35 @@ int DownloadManager::maxConcurrent() const
 bool DownloadManager::isRunning() const
 {
     return m_running;
+}
+
+void DownloadManager::cancel()
+{
+    if (!m_running || m_cancelling) {
+        return;
+    }
+
+    m_cancelling = true;
+    for (int i = m_nextIndex; i < m_total; ++i) {
+        if (!m_taskDone.at(i)) {
+            m_taskDone[i] = true;
+            ++m_completed;
+        }
+    }
+    m_nextIndex = m_total;
+
+    for (int i = 0; i < m_total; ++i) {
+        if (!m_taskDone.at(i) && m_tasks.at(i)) {
+            m_tasks.at(i)->cancel();
+        }
+    }
+    if (m_active == 0) {
+        m_running = false;
+        m_finished = true;
+        m_speedTimer.invalidate();
+        emit speedChanged(0);
+        emit finished();
+    }
 }
 
 bool DownloadManager::isFinished() const
@@ -223,15 +253,19 @@ void DownloadManager::handleTaskResult(int index,
     --m_active;
     ++m_completed;
 
-    if (success) {
-        emit taskSucceeded(index, message);
-    } else {
-        emit taskFailed(index, message);
+    if (!m_cancelling) {
+        if (success) {
+            emit taskSucceeded(index, message);
+        } else {
+            emit taskFailed(index, message);
+        }
     }
 
     emit overallProgress(m_completed, m_total);
-    updateOverallPercent();
-    startNext();
+    if (!m_cancelling) {
+        updateOverallPercent();
+        startNext();
+    }
 
     // The result has been delivered; release the completed task and its idle
     // worker thread instead of keeping every finished download alive.

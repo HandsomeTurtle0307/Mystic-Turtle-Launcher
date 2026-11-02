@@ -15,30 +15,121 @@
 #include "AvatarWidget.h"
 #include "CardWidget.h"
 #include "IconFactory.h"
+#include "LoadingIndicator.h"
 #include "Theme.h"
 #include "VersionCard.h"
 #include "account/AccountDialog.h"
 #include "account/AccountManager.h"
 
-#include <QDate>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QLinearGradient>
-#include <QLocale>
 #include <QMessageBox>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPainter>
 #include <QPainterPath>
+#include <QSaveFile>
 #include <QScrollArea>
-#include <QTime>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrentRun>
 
 namespace {
+
+bool markLoaderBaseVersion(const QString &gameDirectory,
+                           const QString &versionDirectory,
+                           QString *errorMessage)
+{
+    QString versionJsonPath = QDir(versionDirectory).filePath(
+        QFileInfo(versionDirectory).fileName() + QStringLiteral(".json"));
+    if (!QFileInfo::exists(versionJsonPath)) {
+        const QFileInfoList jsonFiles = QDir(versionDirectory).entryInfoList(
+            QStringList{QStringLiteral("*.json")}, QDir::Files, QDir::Name);
+        if (jsonFiles.isEmpty()) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("找不到加载器版本 JSON。");
+            }
+            return false;
+        }
+        versionJsonPath = jsonFiles.first().absoluteFilePath();
+    }
+    QFile versionJson(versionJsonPath);
+    if (!versionJson.open(QIODevice::ReadOnly)) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("无法读取加载器版本配置：%1")
+                                .arg(versionJson.errorString());
+        }
+        return false;
+    }
+    const QJsonDocument versionDocument =
+        QJsonDocument::fromJson(versionJson.readAll());
+    if (!versionDocument.isObject()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("加载器版本 JSON 格式无效。");
+        }
+        return false;
+    }
+    const QString baseVersion =
+        versionDocument.object().value(QStringLiteral("inheritsFrom"))
+            .toString().trimmed();
+    if (baseVersion.isEmpty()) {
+        return true;
+    }
+    if (baseVersion == QStringLiteral(".") || baseVersion == QStringLiteral("..")
+        || baseVersion.contains(QLatin1Char('/'))
+        || baseVersion.contains(QLatin1Char('\\'))
+        || baseVersion.contains(QLatin1Char(':'))) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("加载器配置中的基础版本 ID 无效。");
+        }
+        return false;
+    }
+
+    const QString metadataPath = QDir(gameDirectory).filePath(
+        QStringLiteral("versions/%1/launcher.json").arg(baseVersion));
+    QJsonObject metadata;
+    QFile metadataFile(metadataPath);
+    if (metadataFile.exists()) {
+        if (!metadataFile.open(QIODevice::ReadOnly)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("无法读取基础版本元数据：%1")
+                                    .arg(metadataFile.errorString());
+            }
+            return false;
+        }
+        const QJsonDocument metadataDocument =
+            QJsonDocument::fromJson(metadataFile.readAll());
+        if (!metadataDocument.isObject()) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("基础版本元数据格式无效。");
+            }
+            return false;
+        }
+        metadata = metadataDocument.object();
+    }
+    metadata.insert(QStringLiteral("loaderBaseOnly"), true);
+
+    QSaveFile output(metadataPath);
+    const QByteArray contents =
+        QJsonDocument(metadata).toJson(QJsonDocument::Compact);
+    if (!output.open(QIODevice::WriteOnly)
+        || output.write(contents) != contents.size()
+        || !output.commit()) {
+        if (errorMessage) {
+            *errorMessage = output.errorString();
+        }
+        return false;
+    }
+    return true;
+}
 
 class HeroPanel : public CardWidget
 {
@@ -93,43 +184,6 @@ protected:
     }
 };
 
-QString greetingForNow()
-{
-    const int hour = QTime::currentTime().hour();
-    if (hour < 6) {
-        return QStringLiteral("夜深了");
-    }
-    if (hour < 12) {
-        return QStringLiteral("早上好");
-    }
-    if (hour < 18) {
-        return QStringLiteral("下午好");
-    }
-    return QStringLiteral("晚上好");
-}
-
-QWidget *statPill(Icons::Type icon, const QString &text, QLabel **valueLabel,
-                  QWidget *parent)
-{
-    auto *widget = new QWidget(parent);
-    widget->setAttribute(Qt::WA_TransparentForMouseEvents);
-    auto *layout = new QHBoxLayout(widget);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(6);
-
-    auto *iconLabel = new QLabel(widget);
-    iconLabel->setPixmap(Icons::icon(icon, Theme::TextMuted, 13).pixmap(13, 13));
-    iconLabel->setFixedSize(13, 13);
-    iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-    layout->addWidget(iconLabel);
-    auto *textLabel = Theme::label(text, 11, QFont::Normal, Theme::TextSecondary, widget);
-    if (valueLabel) {
-        *valueLabel = textLabel;
-    }
-    layout->addWidget(textLabel);
-    return widget;
-}
-
 } // namespace
 
 HomePage::HomePage(QWidget *parent)
@@ -152,13 +206,12 @@ HomePage::HomePage(QWidget *parent)
     sidebar->setObjectName(QStringLiteral("homeSidebar"));
     sidebar->setAttribute(Qt::WA_StyledBackground, true);
     sidebar->setStyleSheet(QStringLiteral(
-        "QWidget#homeSidebar { background: %1; border-right: 1px solid rgba(%2, %3, %4, %5); }")
-        .arg(Theme::Surface.name())
+        "QWidget#homeSidebar { background: transparent; border-right: 1px solid rgba(%1, %2, %3, %4); }")
         .arg(Theme::Border.red())
         .arg(Theme::Border.green())
         .arg(Theme::Border.blue())
         .arg(Theme::Border.alpha()));
-    sidebar->setFixedWidth(360);
+    sidebar->setFixedWidth(300);
     auto *sidebarLayout = new QVBoxLayout(sidebar);
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
     sidebarLayout->setSpacing(0);
@@ -173,84 +226,57 @@ HomePage::HomePage(QWidget *parent)
     auto *sideContent = new QWidget();
     sideContent->setAttribute(Qt::WA_NoSystemBackground);
     auto *side = new QVBoxLayout(sideContent);
-    side->setContentsMargins(30, 24, 30, 20);
+    side->setContentsMargins(22, 18, 22, 18);
     side->setSpacing(0);
     sideScroll->setWidget(sideContent);
     sidebarLayout->addWidget(sideScroll);
 
-    auto *modeRow = new QHBoxLayout();
-    modeRow->setContentsMargins(0, 0, 0, 0);
-    modeRow->setSpacing(8);
-    modeRow->addWidget(Theme::label(QStringLiteral("本地账户"), 11, QFont::DemiBold,
-                                    Theme::TextSecondary, sidebar));
-    modeRow->addStretch();
-    modeRow->addWidget(Theme::badge(QStringLiteral("离线"), Theme::Accent,
-                                    QColor(47, 128, 237, 20), sidebar,
-                                    QColor(47, 128, 237, 58)));
-    side->addLayout(modeRow);
-    side->addSpacing(46);
-
-    auto *avatarRow = new QHBoxLayout();
-    avatarRow->setContentsMargins(0, 0, 0, 0);
-    avatarRow->addStretch();
-    auto *avatar = new AvatarWidget(96, sidebar);
+    auto *accountRow = new QHBoxLayout();
+    accountRow->setContentsMargins(0, 0, 0, 0);
+    accountRow->setSpacing(14);
+    auto *avatar = new AvatarWidget(56, sidebar);
     avatar->setOnline(false);
-    avatarRow->addWidget(avatar);
-    avatarRow->addStretch();
-    side->addLayout(avatarRow);
-    side->addSpacing(16);
+    accountRow->addWidget(avatar, 0, Qt::AlignVCenter);
 
-    m_accountNameLabel = Theme::label(QStringLiteral("未添加账户"), 23, QFont::DemiBold,
-                                       Theme::TextPrimary, sidebar, true);
-    m_accountNameLabel->setAlignment(Qt::AlignCenter);
-    side->addWidget(m_accountNameLabel);
-    side->addSpacing(4);
-
-    auto *accountBadgeRow = new QHBoxLayout();
-    accountBadgeRow->setContentsMargins(0, 0, 0, 0);
-    accountBadgeRow->addStretch();
+    auto *accountInfo = new QVBoxLayout();
+    accountInfo->setContentsMargins(0, 0, 0, 0);
+    accountInfo->setSpacing(5);
+    m_accountNameLabel = Theme::label(QStringLiteral("未添加账户"), 17, QFont::DemiBold,
+                                      Theme::TextPrimary, sidebar, true);
+    m_accountNameLabel->setMinimumWidth(0);
+    m_accountNameLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    accountInfo->addWidget(m_accountNameLabel);
     m_accountTypeBadge = Theme::badge(QStringLiteral("离线账户"), Theme::Blue,
                                       QColor(47, 128, 237, 22), sidebar,
                                       QColor(47, 128, 237, 70));
-    accountBadgeRow->addWidget(m_accountTypeBadge);
-    accountBadgeRow->addStretch();
-    side->addLayout(accountBadgeRow);
-    side->addSpacing(14);
+    accountInfo->addWidget(m_accountTypeBadge, 0, Qt::AlignLeft);
+    accountRow->addLayout(accountInfo, 1);
+    side->addLayout(accountRow);
+    side->addSpacing(16);
 
     m_accountButton = new AccentButton(QStringLiteral("切换账户"), Icons::Type::ChevronDown,
                                        sidebar);
     m_accountButton->setVariant(AccentButton::Variant::Secondary);
-    m_accountButton->setFixedHeight(42);
+    m_accountButton->setFixedHeight(38);
     m_accountButton->setToolTip(QStringLiteral("添加、修改或删除本地账户"));
     m_accountButton->setAccessibleName(QStringLiteral("管理本地账户"));
     connect(m_accountButton, &QAbstractButton::clicked,
             this, &HomePage::openAccountDialog);
     side->addWidget(m_accountButton);
-    side->addSpacing(18);
-
-    auto *statsRow = new QHBoxLayout();
-    statsRow->setContentsMargins(0, 0, 0, 0);
-    statsRow->setSpacing(16);
-    statsRow->addWidget(statPill(Icons::Type::Cube, QStringLiteral("0 个模组"),
-                                 &m_heroModsLabel, sidebar));
-    statsRow->addWidget(statPill(Icons::Type::Grid, QStringLiteral("0 个本地版本"),
-                                 &m_heroVersionsLabel, sidebar));
-    statsRow->addStretch();
-    side->addLayout(statsRow);
+    side->addSpacing(12);
+    auto *accountDivider = new QFrame(sidebar);
+    accountDivider->setFrameShape(QFrame::HLine);
+    accountDivider->setFrameShadow(QFrame::Plain);
+    accountDivider->setStyleSheet(QStringLiteral("color: %1;")
+                                      .arg(Theme::Border.name()));
+    side->addWidget(accountDivider);
 
     side->addStretch();
-    side->addWidget(Theme::label(QStringLiteral("当前版本"), 10, QFont::Normal,
-                                 Theme::TextMuted, sidebar));
-    side->addSpacing(2);
-    m_recentVersionLabel = Theme::label(QStringLiteral("未检测到版本"), 16, QFont::DemiBold,
-                                        Theme::TextPrimary, sidebar);
-    side->addWidget(m_recentVersionLabel);
-    side->addSpacing(10);
 
     m_launchButton = new AccentButton(QStringLiteral("启动游戏"), Icons::Type::Play, sidebar);
     m_launchButton->setVariant(AccentButton::Variant::Primary);
     m_launchButton->setFont(Theme::font(15, QFont::DemiBold));
-    m_launchButton->setFixedHeight(58);
+    m_launchButton->setFixedHeight(50);
     m_launchButton->setAccessibleName(QStringLiteral("启动当前选择的游戏版本"));
     connect(m_launchButton, &QAbstractButton::clicked, this, [this]() {
         if (m_selectedVersionIndex < 0
@@ -267,61 +293,29 @@ HomePage::HomePage(QWidget *parent)
     auto *content = new QWidget(this);
     content->setAttribute(Qt::WA_NoSystemBackground);
     auto *root = new QVBoxLayout(content);
-    root->setContentsMargins(34, 26, 34, 18);
+    root->setContentsMargins(28, 22, 28, 16);
     root->setSpacing(0);
-
-    auto *greetingRow = new QHBoxLayout();
-    greetingRow->setContentsMargins(0, 0, 0, 0);
-    greetingRow->setSpacing(12);
-
-    auto *greetingText = new QVBoxLayout();
-    greetingText->setContentsMargins(0, 0, 0, 0);
-    greetingText->setSpacing(3);
-    auto *eyebrow = Theme::label(QStringLiteral("启动  /  LAUNCH"), 9, QFont::Bold,
-                                 Theme::Accent, content);
-    QFont eyebrowFont = eyebrow->font();
-    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
-    eyebrow->setFont(eyebrowFont);
-    greetingText->addWidget(eyebrow);
-    m_greetingLabel = Theme::label(QStringLiteral("%1，冒险家").arg(greetingForNow()),
-                                   27, QFont::DemiBold, Theme::TextPrimary, content, true);
-    greetingText->addWidget(m_greetingLabel);
-    greetingText->addWidget(Theme::label(QStringLiteral("选择一个本地版本，开始新的冒险。"),
-                                         12, QFont::Normal, Theme::TextMuted, content));
-    greetingRow->addLayout(greetingText);
-    greetingRow->addStretch();
-
-    auto *dateLayout = new QVBoxLayout();
-    dateLayout->setContentsMargins(0, 2, 0, 0);
-    dateLayout->setSpacing(6);
-    const QLocale locale(QLocale::Chinese, QLocale::China);
-    auto *dateLabel = Theme::label(
-        locale.toString(QDate::currentDate(), QStringLiteral("yyyy 年 M 月 d 日 · dddd")),
-        11, QFont::Normal, Theme::TextMuted, content);
-    dateLabel->setAlignment(Qt::AlignRight);
-    dateLayout->addWidget(dateLabel);
-    greetingRow->addLayout(dateLayout);
-    root->addLayout(greetingRow);
-    root->addSpacing(22);
 
     auto *sectionRow = new QHBoxLayout();
     sectionRow->setContentsMargins(0, 0, 0, 0);
     sectionRow->setSpacing(10);
-    auto *sectionText = new QVBoxLayout();
-    sectionText->setContentsMargins(0, 0, 0, 0);
-    sectionText->setSpacing(2);
-    sectionText->addWidget(Theme::label(QStringLiteral("本地游戏版本"), 17, QFont::DemiBold,
-                                        Theme::TextPrimary, content));
-    sectionText->addWidget(Theme::label(QStringLiteral("点击卡片选择要启动的版本。"),
-                                        11, QFont::Normal, Theme::TextMuted, content));
-    sectionRow->addLayout(sectionText);
+    sectionRow->addWidget(Theme::label(QStringLiteral("游戏版本"), 22, QFont::DemiBold,
+                                       Theme::TextPrimary, content));
     sectionRow->addStretch();
     m_versionCountBadge = Theme::badge(QStringLiteral("0 个版本"),
                                        Theme::Accent, QColor(47, 128, 237, 18),
                                        content, QColor(47, 128, 237, 55));
+    m_scanLoadingIndicator = new LoadingIndicator(content, Theme::Accent);
+    m_scanLoadingIndicator->setFixedSize(16, 16);
+    m_scanLoadingIndicator->hide();
+    m_scanStatusLabel = Theme::label(QStringLiteral("正在扫描本地版本…"), 10,
+                                     QFont::Normal, Theme::TextMuted, content);
+    m_scanStatusLabel->hide();
+    sectionRow->addWidget(m_scanLoadingIndicator, 0, Qt::AlignVCenter);
+    sectionRow->addWidget(m_scanStatusLabel, 0, Qt::AlignVCenter);
     sectionRow->addWidget(m_versionCountBadge, 0, Qt::AlignVCenter);
     root->addLayout(sectionRow);
-    root->addSpacing(12);
+    root->addSpacing(16);
 
     auto *versionScroll = new QScrollArea(content);
     versionScroll->setWidgetResizable(true);
@@ -352,7 +346,7 @@ HomePage::HomePage(QWidget *parent)
 
     versionScroll->setWidget(versionContent);
     root->addWidget(versionScroll, 1);
-    root->addSpacing(12);
+    root->addSpacing(8);
 
     auto *pathRow = new QHBoxLayout();
     pathRow->setContentsMargins(0, 0, 0, 0);
@@ -405,33 +399,44 @@ int HomePage::selectedVersionIndex() const
 
 void HomePage::reloadLocalVersions()
 {
-    const LocalVersionScanner::Result result =
-        LocalVersionScanner::scan(m_gameDirectory);
-    m_versions = result.versions;
-    m_mods = result.mods;
-
-    if (m_emptyVersionsLabel) {
-        m_emptyVersionsLabel->setText(
-            result.error.isEmpty()
-                ? QStringLiteral("当前目录下没有发现已安装版本。")
-                : result.error);
-    }
-
-    if (m_heroVersionsLabel) {
-        m_heroVersionsLabel->setText(
-            QStringLiteral("%1 个本地版本").arg(m_versions.size()));
-    }
-    if (m_heroModsLabel) {
-        m_heroModsLabel->setText(QStringLiteral("%1 个模组").arg(m_mods.size()));
-    }
-    if (m_versionCountBadge) {
-        m_versionCountBadge->setText(QStringLiteral("%1 个版本").arg(m_versions.size()));
-    }
-
-    m_selectedVersionIndex = m_versions.isEmpty() ? -1 : 0;
-    updatePathDisplay();
+    const QString gameDirectory = m_gameDirectory;
+    const quint64 generation = ++m_scanGeneration;
+    m_versions.clear();
+    m_selectedVersionIndex = -1;
+    m_versionCountBadge->setText(QStringLiteral("正在扫描…"));
+    m_scanLoadingIndicator->show();
+    m_scanStatusLabel->show();
+    m_emptyVersionsLabel->setText(QStringLiteral("正在扫描本地游戏版本…"));
+    m_emptyVersionsLabel->show();
     rebuildVersionCards();
     updateSelectedVersionUi();
+
+    auto *watcher = new QFutureWatcher<LocalVersionScanner::Result>(this);
+    connect(watcher, &QFutureWatcher<LocalVersionScanner::Result>::finished,
+            this, [this, watcher, generation]() {
+        const LocalVersionScanner::Result result = watcher->result();
+        watcher->deleteLater();
+        if (generation != m_scanGeneration) {
+            return;
+        }
+
+        m_scanLoadingIndicator->hide();
+        m_scanStatusLabel->hide();
+        m_versions = result.versions;
+        if (m_emptyVersionsLabel) {
+            m_emptyVersionsLabel->setText(
+                result.error.isEmpty()
+                    ? QStringLiteral("当前目录下没有发现已安装版本。")
+                    : result.error);
+        }
+        m_versionCountBadge->setText(
+            QStringLiteral("%1 个版本").arg(m_versions.size()));
+        m_selectedVersionIndex = m_versions.isEmpty() ? -1 : 0;
+        updatePathDisplay();
+        rebuildVersionCards();
+        updateSelectedVersionUi();
+    });
+    watcher->setFuture(QtConcurrent::run(&LocalVersionScanner::scan, gameDirectory));
 }
 
 void HomePage::chooseGameDirectory()
@@ -469,9 +474,6 @@ void HomePage::updateAccountUi()
     const PlayerAccount account = AccountManager::instance().account();
     const bool hasAccount = account.isValid();
 
-    m_greetingLabel->setText(
-        QStringLiteral("%1，%2")
-            .arg(greetingForNow(), hasAccount ? account.username : QStringLiteral("冒险家")));
     m_accountNameLabel->setText(hasAccount ? account.username
                                            : QStringLiteral("未添加账户"));
     m_accountButton->setText(hasAccount ? QStringLiteral("切换账户")
@@ -487,13 +489,7 @@ void HomePage::updateAccountUi()
         ? Theme::Amber
         : Theme::Blue;
     m_accountTypeBadge->setStyleSheet(
-        QStringLiteral("background: rgba(%1, %2, %3, 28);"
-                       "color: %4;"
-                       "border: 1px solid rgba(%1, %2, %3, 72);"
-                       "border-radius: 8px; padding: 4px 9px;")
-            .arg(color.red())
-            .arg(color.green())
-            .arg(color.blue())
+        QStringLiteral("background: transparent; color: %1; border: none; padding: 4px 9px;")
             .arg(color.name()));
 }
 
@@ -597,18 +593,31 @@ void HomePage::deleteVersion(int index)
     }
 
     const QString display = version.loader.isEmpty()
-        ? version.minecraft
-        : QStringLiteral("%1 · %2").arg(version.minecraft, version.loader);
+        ? (version.displayName.isEmpty() ? version.minecraft : version.displayName)
+        : QStringLiteral("%1 · %2")
+              .arg(version.displayName.isEmpty() ? version.minecraft : version.displayName,
+                   version.loader);
     const QMessageBox::StandardButton answer = QMessageBox::question(
         this, QStringLiteral("删除版本"),
         QStringLiteral("确定要删除「%1」吗？\n\n"
                        "将删除版本目录 versions/%2。\n"
-                       "公共 libraries、assets 和根目录 mods 不会被删除。\n"
+                       "该目录内的版本隔离 mods 也会一并删除；公共 libraries、assets 和根目录 mods 不会被删除。\n"
                        "此操作不可撤销。")
             .arg(display, versionInfo.fileName()),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) {
         return;
+    }
+
+    if (!version.loader.isEmpty()) {
+        QString markerError;
+        if (!markLoaderBaseVersion(m_gameDirectory, canonicalVersion, &markerError)) {
+            QMessageBox::warning(
+                this, QStringLiteral("删除失败"),
+                QStringLiteral("无法标记加载器依赖的基础版本，因此未删除该版本：\n%1")
+                    .arg(markerError));
+            return;
+        }
     }
 
     if (!QDir(canonicalVersion).removeRecursively()) {
@@ -623,26 +632,14 @@ void HomePage::deleteVersion(int index)
 
 void HomePage::updateSelectedVersionUi()
 {
-    if (!m_recentVersionLabel) {
-        return;
-    }
     const VersionInfo version = selectedVersion();
-    if (version.minecraft.isEmpty()) {
-        m_recentVersionLabel->setText(QStringLiteral("未检测到版本"));
-        if (m_launchButton) {
-            m_launchButton->setText(QStringLiteral("启动游戏"));
-            m_launchButton->setEnabled(false);
-        }
-        return;
-    }
-
-    m_recentVersionLabel->setText(
-        version.loader.isEmpty()
-            ? version.minecraft
-            : QStringLiteral("%1  ·  %2").arg(version.minecraft, version.loader));
     if (m_launchButton) {
-        m_launchButton->setText(
-            QStringLiteral("启动游戏  ·  %1").arg(version.minecraft));
-        m_launchButton->setEnabled(true);
+        m_launchButton->setText(version.minecraft.isEmpty()
+                                    ? QStringLiteral("启动游戏")
+                                    : QStringLiteral("启动游戏  ·  %1")
+                                          .arg(version.displayName.isEmpty()
+                                                   ? version.minecraft
+                                                   : version.displayName));
+        m_launchButton->setEnabled(!version.minecraft.isEmpty());
     }
 }

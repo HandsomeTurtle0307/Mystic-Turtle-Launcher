@@ -20,7 +20,6 @@
 #include <QEnterEvent>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QLinearGradient>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -221,20 +220,6 @@ void HeaderBar::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    QLinearGradient background(0, 0, width(), height());
-    if (Theme::isDarkMode()) {
-        background.setColorAt(0.0, QColor(QStringLiteral("#17212C")));
-        background.setColorAt(0.55, QColor(QStringLiteral("#111821")));
-        background.setColorAt(1.0, QColor(QStringLiteral("#0D1117")));
-    } else {
-        background.setColorAt(0.0, QColor(QStringLiteral("#2F80ED")));
-        background.setColorAt(0.55, QColor(QStringLiteral("#2878E8")));
-        background.setColorAt(1.0, QColor(QStringLiteral("#1E6FE0")));
-    }
-
-    painter.fillRect(rect(), background);
-
     painter.setPen(QPen(QColor(255, 255, 255, Theme::isDarkMode() ? 16 : 26), 1.0));
     painter.drawLine(QPointF(0, height() - 0.5), QPointF(width(), height() - 0.5));
 }

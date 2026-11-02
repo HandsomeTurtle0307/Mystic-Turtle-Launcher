@@ -141,6 +141,7 @@ void LoaderDownloader::start(const QString &baseVersion, const LoaderSelection &
     m_baseVersion = baseVersion;
     m_selection = selection;
     m_fabricVersionId.clear();
+    m_installedVersionId.clear();
     m_installerPath.clear();
     m_installerLog.clear();
     m_failures = 0;
@@ -156,6 +157,45 @@ void LoaderDownloader::start(const QString &baseVersion, const LoaderSelection &
 bool LoaderDownloader::isBusy() const
 {
     return m_busy;
+}
+
+QString LoaderDownloader::installedVersionId() const
+{
+    return m_installedVersionId;
+}
+
+void LoaderDownloader::cancel()
+{
+    if (!m_busy || m_cancelled) {
+        return;
+    }
+
+    m_cancelled = true;
+    if (m_profileReply) {
+        QNetworkReply *reply = m_profileReply.data();
+        m_profileReply = nullptr;
+        disconnect(reply, nullptr, this, nullptr);
+        reply->abort();
+        reply->deleteLater();
+    }
+    if (m_manager->isRunning()) {
+        m_manager->cancel();
+    }
+    if (m_installerTimeout) {
+        m_installerTimeout->stop();
+        m_installerTimeout->deleteLater();
+        m_installerTimeout = nullptr;
+    }
+    if (m_installerProcess) {
+        m_installerProcess->kill();
+        m_installerProcess->waitForFinished(5000);
+        m_installerProcess->deleteLater();
+        m_installerProcess = nullptr;
+    }
+    cleanupInstallerTemp();
+    m_busy = false;
+    emit phaseChanged(QStringLiteral("下载已取消"));
+    emit cancelled();
 }
 
 void LoaderDownloader::fetchFabricProfile()
@@ -241,6 +281,12 @@ void LoaderDownloader::startFabricDownloads(const QByteArray &profileJson)
         fail(QStringLiteral("无法创建 Fabric 版本目录。"));
         return;
     }
+    const QString modsDirectory =
+        QDir(versionDirectory).filePath(QStringLiteral("mods"));
+    if (!QDir().mkpath(modsDirectory)) {
+        fail(QStringLiteral("无法创建模组目录：%1").arg(modsDirectory));
+        return;
+    }
 
     const QString versionJsonPath =
         QDir(versionDirectory).filePath(QStringLiteral("%1.json").arg(versionId));
@@ -290,8 +336,7 @@ void LoaderDownloader::startFabricDownloads(const QByteArray &profileJson)
         const QString apiFileName = sanitizedFileName(
             m_selection.fabricApiFilename,
             QStringLiteral("fabric-api-%1.jar").arg(m_selection.fabricApiVersion));
-        const QString apiPath =
-            QDir(m_gameDirectory).filePath(QStringLiteral("mods/%1").arg(apiFileName));
+        const QString apiPath = QDir(modsDirectory).filePath(apiFileName);
         if (!targetPaths.contains(apiPath)) {
             targetPaths.insert(apiPath);
             tasks.append(new DownloadTask(
@@ -353,6 +398,9 @@ void LoaderDownloader::downloadInstaller()
 
 void LoaderDownloader::handleDownloadsFinished()
 {
+    if (m_cancelled) {
+        return;
+    }
     if (!m_busy) {
         return;
     }
@@ -369,6 +417,7 @@ void LoaderDownloader::handleDownloadsFinished()
 
     QString summary;
     if (m_selection.loader == QStringLiteral("Fabric")) {
+        m_installedVersionId = m_fabricVersionId;
         summary = QStringLiteral("Fabric %1 与 Fabric API %2 下载完成。")
                       .arg(m_selection.loaderVersion, m_selection.fabricApiVersion);
         emit phaseChanged(QStringLiteral("Fabric 组件下载完成"));
@@ -547,7 +596,7 @@ void LoaderDownloader::handleInstallerFinished(int exitCode, QProcess::ExitStatu
         process->deleteLater();
     }
 
-    if (!m_busy) {
+    if (!m_busy || m_cancelled) {
         cleanupInstallerTemp();
         return;
     }
@@ -569,6 +618,7 @@ void LoaderDownloader::handleInstallerFinished(int exitCode, QProcess::ExitStatu
         return;
     }
 
+    m_installedVersionId = installedVersion;
     m_busy = false;
     emit percentChanged(100);
     emit phaseChanged(QStringLiteral("%1 安装完成").arg(m_selection.loader));

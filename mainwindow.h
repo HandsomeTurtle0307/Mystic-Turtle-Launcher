@@ -10,6 +10,7 @@
 #pragma once
 
 #include <QPointer>
+#include <QImage>
 #include <QRect>
 #include <QWidget>
 
@@ -21,11 +22,13 @@ class HeaderBar;
 class HomePage;
 class ModsDrawer;
 class QGraphicsOpacityEffect;
+class QDialog;
 class QLabel;
-class QProgressDialog;
 class QPropertyAnimation;
 class QTimer;
 class SettingsPage;
+struct PlayerAccount;
+struct VersionInfo;
 
 class MainWindow : public QWidget
 {
@@ -48,8 +51,10 @@ private:
     void toggleMaximize();
     void updateWindowChrome();
     void applyAcrylic(bool enabled);
+    void applyBackground(const QString &imagePath, int opacity);
     void openVersionDetails(int versionIndex);
     void launchSelectedVersion();
+    void startSelectedVersion(const VersionInfo &version, const PlayerAccount &account);
     void updateLaunchProgress(int percent, const QString &status);
     void closeLaunchProgress();
     void startGameWindowWait(qint64 processId);
@@ -66,11 +71,16 @@ private:
     AboutPage *m_aboutPage = nullptr;
 
     QPointer<ModsDrawer> m_drawer;
-    QPointer<QProgressDialog> m_launchProgress;
+    QPointer<QDialog> m_launchProgress;
     QTimer *m_gameWindowTimer = nullptr;
     qint64 m_launchPid = 0;
     int m_gameWindowWaitTicks = 0;
     QString m_pendingLaunchToast;
+    QString m_launchStderrLogPath;
+    bool m_launchCancelled = false;
+    bool m_closingLaunchProgress = false;
+    QImage m_backgroundImage;
+    int m_backgroundOpacity = 35;
     bool m_acrylicEnabled = false;
     bool m_animationsEnabled = true;
     bool m_nativeEffectsApplied = false;

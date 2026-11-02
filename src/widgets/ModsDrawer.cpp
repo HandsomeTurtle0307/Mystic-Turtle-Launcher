@@ -29,6 +29,7 @@
 #include <QPalette>
 #include <QPoint>
 #include <QPropertyAnimation>
+#include <QSettings>
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScrollArea>
@@ -36,6 +37,7 @@
 #include <QSignalBlocker>
 #include <QToolTip>
 #include <QVBoxLayout>
+#include <QImageReader>
 
 namespace {
 
@@ -133,6 +135,17 @@ ModsDrawer::ModsDrawer(const VersionInfo &version, QWidget *parent)
     setAttribute(Qt::WA_NoSystemBackground);
     setAutoFillBackground(false);
     setFocusPolicy(Qt::StrongFocus);
+
+    const QSettings settings;
+    m_backgroundOpacity =
+        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
+    const QString backgroundPath =
+        settings.value(QStringLiteral("ui/backgroundImage")).toString();
+    if (!backgroundPath.isEmpty()) {
+        QImageReader reader(backgroundPath);
+        reader.setAutoTransform(true);
+        m_backgroundImage = reader.read();
+    }
 
     if (parent) {
         parent->installEventFilter(this);
@@ -304,6 +317,10 @@ void ModsDrawer::open()
     setFocus(Qt::ActiveWindowFocusReason);
 
     m_animation->stop();
+    if (!Theme::animationsEnabled()) {
+        setRevealProgress(1.0);
+        return;
+    }
     m_animation->setEasingCurve(QEasingCurve::OutCubic);
     m_animation->setDuration(330);
     m_animation->setStartValue(m_progress);
@@ -318,6 +335,11 @@ void ModsDrawer::closeDrawer()
     }
     m_closing = true;
     m_animation->stop();
+    if (!Theme::animationsEnabled()) {
+        setRevealProgress(0.0);
+        hide();
+        return;
+    }
     m_animation->setEasingCurve(QEasingCurve::InCubic);
     m_animation->setDuration(230);
     m_animation->setStartValue(m_progress);
@@ -483,31 +505,37 @@ void ModsDrawer::paintEvent(QPaintEvent *event)
                                 22 + spread, 22 + spread);
     }
 
-    QLinearGradient background(panelRect.topLeft(), panelRect.bottomRight());
-    if (Theme::isDarkMode()) {
-        background.setColorAt(0.0, QColor(QStringLiteral("#162130")));
-        background.setColorAt(0.55, QColor(QStringLiteral("#111A25")));
-        background.setColorAt(1.0, QColor(QStringLiteral("#0D141D")));
-    } else {
-        background.setColorAt(0.0, QColor(QStringLiteral("#FFFFFF")));
-        background.setColorAt(0.55, QColor(QStringLiteral("#FBFDFF")));
-        background.setColorAt(1.0, QColor(QStringLiteral("#F2F7FD")));
-    }
-    painter.setBrush(background);
-    painter.setPen(QPen(Theme::Border, 1.0));
-    painter.drawRoundedRect(panelRect.adjusted(0.5, 0.5, -0.5, -0.5), 22, 22);
-
     painter.save();
     QPainterPath clip;
     clip.addRoundedRect(panelRect, 22, 22);
     painter.setClipPath(clip);
 
-    QRadialGradient glow(QPointF(panelRect.right() - 62, panelRect.top() + 36), 260);
-    glow.setColorAt(0.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                Theme::Accent.blue(), 20));
-    glow.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                Theme::Accent.blue(), 0));
-    painter.fillRect(panelRect, glow);
+    painter.fillRect(panelRect, Theme::BackgroundDeep);
+    if (!m_backgroundImage.isNull() && m_backgroundOpacity > 0) {
+        const qreal targetAspect = static_cast<qreal>(width()) / height();
+        const qreal imageAspect = static_cast<qreal>(m_backgroundImage.width())
+            / m_backgroundImage.height();
+        QRectF sourceRect(m_backgroundImage.rect());
+        if (imageAspect > targetAspect) {
+            const qreal croppedWidth = m_backgroundImage.height() * targetAspect;
+            sourceRect.setLeft((m_backgroundImage.width() - croppedWidth) / 2.0);
+            sourceRect.setWidth(croppedWidth);
+        } else {
+            const qreal croppedHeight = m_backgroundImage.width() / targetAspect;
+            sourceRect.setTop((m_backgroundImage.height() - croppedHeight) / 2.0);
+            sourceRect.setHeight(croppedHeight);
+        }
+
+        const QRectF sourcePanel(
+            sourceRect.left() + sourceRect.width() * panelRect.left() / width(),
+            sourceRect.top() + sourceRect.height() * panelRect.top() / height(),
+            sourceRect.width() * panelRect.width() / width(),
+            sourceRect.height() * panelRect.height() / height());
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.setOpacity(m_backgroundOpacity / 100.0);
+        painter.drawImage(panelRect, m_backgroundImage, sourcePanel);
+        painter.setOpacity(1.0);
+    }
 
     QLinearGradient edge(panelRect.topLeft(), panelRect.topRight());
     edge.setColorAt(0.0, QColor(255, 255, 255, 0));
@@ -518,6 +546,10 @@ void ModsDrawer::paintEvent(QPaintEvent *event)
     painter.drawLine(QPointF(panelRect.left() + 24, panelRect.top() + 1),
                      QPointF(panelRect.right() - 24, panelRect.top() + 1));
     painter.restore();
+
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(Theme::Border, 1.0));
+    painter.drawRoundedRect(panelRect.adjusted(0.5, 0.5, -0.5, -0.5), 22, 22);
 }
 
 void ModsDrawer::mousePressEvent(QMouseEvent *event)

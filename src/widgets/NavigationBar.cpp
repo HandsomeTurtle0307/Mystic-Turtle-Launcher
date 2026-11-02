@@ -180,7 +180,7 @@ void NavigationBar::updateIndicator(bool animated)
     m_indicatorFrom = m_indicatorRect;
     m_indicatorTo = target;
 
-    if (!animated || !m_animationsEnabled || !isVisible()) {
+    if (!animated || !m_animationsEnabled || !Theme::animationsEnabled() || !isVisible()) {
         m_indicatorRect = target;
         update();
         return;

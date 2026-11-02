@@ -10,6 +10,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QImage>
 #include <QString>
 
 class AccentButton;
@@ -27,6 +28,7 @@ public:
     explicit AccountDialog(QWidget *parent = nullptr);
 
 protected:
+    void paintEvent(QPaintEvent *event) override;
     void showEvent(QShowEvent *event) override;
 
 private:
@@ -46,4 +48,6 @@ private:
     AccentButton *m_cancelButton = nullptr;
     QString m_editingId;
     QString m_deleteArmedId;
+    QImage m_backgroundImage;
+    int m_backgroundOpacity = 35;
 };

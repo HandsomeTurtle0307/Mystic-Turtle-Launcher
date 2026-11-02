@@ -11,13 +11,16 @@
 
 #include "DownloadTask.h"
 #include "GameLauncher.h"
+#include "Theme.h"
 
 #include <QDir>
 #include <QDirIterator>
+#include <QDebug>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QProgressBar>
 #include <QProgressDialog>
 #include <QSettings>
 #include <QStandardPaths>
@@ -67,18 +70,46 @@ bool extractArchive(const QString &archive, const QString &destination,
     process.start(tar, QStringList{
                              QStringLiteral("-xf"), archive,
                              QStringLiteral("-C"), destination});
-    if (!process.waitForStarted(5000) || !process.waitForFinished(180000)) {
-        process.kill();
+    if (!process.waitForStarted(5000)) {
+        const QString standardError =
+            QString::fromLocal8Bit(process.readAllStandardError()).trimmed();
+        qWarning().noquote() << "[Java installer] Unable to start archive extractor:"
+                             << process.errorString() << standardError;
         if (errorMessage) {
-            *errorMessage = QStringLiteral("解压 Java 超时。");
+            *errorMessage = QStringLiteral("无法启动 Java 解压工具：%1%2")
+                                .arg(process.errorString(),
+                                     standardError.isEmpty()
+                                         ? QString()
+                                         : QStringLiteral("\n%1").arg(standardError));
+        }
+        return false;
+    }
+    if (!process.waitForFinished(180000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        const QString standardError =
+            QString::fromLocal8Bit(process.readAllStandardError()).trimmed();
+        qWarning().noquote() << "[Java installer] Archive extraction timed out:"
+                             << process.errorString() << standardError;
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("解压 Java 超时：%1%2")
+                                .arg(process.errorString(),
+                                     standardError.isEmpty()
+                                         ? QString()
+                                         : QStringLiteral("\n%1").arg(standardError));
         }
         return false;
     }
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        const QString standardError =
+            QString::fromLocal8Bit(process.readAllStandardError()).trimmed();
+        qWarning().noquote() << "[Java installer] Archive extraction failed:"
+                             << process.errorString() << standardError;
         if (errorMessage) {
             *errorMessage = QStringLiteral("解压 Java 失败：%1")
-                                .arg(QString::fromLocal8Bit(
-                                         process.readAllStandardError()).trimmed());
+                                .arg(standardError.isEmpty()
+                                         ? process.errorString()
+                                         : standardError);
         }
         return false;
     }
@@ -160,7 +191,11 @@ bool JavaRuntimeInstaller::download(const QString &gameDirectory, int majorVersi
     QString failure;
 
     QObject::connect(&task, &DownloadTask::progressChanged, &progress,
-                     [&progress](int percent) { progress.setValue(percent); });
+                     [&progress](int percent) {
+                         if (QProgressBar *bar = progress.findChild<QProgressBar *>()) {
+                             Theme::setProgressValue(bar, percent);
+                         }
+                     });
     QObject::connect(&task, &DownloadTask::succeeded, &loop,
                      [&succeeded, &loop](const QString &) {
                          succeeded = true;
@@ -209,7 +244,14 @@ bool JavaRuntimeInstaller::download(const QString &gameDirectory, int majorVersi
     }
 
     const int detectedMajor = GameLauncher::javaMajorVersion(detected);
-    if (detectedMajor > 0 && detectedMajor < effectiveMajor) {
+    if (detectedMajor <= 0) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Java 已解压，但无法识别其版本：%1").arg(detected);
+        }
+        return false;
+    }
+    if (effectiveMajor <= 8 ? detectedMajor != effectiveMajor
+                            : detectedMajor < effectiveMajor) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("下载的 Java 版本不匹配：需要 %1，实际为 %2。")
                                 .arg(effectiveMajor)

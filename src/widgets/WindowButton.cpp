@@ -71,6 +71,10 @@ QSize WindowButton::sizeHint() const
 void WindowButton::animateHover(qreal target)
 {
     m_hoverAnimation->stop();
+    if (!Theme::animationsEnabled()) {
+        setHoverProgress(target);
+        return;
+    }
     m_hoverAnimation->setStartValue(m_hoverProgress);
     m_hoverAnimation->setEndValue(target);
     m_hoverAnimation->start();

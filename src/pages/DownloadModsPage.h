@@ -9,12 +9,29 @@
 
 #pragma once
 
+#include <QElapsedTimer>
+#include <QPointer>
+#include <QByteArray>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
+#include <QVector>
 
-class QGridLayout;
 class QLabel;
-class SearchField;
+class QComboBox;
+class QJsonObject;
+class QLineEdit;
+class LoadingIndicator;
+class QNetworkAccessManager;
+class QNetworkReply;
+class QProgressBar;
+class QPushButton;
+class QShowEvent;
+class QToolButton;
+class DownloadTask;
+class VersionManifestClient;
+class QUrl;
+class QVBoxLayout;
 
 class DownloadModsPage : public QWidget
 {
@@ -22,16 +39,54 @@ class DownloadModsPage : public QWidget
 
 public:
     explicit DownloadModsPage(QWidget *parent = nullptr);
+    void setGameDirectory(const QString &directory);
 
 signals:
     void notifyRequested(const QString &message);
+    void modsChanged();
 
 private:
-    void refreshCards();
+    void showEvent(QShowEvent *event) override;
+    void searchProjects();
+    void fetchSearchPage();
+    void handleSearchReply();
+    void showProjectDetails(const QJsonObject &project);
+    void clearResults();
+    bool startDownload(const QUrl &url,
+                       const QString &fileName,
+                       const QByteArray &sha1,
+                       const QString &modName);
+    void setSearchStatus(const QString &message);
 
-    SearchField *m_search = nullptr;
-    QGridLayout *m_grid = nullptr;
+    QLineEdit *m_nameEdit = nullptr;
+    QComboBox *m_gameVersionCombo = nullptr;
+    QComboBox *m_loaderCombo = nullptr;
+    QLabel *m_searchStatus = nullptr;
+    QLabel *m_versionLoadingLabel = nullptr;
+    LoadingIndicator *m_versionLoadingIndicator = nullptr;
+    QPushButton *m_retryVersionManifestButton = nullptr;
+    QLabel *m_pageLabel = nullptr;
+    QPushButton *m_previousPageButton = nullptr;
+    QPushButton *m_nextPageButton = nullptr;
+    QWidget *m_resultsContent = nullptr;
+    QWidget *m_loadingWidget = nullptr;
+    QVBoxLayout *m_resultsLayout = nullptr;
     QLabel *m_countLabel = nullptr;
-    QLabel *m_emptyLabel = nullptr;
-    QString m_category = QStringLiteral("全部");
+    QLabel *m_downloadName = nullptr;
+    QLabel *m_downloadSpeed = nullptr;
+    QProgressBar *m_downloadProgress = nullptr;
+    QPushButton *m_cancelModDownloadButton = nullptr;
+    QWidget *m_downloadPanel = nullptr;
+    QNetworkAccessManager *m_network = nullptr;
+    VersionManifestClient *m_manifestClient = nullptr;
+    QPointer<QNetworkReply> m_searchReply;
+    QPointer<DownloadTask> m_downloadTask;
+    QStringList m_gameVersionIds;
+    QElapsedTimer m_speedClock;
+    qint64 m_previousBytes = 0;
+    int m_currentPage = 0;
+    int m_totalHits = 0;
+    bool m_initialSearchStarted = false;
+    QString m_pendingLoadError;
+    QString m_gameDirectory;
 };

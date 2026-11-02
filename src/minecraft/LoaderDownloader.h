@@ -53,6 +53,8 @@ public:
 
     void start(const QString &baseVersion, const LoaderSelection &selection);
     bool isBusy() const;
+    QString installedVersionId() const;
+    void cancel();
 
 signals:
     void phaseChanged(const QString &phase);
@@ -60,6 +62,7 @@ signals:
     void speedChanged(qint64 bytesPerSecond);
     void finished(const QString &summary);
     void failed(const QString &reason);
+    void cancelled();
 
 private:
     void fetchFabricProfile();
@@ -86,10 +89,12 @@ private:
     QString m_baseVersion;
     LoaderSelection m_selection;
     QString m_fabricVersionId;
+    QString m_installedVersionId;
     QString m_installerPath;
     QString m_installerTempHome;
     QString m_installerLog;
     int m_failures = 0;
     QString m_lastFailure;
     bool m_busy = false;
+    bool m_cancelled = false;
 };

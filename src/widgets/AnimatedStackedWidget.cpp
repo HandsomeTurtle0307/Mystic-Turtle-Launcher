@@ -9,6 +9,8 @@
 
 #include "AnimatedStackedWidget.h"
 
+#include "Theme.h"
+
 #include <QGraphicsOpacityEffect>
 #include <QParallelAnimationGroup>
 #include <QPropertyAnimation>
@@ -80,6 +82,9 @@ int AnimatedStackedWidget::count() const
 void AnimatedStackedWidget::setAnimationsEnabled(bool enabled)
 {
     m_animationsEnabled = enabled;
+    if (!enabled && m_animation) {
+        finishTransition();
+    }
 }
 
 bool AnimatedStackedWidget::animationsEnabled() const
@@ -107,7 +112,8 @@ void AnimatedStackedWidget::animateTo(int index, bool animated)
     incoming->show();
     incoming->raise();
 
-    if (!animated || !m_animationsEnabled || !isVisible() || !outgoing) {
+    if (!animated || !m_animationsEnabled || !Theme::animationsEnabled()
+        || !isVisible() || !outgoing) {
         if (outgoing && outgoing != incoming) {
             outgoing->hide();
             outgoing->setGeometry(rect());

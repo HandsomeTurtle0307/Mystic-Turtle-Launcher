@@ -53,6 +53,10 @@ const QVector<VersionInfo> &localVersions()
                  QStringLiteral("连接纹理与自发光材质支持，已达到稳定状态。"),
                  QStringLiteral("视觉"), false},
             },
+            QString(),
+            QString(),
+            QString(),
+            QString(),
         },
         VersionInfo{
             QStringLiteral("1.20.1"),
@@ -84,6 +88,10 @@ const QVector<VersionInfo> &localVersions()
                  QStringLiteral("显示饥饿相关的隐藏数值。"),
                  QStringLiteral("实用"), true},
             },
+            QString(),
+            QString(),
+            QString(),
+            QString(),
         },
         VersionInfo{
             QStringLiteral("1.21.1"),
@@ -93,6 +101,10 @@ const QVector<VersionInfo> &localVersions()
             326,
             QColor(QStringLiteral("#6EE7B7")),
             QVector<ModInfo>{},
+            QString(),
+            QString(),
+            QString(),
+            QString(),
         },
     };
     return versions;

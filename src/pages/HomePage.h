@@ -18,6 +18,7 @@
 class AccentButton;
 class QGridLayout;
 class QLabel;
+class LoadingIndicator;
 class VersionCard;
 
 class HomePage : public QWidget
@@ -54,20 +55,18 @@ private:
 
     QString m_gameDirectory;
     QVector<VersionInfo> m_versions;
-    QVector<ModInfo> m_mods;
     QVector<VersionCard *> m_versionCards;
     int m_selectedVersionIndex = -1;
 
     QGridLayout *m_versionGrid = nullptr;
     QLabel *m_versionCountBadge = nullptr;
+    QLabel *m_scanStatusLabel = nullptr;
+    LoadingIndicator *m_scanLoadingIndicator = nullptr;
     QLabel *m_emptyVersionsLabel = nullptr;
     QLabel *m_gamePathLabel = nullptr;
-    QLabel *m_heroVersionsLabel = nullptr;
-    QLabel *m_heroModsLabel = nullptr;
-    QLabel *m_recentVersionLabel = nullptr;
-    QLabel *m_greetingLabel = nullptr;
     QLabel *m_accountNameLabel = nullptr;
     QLabel *m_accountTypeBadge = nullptr;
     AccentButton *m_accountButton = nullptr;
     AccentButton *m_launchButton = nullptr;
+    quint64 m_scanGeneration = 0;
 };
