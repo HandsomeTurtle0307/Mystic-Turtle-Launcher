@@ -11,6 +11,7 @@
 
 #include "DownloadTask.h"
 #include "MojangMirror.h"
+#include "settings/GlobalSettings.h"
 
 #include <QSet>
 
@@ -68,6 +69,7 @@ bool DownloadManager::start(const QList<DownloadTask *> &tasks)
     m_running = m_total > 0;
     m_finished = false;
     m_cancelling = false;
+    m_maxConcurrent = qBound(1, GlobalSettings::load().network.concurrent, 8);
 
     for (int i = 0; i < m_tasks.size(); ++i) {
         DownloadTask *task = m_tasks.at(i);

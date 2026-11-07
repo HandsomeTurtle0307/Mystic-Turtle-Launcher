@@ -7,7 +7,7 @@
 
 cmake_minimum_required(VERSION 3.21)
 
-project(MysticTurtle VERSION 1.0.0 LANGUAGES CXX)
+project(MysticTurtle VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,6 +51,8 @@ set(MYSTIC_TURTLE_SOURCES
     src/minecraft/JavaRuntimeInstaller.h
     src/minecraft/LoaderDownloader.cpp
     src/minecraft/LoaderDownloader.h
+    src/minecraft/ModpackInstaller.cpp
+    src/minecraft/ModpackInstaller.h
     src/minecraft/VersionManifest.cpp
     src/minecraft/VersionManifest.h
     src/minecraft/MinecraftPaths.cpp
@@ -96,6 +98,8 @@ set(MYSTIC_TURTLE_SOURCES
     src/pages/HomePage.h
     src/pages/LoaderSetupView.cpp
     src/pages/LoaderSetupView.h
+    src/pages/DownloadCenterPage.cpp
+    src/pages/DownloadCenterPage.h
     src/pages/DownloadGamePage.cpp
     src/pages/DownloadGamePage.h
     src/pages/DownloadModsPage.cpp
@@ -104,6 +108,13 @@ set(MYSTIC_TURTLE_SOURCES
     src/pages/SettingsPage.h
     src/pages/AboutPage.cpp
     src/pages/AboutPage.h
+
+    src/settings/GlobalSettings.cpp
+    src/settings/GlobalSettings.h
+    src/settings/VersionSettings.cpp
+    src/settings/VersionSettings.h
+    src/settings/GlobalSettingsWidget.cpp
+    src/settings/GlobalSettingsWidget.h
 )
 
 qt_add_executable(Mystic-Turtle-Launcher
@@ -119,6 +130,7 @@ target_include_directories(Mystic-Turtle-Launcher
         ${CMAKE_CURRENT_SOURCE_DIR}/src/network
         ${CMAKE_CURRENT_SOURCE_DIR}/src/pages
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/settings
         ${CMAKE_CURRENT_SOURCE_DIR}/src/widgets
 )
 

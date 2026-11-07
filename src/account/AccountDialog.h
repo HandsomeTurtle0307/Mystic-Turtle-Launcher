@@ -38,6 +38,7 @@ private:
     void submitForm();
     void handleDelete(const QString &id);
     void setError(const QString &message);
+    void reloadBackground();
 
     QScrollArea *m_scroll = nullptr;
     QVBoxLayout *m_listLayout = nullptr;

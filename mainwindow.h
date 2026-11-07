@@ -12,11 +12,13 @@
 #include <QPointer>
 #include <QImage>
 #include <QRect>
+#include <QString>
 #include <QWidget>
 
 class AnimatedStackedWidget;
 class AboutPage;
 class DownloadGamePage;
+class DownloadCenterPage;
 class DownloadModsPage;
 class HeaderBar;
 class HomePage;
@@ -59,12 +61,14 @@ private:
     void closeLaunchProgress();
     void startGameWindowWait(qint64 processId);
     void checkGameWindow();
+    void checkGameExit();
     void showToast(const QString &message);
     void positionToast();
 
     HeaderBar *m_header = nullptr;
     AnimatedStackedWidget *m_pages = nullptr;
     HomePage *m_homePage = nullptr;
+    DownloadCenterPage *m_downloadCenterPage = nullptr;
     DownloadGamePage *m_downloadGamePage = nullptr;
     DownloadModsPage *m_downloadModsPage = nullptr;
     SettingsPage *m_settingsPage = nullptr;
@@ -73,9 +77,12 @@ private:
     QPointer<ModsDrawer> m_drawer;
     QPointer<QDialog> m_launchProgress;
     QTimer *m_gameWindowTimer = nullptr;
+    QTimer *m_gameExitTimer = nullptr;
     qint64 m_launchPid = 0;
     int m_gameWindowWaitTicks = 0;
     QString m_pendingLaunchToast;
+    QString m_launchVisibility = QStringLiteral("keep");
+    bool m_hiddenForGame = false;
     QString m_launchStderrLogPath;
     bool m_launchCancelled = false;
     bool m_closingLaunchProgress = false;

@@ -17,8 +17,10 @@
 #include "SearchField.h"
 #include "Theme.h"
 #include "minecraft/LocalVersionScanner.h"
+#include "minecraft/ModpackInstaller.h"
 #include "minecraft/VersionManifest.h"
 #include "network/DownloadTask.h"
+#include "settings/GlobalSettings.h"
 
 #include <QComboBox>
 #include <QDateTime>
@@ -28,10 +30,10 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
-#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QImageReader>
+#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -47,9 +49,12 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QProgressBar>
+#include <QProgressDialog>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QVersionNumber>
 #include <QSettings>
+#include <QSizePolicy>
 #include <QScrollArea>
 #include <QStandardPaths>
 #include <QToolButton>
@@ -65,8 +70,37 @@
 namespace {
 
 const QUrl kModrinthApi(QStringLiteral("https://api.modrinth.com/v2"));
-const QString kUserAgent = QStringLiteral("MysticTurtle/0.2 (mod downloader)");
+const QString kUserAgent = QStringLiteral("MysticTurtle/2.0 (mod downloader)");
 constexpr int kProjectsPerPage = 20;
+
+QString safeDownloadFileName(QString name, const QString &fallback)
+{
+    name.replace(QRegularExpression(QStringLiteral("[<>:\"/\\\\|?*\\x00-\\x1F]")),
+                 QStringLiteral("_"));
+    while (name.endsWith(QLatin1Char('.')) || name.endsWith(QLatin1Char(' '))) {
+        name.chop(1);
+    }
+    if (name.isEmpty() || name == QStringLiteral(".")
+        || name == QStringLiteral("..")) {
+        name = fallback;
+    }
+    const QString deviceName =
+        QFileInfo(name).fileName().section(QLatin1Char('.'), 0, 0).toUpper();
+    static const QRegularExpression reservedDevice(
+        QStringLiteral("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$"));
+    if (reservedDevice.match(deviceName).hasMatch()) {
+        name.prepend(QLatin1Char('_'));
+    }
+    if (name.size() > 240) {
+        const QString suffix = QFileInfo(name).suffix();
+        const int suffixLength = suffix.isEmpty() ? 0 : suffix.size() + 1;
+        name = name.left(qMax(1, 240 - suffixLength));
+        if (!suffix.isEmpty()) {
+            name += QStringLiteral(".") + suffix;
+        }
+    }
+    return name;
+}
 
 class ModDetailsDialog : public QDialog
 {
@@ -76,20 +110,16 @@ public:
     {
         setAttribute(Qt::WA_NoSystemBackground);
         setAutoFillBackground(false);
-
-        const QSettings settings;
-        m_opacity = qBound(
-            0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
-        const QString path =
-            settings.value(QStringLiteral("ui/backgroundImage")).toString();
-        if (!path.isEmpty()) {
-            QImageReader reader(path);
-            reader.setAutoTransform(true);
-            m_background = reader.read();
-        }
+        loadBackground();
     }
 
 protected:
+    void showEvent(QShowEvent *event) override
+    {
+        QDialog::showEvent(event);
+        loadBackground();
+    }
+
     void paintEvent(QPaintEvent *event) override
     {
         Q_UNUSED(event)
@@ -120,6 +150,22 @@ protected:
     }
 
 private:
+    void loadBackground()
+    {
+        m_background = QImage();
+        const QSettings settings;
+        m_opacity = qBound(
+            0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
+        const QString path =
+            settings.value(QStringLiteral("ui/backgroundImage")).toString();
+        if (!path.isEmpty()) {
+            QImageReader reader(path);
+            reader.setAutoTransform(true);
+            m_background = reader.read();
+        }
+        update();
+    }
+
     QImage m_background;
     int m_opacity = 35;
 };
@@ -139,12 +185,12 @@ QString formattedDownloads(qint64 downloads)
     return QLocale().toString(downloads);
 }
 
-QString formattedDate(const QString &value)
+QString formattedDateShort(const QString &value)
 {
     const QDateTime date = QDateTime::fromString(value, Qt::ISODateWithMs).isValid()
         ? QDateTime::fromString(value, Qt::ISODateWithMs)
         : QDateTime::fromString(value, Qt::ISODate);
-    return date.isValid() ? date.toLocalTime().toString(QStringLiteral("yyyy-MM-dd hh:mm"))
+    return date.isValid() ? date.toLocalTime().toString(QStringLiteral("yyyy-MM-dd"))
                           : QStringLiteral("未知");
 }
 
@@ -223,6 +269,9 @@ QWidget *metadataItem(const QString &labelText,
 }
 
 void requestProjectVersions(const QString &projectId,
+                            const QString &projectTitle,
+                            const QString &categoryName,
+                            const QString &projectType,
                             QWidget *dialog,
                             QVBoxLayout *recommendationLayout,
                             QVBoxLayout *versionsLayout,
@@ -255,30 +304,22 @@ void requestProjectVersions(const QString &projectId,
     loadingLayout->addStretch();
     versionsLayout->addWidget(loadingRow);
 
-    const auto clearRecommendation = [recommendationLayout]() {
-        while (recommendationLayout->count() > 0) {
-            QLayoutItem *item = recommendationLayout->takeAt(0);
-            if (QWidget *widget = item->widget()) {
-                widget->deleteLater();
-            }
-            delete item;
-        }
-    };
-    const auto fail = [dialog, loadingRow, indicator, status,
-                       recommendationLayout, preferredGameVersion,
-                       preferredLoader, clearRecommendation](const QString &message) {
+    const auto fail = [dialog, loadingRow, indicator, status, recommendationLayout,
+                       preferredGameVersion, preferredLoader,
+                       categoryName](const QString &message) {
         indicator->hide();
         status->setText(message);
         if (!preferredGameVersion.isEmpty() || !preferredLoader.isEmpty()) {
-            clearRecommendation();
             recommendationLayout->addWidget(mutedLabel(
-                QStringLiteral("推荐版本加载失败，请在下方完整列表中重试查看。"),
+                QStringLiteral("推荐版本加载失败，请在下方完整列表中重试。"),
                 dialog));
+            recommendationLayout->addStretch(1);
         }
-        QMessageBox::warning(dialog, QStringLiteral("模组详情加载失败"), message);
+        QMessageBox::warning(dialog, QStringLiteral("%1详情加载失败").arg(categoryName),
+                             message);
     };
     if (!reply) {
-        fail(QStringLiteral("无法发起模组版本列表请求。"));
+        fail(QStringLiteral("无法发起%1版本列表请求。").arg(categoryName));
         return;
     }
 
@@ -286,17 +327,20 @@ void requestProjectVersions(const QString &projectId,
                      [reply, dialog, loadingRow, recommendationLayout, versionsLayout,
                       gameDirectory,
                       gameVersionOrder, preferredGameVersion, preferredLoader,
-                      download, clearRecommendation, fail]() {
+                      download, fail, categoryName, projectTitle,
+                      projectType]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            fail(QStringLiteral("加载模组版本失败：%1").arg(reply->errorString()));
+            fail(QStringLiteral("加载%1版本失败：%2")
+                     .arg(categoryName, reply->errorString()));
             return;
         }
 
         const int statusCode =
             reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (statusCode < 200 || statusCode >= 300) {
-            fail(QStringLiteral("加载模组版本失败：HTTP %1").arg(statusCode));
+            fail(QStringLiteral("加载%1版本失败：HTTP %2")
+                     .arg(categoryName).arg(statusCode));
             return;
         }
 
@@ -304,12 +348,11 @@ void requestProjectVersions(const QString &projectId,
         const QJsonDocument document =
             QJsonDocument::fromJson(reply->readAll(), &parseError);
         if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
-            fail(QStringLiteral("Modrinth 返回了无效的模组版本数据。"));
+            fail(QStringLiteral("Modrinth 返回了无效的%1版本数据。").arg(categoryName));
             return;
         }
 
         loadingRow->deleteLater();
-        clearRecommendation();
         QMap<QString, QVector<QJsonObject>> groups;
         for (const QJsonValue &value : document.array()) {
             if (!value.isObject()) {
@@ -331,31 +374,12 @@ void requestProjectVersions(const QString &projectId,
         }
 
         if (groups.isEmpty()) {
-            clearRecommendation();
-            if (!preferredGameVersion.isEmpty() || !preferredLoader.isEmpty()) {
-                recommendationLayout->addWidget(mutedLabel(
-                    QStringLiteral("该模组暂无可用版本。"), dialog));
-            }
-            versionsLayout->addWidget(mutedLabel(QStringLiteral("该模组暂无可用版本。"), dialog));
+            versionsLayout->addWidget(mutedLabel(
+                QStringLiteral("该%1暂无可用版本。").arg(categoryName), dialog));
             return;
         }
 
         QStringList gameVersionKeys = groups.keys();
-        const auto hasLoader = [&groups](const QString &gameVersionId,
-                                         const QString &loader) {
-            if (loader.isEmpty()) {
-                return false;
-            }
-            for (const QJsonObject &version : groups.value(gameVersionId)) {
-                for (const QJsonValue &value :
-                     version.value(QStringLiteral("loaders")).toArray()) {
-                    if (value.toString() == loader) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        };
         std::sort(gameVersionKeys.begin(), gameVersionKeys.end(),
                   [&gameVersionOrder](const QString &left, const QString &right) {
             if (left == QStringLiteral("其他版本")) {
@@ -388,7 +412,8 @@ void requestProjectVersions(const QString &projectId,
         });
 
         const auto renderVersionGroup =
-            [dialog, gameDirectory, download](
+            [dialog, gameDirectory, download, projectTitle,
+             categoryName, projectType](
                 QVBoxLayout *targetLayout,
                 const QString &gameVersionId,
                 const QString &groupTitle,
@@ -420,7 +445,7 @@ void requestProjectVersions(const QString &projectId,
 
             auto *group = new QWidget(dialog);
             auto *groupLayout = new QVBoxLayout(group);
-            groupLayout->setContentsMargins(0, 0, 0, 8);
+            groupLayout->setContentsMargins(0, 0, 0, 6);
             groupLayout->setSpacing(4);
 
             auto *toggle = new QToolButton(group);
@@ -432,16 +457,20 @@ void requestProjectVersions(const QString &projectId,
             toggle->setCheckable(true);
             toggle->setChecked(expanded);
             toggle->setStyleSheet(QStringLiteral(
-                "QToolButton { color: %1; background: transparent; border: 1px solid %2;"
-                "border-radius: 9px; padding: 10px 12px; text-align: left; }"
-                "QToolButton:hover { background: rgba(110, 231, 183, 14); }")
-                .arg(Theme::TextPrimary.name(), Theme::Border.name()));
+                "QToolButton { color: %1; background: rgba(255, 255, 255, 7);"
+                "border: 1px solid %2; border-radius: 8px; padding: 8px 10px;"
+                "text-align: left; font-weight: 600; }"
+                "QToolButton:hover { background: rgba(110, 231, 183, 14);"
+                "border-color: %3; }")
+                .arg(Theme::TextPrimary.name(), Theme::Border.name(),
+                     QColor(Theme::Accent.red(), Theme::Accent.green(),
+                            Theme::Accent.blue(), 90).name(QColor::HexArgb)));
             groupLayout->addWidget(toggle);
 
             auto *items = new QWidget(group);
             auto *itemsLayout = new QVBoxLayout(items);
-            itemsLayout->setContentsMargins(8, 3, 0, 4);
-            itemsLayout->setSpacing(4);
+            itemsLayout->setContentsMargins(2, 0, 0, 2);
+            itemsLayout->setSpacing(2);
 
             for (const QJsonObject &version : versions) {
                 const QJsonArray files = version.value(QStringLiteral("files")).toArray();
@@ -464,13 +493,14 @@ void requestProjectVersions(const QString &projectId,
 
                 auto *versionButton = new QPushButton(items);
                 versionButton->setCursor(Qt::PointingHandCursor);
+                versionButton->setToolTip(fileName);
                 versionButton->setStyleSheet(QStringLiteral(
                     "QPushButton { background: transparent; border: none; border-radius: 8px;"
-                    "text-align: left; padding: 7px; }"
+                    "text-align: left; padding: 7px 8px; }"
                     "QPushButton:hover { background: rgba(110, 231, 183, 14); }"));
-                versionButton->setMinimumHeight(52);
+                versionButton->setMinimumHeight(46);
                 auto *versionLayout = new QHBoxLayout(versionButton);
-                versionLayout->setContentsMargins(5, 2, 5, 2);
+                versionLayout->setContentsMargins(4, 1, 4, 1);
                 versionLayout->setSpacing(10);
 
                 auto *versionText = new QVBoxLayout();
@@ -483,18 +513,32 @@ void requestProjectVersions(const QString &projectId,
                     11, QFont::DemiBold, Theme::TextPrimary, versionButton));
                 QJsonArray loaders = version.value(QStringLiteral("loaders")).toArray();
                 QStringList loaderNames;
+                QStringList versionLoaders;
                 for (const QJsonValue &loader : loaders) {
-                    loaderNames.append(prettyLoader(loader.toString()));
+                    const QString loaderId = loader.toString();
+                    versionLoaders.append(loaderId);
+                    loaderNames.append(prettyLoader(loaderId));
                 }
-                const QString details = QStringLiteral("%1  ·  更新于 %2")
-                    .arg(loaderNames.join(QStringLiteral(" / ")),
-                         formattedDate(version.value(QStringLiteral("date_published")).toString()));
+                const QString details = QStringLiteral("%1  ·  %2")
+                    .arg(loaderNames.isEmpty()
+                             ? QStringLiteral("加载器未标注")
+                             : loaderNames.join(QStringLiteral(" / ")),
+                         formattedDateShort(
+                             version.value(QStringLiteral("date_published")).toString()));
                 versionText->addWidget(mutedLabel(details, versionButton));
                 versionLayout->addLayout(versionText, 1);
-                versionLayout->addWidget(mutedLabel(
-                    QStringLiteral("%1 次下载").arg(formattedDownloads(
-                        version.value(QStringLiteral("downloads")).toVariant().toLongLong())),
-                    versionButton));
+                versionLayout->addWidget(Theme::label(
+                    projectType == QStringLiteral("modpack")
+                        ? QStringLiteral("安装整合包")
+                        : projectType == QStringLiteral("resourcepack")
+                            ? QStringLiteral("下载并安装到 resourcepacks 文件夹")
+                            : projectType == QStringLiteral("shader")
+                                ? QStringLiteral("下载并安装到 shaderpacks 文件夹")
+                                : projectType == QStringLiteral("datapack")
+                                    ? QStringLiteral("下载并安装到 datapacks 文件夹")
+                                    : QStringLiteral("下载"),
+                    10, QFont::DemiBold,
+                    Theme::Accent, versionButton));
                 itemsLayout->addWidget(versionButton);
 
                 const QByteArray sha1 =
@@ -505,11 +549,133 @@ void requestProjectVersions(const QString &projectId,
                 const QString versionId = gameVersionId;
                 QObject::connect(versionButton, &QPushButton::clicked, dialog,
                                  [dialog, gameDirectory, versionId, targetName,
-                                  targetUrl, sha1, loaderFilter, download]() {
+                                  targetUrl, sha1, loaderFilter, versionLoaders,
+                                  download, projectType, projectTitle,
+                                  categoryName]() {
+                    const auto loaderMatches =
+                        [loaderFilter, versionLoaders](const QString &installedLoader) {
+                        if (!loaderFilter.isEmpty()
+                            && installedLoader.compare(loaderFilter,
+                                                       Qt::CaseInsensitive) != 0) {
+                            return false;
+                        }
+                        if (versionLoaders.isEmpty()) {
+                            return true;
+                        }
+                        for (const QString &loader : versionLoaders) {
+                            if (installedLoader.compare(loader,
+                                                        Qt::CaseInsensitive) == 0) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    };
                     QString startDirectory =
                         QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
                     if (startDirectory.isEmpty()) {
                         startDirectory = QDir::homePath();
+                    }
+                    if (projectType != QStringLiteral("mod")) {
+                        if (gameDirectory.isEmpty()) {
+                            QMessageBox::warning(
+                                dialog, QStringLiteral("无法安装%1").arg(categoryName),
+                                QStringLiteral("请先在设置中配置 Minecraft 游戏目录。"));
+                            return;
+                        }
+                        if (projectType == QStringLiteral("modpack")) {
+                            if (download(targetUrl, targetName, sha1, projectTitle)) {
+                                dialog->close();
+                            }
+                            return;
+                        }
+                        const QString directoryName =
+                            projectType == QStringLiteral("resourcepack")
+                                ? QStringLiteral("resourcepacks")
+                                : projectType == QStringLiteral("shader")
+                                    ? QStringLiteral("shaderpacks")
+                                    : QStringLiteral("datapacks");
+                        QString gameDataDirectory = gameDirectory;
+                        const GlobalSettings globalSettings = GlobalSettings::load();
+                        const LocalVersionScanner::Result installedVersions =
+                            LocalVersionScanner::scan(gameDirectory);
+                        QVector<VersionInfo> matchingVersions;
+                        if (versionId != QStringLiteral("其他版本")) {
+                            for (const VersionInfo &installed : installedVersions.versions) {
+                                if (installed.minecraft == versionId
+                                    && loaderMatches(installed.loader)) {
+                                    matchingVersions.append(installed);
+                                }
+                            }
+                        }
+                        if (globalSettings.versionIsolation != QStringLiteral("none")) {
+                            if (matchingVersions.isEmpty()) {
+                                QMessageBox::warning(
+                                    dialog, QStringLiteral("无法安装%1").arg(categoryName),
+                                    QStringLiteral("当前启用了版本隔离，但没有找到已安装的 Minecraft %1 "
+                                                   "目标版本。请先安装该版本，再进行下载。")
+                                        .arg(versionId == QStringLiteral("其他版本")
+                                                 ? QStringLiteral("对应")
+                                                 : versionId));
+                                return;
+                            }
+
+                            QStringList choices;
+                            QVector<QString> directories;
+                            for (const VersionInfo &installed : matchingVersions) {
+                                const QString directory =
+                                    installed.gameDataDirectory.isEmpty()
+                                        ? gameDirectory
+                                        : installed.gameDataDirectory;
+                                if (directories.contains(directory)) {
+                                    continue;
+                                }
+                                directories.append(directory);
+                                const QString label =
+                                    installed.displayName.isEmpty()
+                                        ? installed.versionId
+                                        : installed.displayName;
+                                choices.append(QStringLiteral("%1 · %2 · %3")
+                                                   .arg(label, installed.loader,
+                                                        installed.versionId));
+                            }
+
+                            int selectedIndex = 0;
+                            if (choices.size() > 1) {
+                                bool accepted = false;
+                                const QString selected = QInputDialog::getItem(
+                                    dialog, QStringLiteral("选择安装版本"),
+                                    QStringLiteral("请选择资源安装到的本地版本："),
+                                    choices, 0, false, &accepted);
+                                if (!accepted) {
+                                    return;
+                                }
+                                selectedIndex = choices.indexOf(selected);
+                            }
+                            if (selectedIndex < 0 || selectedIndex >= directories.size()) {
+                                QMessageBox::warning(
+                                    dialog, QStringLiteral("无法安装%1").arg(categoryName),
+                                    QStringLiteral("未能确定目标版本的数据目录。"));
+                                return;
+                            }
+                            gameDataDirectory = directories.at(selectedIndex);
+                        }
+                        const QString installDirectory =
+                            QDir(gameDataDirectory).filePath(directoryName);
+                        if (!QDir().mkpath(installDirectory)) {
+                            QMessageBox::warning(
+                                dialog, QStringLiteral("无法安装%1").arg(categoryName),
+                                QStringLiteral("无法创建安装目录：\n%1")
+                                    .arg(installDirectory));
+                            return;
+                        }
+                        const QString safeName = safeDownloadFileName(
+                            targetName, QStringLiteral("download"));
+                        if (download(targetUrl,
+                                     QDir(installDirectory).filePath(safeName),
+                                     sha1, safeName)) {
+                            dialog->close();
+                        }
+                        return;
                     }
                     QString createdModsDirectory;
                     QString modsDirectoryError;
@@ -518,9 +684,7 @@ void requestProjectVersions(const QString &projectId,
                             LocalVersionScanner::scan(gameDirectory);
                         for (const VersionInfo &installed : scan.versions) {
                             if (installed.minecraft == versionId
-                                && (loaderFilter.isEmpty()
-                                    || installed.loader.compare(
-                                           loaderFilter, Qt::CaseInsensitive) == 0)) {
+                                && loaderMatches(installed.loader)) {
                                 const QString gameData = installed.gameDataDirectory.isEmpty()
                                     ? gameDirectory
                                     : installed.gameDataDirectory;
@@ -547,8 +711,9 @@ void requestProjectVersions(const QString &projectId,
                         return;
                     }
 
-                    const QString suggested =
-                        QDir(startDirectory).filePath(targetName);
+                    const QString safeName =
+                        safeDownloadFileName(targetName, QStringLiteral("mod.jar"));
+                    const QString suggested = QDir(startDirectory).filePath(safeName);
                     const QString destination = QFileDialog::getSaveFileName(
                         dialog, QStringLiteral("选择模组保存位置"), suggested,
                         QStringLiteral("模组文件 (*.jar);;所有文件 (*)"));
@@ -590,64 +755,62 @@ void requestProjectVersions(const QString &projectId,
             targetLayout->addWidget(group);
         };
 
-        if (!preferredGameVersion.isEmpty() || !preferredLoader.isEmpty()) {
-            QStringList recommendedKeys;
-            if (!preferredGameVersion.isEmpty()) {
-                if (groups.contains(preferredGameVersion)) {
-                    recommendedKeys.append(preferredGameVersion);
-                }
-            } else {
-                for (const QString &gameVersionId : gameVersionKeys) {
-                    if (gameVersionId == QStringLiteral("其他版本")) {
-                        continue;
-                    }
-                    if (preferredLoader.isEmpty()
-                        || hasLoader(gameVersionId, preferredLoader)) {
-                        recommendedKeys.append(gameVersionId);
-                    }
-                }
-            }
-
-            int renderedRecommendations = 0;
-            for (const QString &gameVersionId : recommendedKeys) {
-                QVector<QJsonObject> recommendedVersions = groups.value(gameVersionId);
-                if (!preferredLoader.isEmpty()) {
-                    recommendedVersions.erase(
-                        std::remove_if(recommendedVersions.begin(),
-                                       recommendedVersions.end(),
-                                       [&preferredLoader](const QJsonObject &version) {
-                            for (const QJsonValue &loader :
-                                 version.value(QStringLiteral("loaders")).toArray()) {
-                                if (loader.toString() == preferredLoader) {
-                                    return false;
-                                }
-                            }
-                            return true;
-                        }),
-                        recommendedVersions.end());
-                }
-                if (recommendedVersions.isEmpty()) {
+        const bool hasFilter =
+            !preferredGameVersion.isEmpty() || !preferredLoader.isEmpty();
+        if (hasFilter) {
+            int recommendedCount = 0;
+            for (const QString &gameVersionId : gameVersionKeys) {
+                if (!preferredGameVersion.isEmpty()
+                    && gameVersionId != preferredGameVersion) {
                     continue;
                 }
 
+                QVector<QJsonObject> recommended;
+                for (const QJsonObject &version : groups.value(gameVersionId)) {
+                    bool loaderMatches = preferredLoader.isEmpty();
+                    for (const QJsonValue &loader :
+                         version.value(QStringLiteral("loaders")).toArray()) {
+                        if (preferredLoader.isEmpty()
+                            || loader.toString().compare(preferredLoader,
+                                                         Qt::CaseInsensitive) == 0) {
+                            loaderMatches = true;
+                            break;
+                        }
+                    }
+                    if (loaderMatches) {
+                        recommended.append(version);
+                    }
+                }
+                if (recommended.isEmpty()) {
+                    continue;
+                }
+
+                std::sort(recommended.begin(), recommended.end(),
+                          [](const QJsonObject &left, const QJsonObject &right) {
+                    return left.value(QStringLiteral("date_published")).toString()
+                        > right.value(QStringLiteral("date_published")).toString();
+                });
+
                 QString groupTitle = gameVersionId;
                 if (!preferredLoader.isEmpty()) {
-                    groupTitle += QStringLiteral(" · %1").arg(prettyLoader(preferredLoader));
+                    groupTitle += QStringLiteral(" · %1").arg(
+                        prettyLoader(preferredLoader));
                 }
                 renderVersionGroup(recommendationLayout, gameVersionId, groupTitle,
-                                   recommendedVersions, preferredLoader,
-                                   renderedRecommendations == 0);
-                ++renderedRecommendations;
+                                   recommended, preferredLoader, true);
+                ++recommendedCount;
             }
-            if (renderedRecommendations == 0) {
+
+            if (recommendedCount == 0) {
                 recommendationLayout->addWidget(mutedLabel(
-                    QStringLiteral("当前筛选条件下没有可直接推荐的版本，请在下方完整列表中查看兼容版本。"),
+                    QStringLiteral("没有完全匹配当前筛选条件的版本，请在下方查看全部版本。"),
                     dialog));
             }
             recommendationLayout->addStretch(1);
         }
 
-        for (const QString &gameVersionId : gameVersionKeys) {
+        QStringList displayKeys = gameVersionKeys;
+        for (const QString &gameVersionId : displayKeys) {
             renderVersionGroup(versionsLayout, gameVersionId, gameVersionId,
                                groups.value(gameVersionId), QString(), false);
         }
@@ -657,16 +820,20 @@ void requestProjectVersions(const QString &projectId,
 
 } // namespace
 
-DownloadModsPage::DownloadModsPage(QWidget *parent)
+DownloadModsPage::DownloadModsPage(const QString &projectType,
+                                   const QString &categoryName,
+                                   QWidget *parent)
     : QWidget(parent)
     , m_network(new QNetworkAccessManager(this))
     , m_gameDirectory(MinecraftPaths::savedGameDirectory())
+    , m_projectType(projectType)
+    , m_categoryName(categoryName)
 {
     setAttribute(Qt::WA_NoSystemBackground);
     setAutoFillBackground(false);
 
     auto *root = new QVBoxLayout(this);
-    root->setContentsMargins(32, 22, 32, 16);
+    root->setContentsMargins(20, 14, 20, 12);
     root->setSpacing(0);
 
     auto *header = new QHBoxLayout();
@@ -675,15 +842,11 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
     auto *headerText = new QVBoxLayout();
     headerText->setContentsMargins(0, 0, 0, 0);
     headerText->setSpacing(3);
-    auto *eyebrow = Theme::label(QStringLiteral("模组库  /  MODRINTH"), 9, QFont::Bold,
-                                 Theme::Accent, this);
-    QFont eyebrowFont = eyebrow->font();
-    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
-    eyebrow->setFont(eyebrowFont);
-    headerText->addWidget(eyebrow);
-    headerText->addWidget(Theme::label(QStringLiteral("下载模组"), 27, QFont::DemiBold,
+    headerText->addWidget(Theme::label(m_categoryName, 23, QFont::DemiBold,
                                        Theme::TextPrimary, this, true));
-    headerText->addWidget(Theme::label(QStringLiteral("搜索 Modrinth 模组并选择兼容版本下载。"),
+    headerText->addWidget(Theme::label(
+                                       QStringLiteral("搜索 Modrinth %1 并选择兼容版本下载。")
+                                           .arg(m_categoryName),
                                        12, QFont::Normal, Theme::TextMuted, this));
     header->addLayout(headerText);
     header->addStretch();
@@ -695,7 +858,7 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
                                                 Theme::Accent.blue(), 45)),
                       0, Qt::AlignVCenter);
     root->addLayout(header);
-    root->addSpacing(14);
+    root->addSpacing(10);
 
     auto *downloadPanel = new CardWidget(this);
     downloadPanel->setAccentColor(Theme::Accent);
@@ -736,19 +899,16 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
     filterCard->setAccentColor(Theme::Blue);
     filterCard->setInteractive(false);
     auto *filterLayout = new QVBoxLayout(filterCard);
-    filterLayout->setContentsMargins(18, 14, 18, 14);
-    filterLayout->setSpacing(10);
-    filterLayout->addWidget(Theme::label(QStringLiteral("搜索 Mod"), 15, QFont::DemiBold,
+    filterLayout->setContentsMargins(16, 11, 16, 11);
+    filterLayout->setSpacing(9);
+    filterLayout->addWidget(Theme::label(
+                                         QStringLiteral("筛选%1").arg(m_categoryName),
+                                         14, QFont::DemiBold,
                                          Theme::TextPrimary, filterCard));
 
-    auto *fields = new QGridLayout();
-    fields->setContentsMargins(0, 0, 0, 0);
-    fields->setHorizontalSpacing(12);
-    fields->setVerticalSpacing(8);
-    auto *nameLabel = Theme::label(QStringLiteral("名称"), 11, QFont::DemiBold,
-                                   Theme::TextSecondary, filterCard);
     m_nameEdit = new QLineEdit(filterCard);
-    m_nameEdit->setPlaceholderText(QStringLiteral("输入模组名称或关键词"));
+    m_nameEdit->setPlaceholderText(QStringLiteral("输入%1名称或关键词")
+                                        .arg(m_categoryName));
     m_nameEdit->setClearButtonEnabled(true);
     m_nameEdit->setFixedHeight(40);
     m_nameEdit->setStyleSheet(QStringLiteral(
@@ -759,16 +919,14 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
         .arg(Theme::Border.name(), Theme::TextPrimary.name(),
              QColor(255, 255, 255, 64).name(QColor::HexArgb),
              Theme::Accent.name()));
-    auto *versionLabel = Theme::label(QStringLiteral("游戏版本"), 11, QFont::DemiBold,
-                                      Theme::TextSecondary, filterCard);
+
     m_gameVersionCombo = new AnimatedComboBox(filterCard);
     m_gameVersionCombo->setEditable(true);
     m_gameVersionCombo->setInsertPolicy(QComboBox::NoInsert);
     m_gameVersionCombo->setPlaceholderText(QStringLiteral("全部（也可自行输入）"));
     m_gameVersionCombo->addItem(QStringLiteral("全部"));
     m_gameVersionCombo->setFixedHeight(40);
-    auto *loaderLabel = Theme::label(QStringLiteral("加载器"), 11, QFont::DemiBold,
-                                     Theme::TextSecondary, filterCard);
+
     m_loaderCombo = new AnimatedComboBox(filterCard);
     m_loaderCombo->addItem(QStringLiteral("任意 Mod 加载器"), QString());
     m_loaderCombo->addItem(QStringLiteral("Forge"), QStringLiteral("forge"));
@@ -793,28 +951,58 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
     m_gameVersionCombo->lineEdit()->setStyleSheet(
         QStringLiteral("QLineEdit { background: transparent; border: none; padding: 0; }"));
     m_loaderCombo->setStyleSheet(comboStyle);
-    nameLabel->setFixedWidth(72);
-    versionLabel->setFixedWidth(72);
-    loaderLabel->setFixedWidth(72);
-    nameLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    versionLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    loaderLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
-    fields->addWidget(nameLabel, 0, 0);
-    fields->addWidget(m_nameEdit, 0, 1);
-    fields->addWidget(versionLabel, 1, 0);
-    fields->addWidget(m_gameVersionCombo, 1, 1, 1, 3);
-    fields->addWidget(loaderLabel, 0, 2);
-    fields->addWidget(m_loaderCombo, 0, 3);
-    fields->setColumnMinimumWidth(0, 72);
-    fields->setColumnMinimumWidth(2, 72);
-    fields->setColumnStretch(1, 1);
-    fields->setColumnStretch(3, 1);
-    filterLayout->addLayout(fields);
+    auto *firstRow = new QHBoxLayout();
+    firstRow->setContentsMargins(0, 0, 0, 0);
+    firstRow->setSpacing(8);
+    auto *nameField = new QWidget(filterCard);
+    auto *nameFieldLayout = new QVBoxLayout(nameField);
+    nameFieldLayout->setContentsMargins(0, 0, 0, 0);
+    nameFieldLayout->setSpacing(5);
+    nameFieldLayout->addWidget(Theme::label(QStringLiteral("名称"), 10, QFont::DemiBold,
+                                            Theme::TextSecondary, nameField));
+    nameFieldLayout->addWidget(m_nameEdit);
+    firstRow->addWidget(nameField, 1);
+
+    auto *searchButton = new AccentButton(QStringLiteral("搜索"), filterCard);
+    searchButton->setVariant(AccentButton::Variant::Primary);
+    searchButton->setFixedHeight(40);
+    searchButton->setMinimumWidth(96);
+    auto *resetButton = new AccentButton(QStringLiteral("重置"), filterCard);
+    resetButton->setVariant(AccentButton::Variant::Secondary);
+    resetButton->setFixedHeight(40);
+    resetButton->setMinimumWidth(88);
+    firstRow->addWidget(searchButton, 0, Qt::AlignBottom);
+    firstRow->addWidget(resetButton, 0, Qt::AlignBottom);
+    filterLayout->addLayout(firstRow);
+
+    auto *secondRow = new QHBoxLayout();
+    secondRow->setContentsMargins(0, 0, 0, 0);
+    secondRow->setSpacing(10);
+    auto *versionField = new QWidget(filterCard);
+    versionField->setFixedWidth(190);
+    auto *versionFieldLayout = new QVBoxLayout(versionField);
+    versionFieldLayout->setContentsMargins(0, 0, 0, 0);
+    versionFieldLayout->setSpacing(5);
+    versionFieldLayout->addWidget(Theme::label(QStringLiteral("游戏版本"), 10, QFont::DemiBold,
+                                               Theme::TextSecondary, versionField));
+    versionFieldLayout->addWidget(m_gameVersionCombo);
+    secondRow->addWidget(versionField);
+
+    auto *loaderField = new QWidget(filterCard);
+    loaderField->setFixedWidth(190);
+    auto *loaderFieldLayout = new QVBoxLayout(loaderField);
+    loaderFieldLayout->setContentsMargins(0, 0, 0, 0);
+    loaderFieldLayout->setSpacing(5);
+    loaderFieldLayout->addWidget(Theme::label(QStringLiteral("加载器"), 10, QFont::DemiBold,
+                                              Theme::TextSecondary, loaderField));
+    loaderFieldLayout->addWidget(m_loaderCombo);
+    secondRow->addWidget(loaderField);
+    loaderField->setVisible(m_projectType == QStringLiteral("mod"));
 
     auto *versionLoadingRow = new QWidget(filterCard);
     auto *versionLoadingLayout = new QHBoxLayout(versionLoadingRow);
-    versionLoadingLayout->setContentsMargins(84, 0, 0, 0);
+    versionLoadingLayout->setContentsMargins(0, 0, 0, 0);
     versionLoadingLayout->setSpacing(7);
     m_versionLoadingIndicator = new LoadingIndicator(versionLoadingRow, Theme::Accent);
     m_versionLoadingIndicator->setFixedSize(17, 17);
@@ -833,21 +1021,9 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
     m_retryVersionManifestButton->hide();
     versionLoadingLayout->addWidget(m_retryVersionManifestButton);
     versionLoadingLayout->addStretch();
-    filterLayout->addWidget(versionLoadingRow);
+    secondRow->addWidget(versionLoadingRow, 1, Qt::AlignBottom);
+    filterLayout->addLayout(secondRow);
 
-    auto *actions = new QHBoxLayout();
-    actions->setContentsMargins(0, 0, 0, 0);
-    actions->setSpacing(8);
-    auto *searchButton = new AccentButton(QStringLiteral("搜索"), this);
-    searchButton->setVariant(AccentButton::Variant::Primary);
-    searchButton->setFixedWidth(130);
-    auto *resetButton = new AccentButton(QStringLiteral("重置条件"), this);
-    resetButton->setVariant(AccentButton::Variant::Secondary);
-    resetButton->setFixedWidth(130);
-    actions->addWidget(searchButton);
-    actions->addWidget(resetButton);
-    actions->addStretch();
-    filterLayout->addLayout(actions);
     root->addWidget(filterCard);
     root->addSpacing(10);
 
@@ -872,7 +1048,7 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
     m_resultsContent->setAttribute(Qt::WA_NoSystemBackground);
     m_resultsLayout = new QVBoxLayout(m_resultsContent);
     m_resultsLayout->setContentsMargins(0, 0, 7, 4);
-    m_resultsLayout->setSpacing(6);
+    m_resultsLayout->setSpacing(8);
     m_resultsLayout->addStretch(1);
     m_loadingWidget = new QWidget(m_resultsContent);
     auto *loadingLayout = new QVBoxLayout(m_loadingWidget);
@@ -882,7 +1058,9 @@ DownloadModsPage::DownloadModsPage(QWidget *parent)
     auto *loadingIndicator = new LoadingIndicator(m_loadingWidget, Theme::Accent);
     loadingIndicator->setFixedSize(30, 30);
     loadingLayout->addWidget(loadingIndicator, 0, Qt::AlignHCenter);
-    auto *loadingLabel = mutedLabel(QStringLiteral("正在从 Modrinth 加载模组…"),
+    auto *loadingLabel = mutedLabel(
+                                    QStringLiteral("正在从 Modrinth 加载%1…")
+                                        .arg(m_categoryName),
                                     m_loadingWidget);
     loadingLabel->setAlignment(Qt::AlignCenter);
     loadingLayout->addWidget(loadingLabel);
@@ -1113,12 +1291,12 @@ void DownloadModsPage::fetchSearchPage()
     }
 
     QJsonArray facets;
-    facets.append(QJsonArray{QStringLiteral("project_type:mod")});
+    facets.append(QJsonArray{QStringLiteral("project_type:%1").arg(m_projectType)});
     if (!gameVersion.isEmpty()) {
         facets.append(QJsonArray{QStringLiteral("versions:%1").arg(gameVersion)});
     }
     const QString loader = m_loaderCombo->currentData().toString();
-    if (!loader.isEmpty()) {
+    if (m_projectType == QStringLiteral("mod") && !loader.isEmpty()) {
         facets.append(QJsonArray{QStringLiteral("categories:%1").arg(loader)});
     }
     query.addQueryItem(QStringLiteral("facets"),
@@ -1135,7 +1313,7 @@ void DownloadModsPage::fetchSearchPage()
         m_resultsLayout->addStretch(1);
         const QString message = QStringLiteral("无法发起 Modrinth 搜索请求。");
         setSearchStatus(message);
-        QMessageBox::warning(this, QStringLiteral("模组搜索失败"), message);
+        QMessageBox::warning(this, QStringLiteral("%1搜索失败").arg(m_categoryName), message);
         return;
     }
     m_searchReply = reply;
@@ -1163,7 +1341,7 @@ void DownloadModsPage::handleSearchReply()
         clearResults();
         m_resultsLayout->addStretch(1);
         setSearchStatus(message);
-        QMessageBox::warning(this, QStringLiteral("模组搜索失败"), message);
+        QMessageBox::warning(this, QStringLiteral("%1搜索失败").arg(m_categoryName), message);
     };
 
     if (reply->error() != QNetworkReply::NoError) {
@@ -1205,25 +1383,29 @@ void DownloadModsPage::handleSearchReply()
         auto *row = new QPushButton(m_resultsContent);
         row->setCursor(Qt::PointingHandCursor);
         row->setFlat(true);
-        row->setMinimumHeight(100);
+        row->setMinimumHeight(92);
+        row->setToolTip(QStringLiteral("查看%1详情").arg(m_categoryName));
         row->setStyleSheet(QStringLiteral(
-            "QPushButton { background: transparent; border: none; border-bottom: 1px solid %1;"
-            "text-align: left; padding: 10px 8px; }"
-            "QPushButton:hover { background: rgba(110, 231, 183, 12); }")
-            .arg(Theme::Border.name()));
+            "QPushButton { background: rgba(255, 255, 255, 8); border: 1px solid %1;"
+            "border-radius: 11px; text-align: left; padding: 10px 12px; }"
+            "QPushButton:hover { background: rgba(110, 231, 183, 16);"
+            "border-color: %2; }")
+            .arg(Theme::Border.name(),
+                 QColor(Theme::Accent.red(), Theme::Accent.green(),
+                        Theme::Accent.blue(), 100).name(QColor::HexArgb)));
         auto *layout = new QHBoxLayout(row);
-        layout->setContentsMargins(4, 3, 8, 3);
-        layout->setSpacing(12);
+        layout->setContentsMargins(4, 2, 4, 2);
+        layout->setSpacing(14);
 
         auto *icon = new QLabel(row);
-        icon->setFixedSize(64, 64);
+        icon->setFixedSize(56, 56);
         icon->setAlignment(Qt::AlignCenter);
         icon->setAttribute(Qt::WA_TransparentForMouseEvents);
         icon->setStyleSheet(QStringLiteral("background: rgba(255,255,255,12);"
                                            "border-radius: 10px;"));
         layout->addWidget(icon, 0, Qt::AlignVCenter);
         setRemoteIcon(m_network, project.value(QStringLiteral("icon_url")).toString(),
-                      icon, QSize(64, 64));
+                      icon, QSize(56, 56));
 
         auto *text = new QVBoxLayout();
         text->setContentsMargins(0, 0, 0, 0);
@@ -1231,40 +1413,59 @@ void DownloadModsPage::handleSearchReply()
         auto *titleRow = new QHBoxLayout();
         titleRow->setContentsMargins(0, 0, 0, 0);
         titleRow->setSpacing(8);
-        titleRow->addWidget(Theme::label(title, 14, QFont::DemiBold,
+        titleRow->addWidget(Theme::label(title, 15, QFont::DemiBold,
                                          Theme::TextPrimary, row));
         const QString slug = project.value(QStringLiteral("slug")).toString();
         if (!slug.isEmpty() && slug.compare(title, Qt::CaseInsensitive) != 0) {
             titleRow->addWidget(mutedLabel(slug, row));
         }
         titleRow->addStretch();
-        titleRow->addWidget(mutedLabel(QStringLiteral("Modrinth"), row));
         text->addLayout(titleRow);
 
-        auto *description = mutedLabel(
-            project.value(QStringLiteral("description")).toString(), row);
-        description->setWordWrap(false);
-        text->addWidget(description);
-
-        QStringList categories;
-        for (const QJsonValue &category : project.value(QStringLiteral("categories")).toArray()) {
-            categories.append(prettyLoader(category.toString()));
+        const QString descriptionText =
+            project.value(QStringLiteral("description")).toString();
+        if (!descriptionText.isEmpty()) {
+            auto *description = mutedLabel(descriptionText, row);
+            description->setWordWrap(false);
+            description->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+            description->setToolTip(descriptionText);
+            text->addWidget(description);
         }
-        const QString versionText = project.value(QStringLiteral("versions")).toArray().isEmpty()
+
+        QStringList loaderNames;
+        for (const QJsonValue &category :
+             project.value(QStringLiteral("categories")).toArray()) {
+            const QString value = category.toString();
+            if (value == QStringLiteral("forge") || value == QStringLiteral("neoforge")
+                || value == QStringLiteral("fabric")
+                || value == QStringLiteral("liteloader")) {
+                loaderNames.append(prettyLoader(value));
+            }
+        }
+        const QJsonArray versions = project.value(QStringLiteral("versions")).toArray();
+        const QString versionText = versions.isEmpty()
             ? QStringLiteral("未标注游戏版本")
-            : project.value(QStringLiteral("versions")).toArray().first().toString()
-                + (project.value(QStringLiteral("versions")).toArray().size() > 1
-                       ? QStringLiteral(" 等")
-                       : QString());
-        const QString meta = QStringLiteral("%1  ·  %2  ·  下载 %3  ·  更新于 %4")
-            .arg(categories.isEmpty() ? QStringLiteral("加载器未标注")
-                                      : categories.join(QStringLiteral(" / ")),
-                 versionText,
-                 formattedDownloads(project.value(QStringLiteral("downloads"))
-                                        .toVariant().toLongLong()),
-                 formattedDate(project.value(QStringLiteral("date_modified")).toString()));
-        text->addWidget(mutedLabel(meta, row));
+            : versions.first().toString()
+                + (versions.size() > 1 ? QStringLiteral(" 等") : QString());
+        QStringList metaParts;
+        metaParts.append(loaderNames.isEmpty()
+                             ? QStringLiteral("加载器未标注")
+                             : loaderNames.join(QStringLiteral(" / ")));
+        metaParts.append(versionText);
+        metaParts.append(QStringLiteral("%1 次下载").arg(
+            formattedDownloads(project.value(QStringLiteral("downloads"))
+                                   .toVariant().toLongLong())));
+        metaParts.append(
+            QStringLiteral("更新于 %1")
+                .arg(formattedDateShort(
+                    project.value(QStringLiteral("date_modified")).toString())));
+        text->addWidget(mutedLabel(metaParts.join(QStringLiteral("  ·  ")), row));
         layout->addLayout(text, 1);
+
+        auto *chevron = Theme::label(QStringLiteral("›"), 24, QFont::Light,
+                                     Theme::TextMuted, row);
+        chevron->setAttribute(Qt::WA_TransparentForMouseEvents);
+        layout->addWidget(chevron, 0, Qt::AlignVCenter);
 
         connect(row, &QPushButton::clicked, this,
                 [this, project]() { showProjectDetails(project); });
@@ -1273,7 +1474,7 @@ void DownloadModsPage::handleSearchReply()
     }
     m_resultsLayout->addStretch(1);
     const int totalPages = (m_totalHits + kProjectsPerPage - 1) / kProjectsPerPage;
-    m_countLabel->setText(QStringLiteral("共 %1 个模组").arg(m_totalHits));
+    m_countLabel->setText(QStringLiteral("共 %1 个%2").arg(m_totalHits).arg(m_categoryName));
     m_pageLabel->setText(
         QStringLiteral("第 %1 / %2 页").arg(m_currentPage + 1).arg(qMax(1, totalPages)));
     const bool multiplePages = totalPages > 1;
@@ -1283,7 +1484,8 @@ void DownloadModsPage::handleSearchReply()
     m_pageLabel->setVisible(multiplePages);
     m_nextPageButton->setVisible(multiplePages);
     setSearchStatus(displayed == 0
-                        ? QStringLiteral("没有找到匹配的模组，请尝试调整筛选条件。")
+                        ? QStringLiteral("没有找到匹配的%1，请尝试调整筛选条件。")
+                              .arg(m_categoryName)
                         : QStringLiteral("点击列表项查看详情和可下载版本。"));
 }
 
@@ -1292,14 +1494,16 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
     const QString projectId = project.value(QStringLiteral("project_id")).toString();
     const QString title = project.value(QStringLiteral("title")).toString();
     if (projectId.isEmpty() || title.isEmpty()) {
-        emit notifyRequested(QStringLiteral("模组信息缺失，无法打开详情。"));
+        emit notifyRequested(QStringLiteral("%1信息缺失，无法打开详情。").arg(m_categoryName));
         return;
     }
     QString preferredGameVersion = m_gameVersionCombo->currentText().trimmed();
     if (preferredGameVersion == QStringLiteral("全部")) {
         preferredGameVersion.clear();
     }
-    const QString preferredLoader = m_loaderCombo->currentData().toString();
+    const QString preferredLoader = m_projectType == QStringLiteral("mod")
+        ? m_loaderCombo->currentData().toString()
+        : QString();
 
     auto *dialog = new ModDetailsDialog(window());
     dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -1336,12 +1540,14 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
                                        Theme::TextPrimary, summary));
     const QString slug = project.value(QStringLiteral("slug")).toString();
     titleBlock->addWidget(mutedLabel(
-        slug.isEmpty()
-            ? QStringLiteral("Modrinth 项目")
-            : QStringLiteral("英文名 / Modrinth ID：%1").arg(slug),
+        slug.isEmpty() ? QStringLiteral("Modrinth %1 项目").arg(m_categoryName)
+                       : QStringLiteral("英文名 / Modrinth ID：%1").arg(slug),
         summary));
-    titleBlock->addWidget(mutedLabel(
-        project.value(QStringLiteral("description")).toString(), summary));
+    const QString descriptionText =
+        project.value(QStringLiteral("description")).toString();
+    auto *descriptionLabel = mutedLabel(descriptionText, summary);
+    descriptionLabel->setWordWrap(true);
+    titleBlock->addWidget(descriptionLabel);
     summaryTop->addLayout(titleBlock, 1);
     summaryLayout->addLayout(summaryTop);
 
@@ -1359,14 +1565,17 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
     auto *metadata = new QHBoxLayout();
     metadata->setContentsMargins(0, 0, 0, 0);
     metadata->setSpacing(22);
-    metadata->addWidget(metadataItem(QStringLiteral("加载器"), loaderText, summary));
+    if (m_projectType == QStringLiteral("mod")) {
+        metadata->addWidget(metadataItem(QStringLiteral("加载器"), loaderText, summary));
+    }
     metadata->addWidget(metadataItem(
         QStringLiteral("下载量"),
         formattedDownloads(project.value(QStringLiteral("downloads")).toVariant().toLongLong()),
         summary));
     metadata->addWidget(metadataItem(
-        QStringLiteral("上传/更新"),
-        formattedDate(project.value(QStringLiteral("date_modified")).toString()), summary));
+        QStringLiteral("最近更新"),
+        formattedDateShort(project.value(QStringLiteral("date_modified")).toString()),
+        summary));
     metadata->addStretch();
     summaryLayout->addLayout(metadata);
 
@@ -1376,7 +1585,17 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
     auto *modrinthButton = new AccentButton(QStringLiteral("转到 Modrinth"),
                                              Icons::Type::External, summary);
     modrinthButton->setVariant(AccentButton::Variant::Secondary);
-    const QString projectUrl = QStringLiteral("https://modrinth.com/mod/")
+    QString projectRoute = m_projectType;
+    if (projectRoute == QStringLiteral("shader")) {
+        projectRoute = QStringLiteral("shaders");
+    } else if (projectRoute == QStringLiteral("resourcepack")) {
+        projectRoute = QStringLiteral("resourcepacks");
+    } else if (projectRoute == QStringLiteral("datapack")) {
+        projectRoute = QStringLiteral("datapacks");
+    } else if (projectRoute == QStringLiteral("modpack")) {
+        projectRoute = QStringLiteral("modpacks");
+    }
+    const QString projectUrl = QStringLiteral("https://modrinth.com/%1/").arg(projectRoute)
         + (slug.isEmpty() ? projectId : slug);
     connect(modrinthButton, &QAbstractButton::clicked, dialog,
             [projectUrl]() { QDesktopServices::openUrl(QUrl(projectUrl)); });
@@ -1385,21 +1604,23 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
     summaryLayout->addLayout(buttons);
     root->addWidget(summary);
 
+    const bool hasFilter =
+        !preferredGameVersion.isEmpty() || !preferredLoader.isEmpty();
     auto *recommendationCard = new CardWidget(dialog);
     recommendationCard->setInteractive(false);
     recommendationCard->setAccentColor(Theme::Accent);
     recommendationCard->setCornerRadius(14);
-    recommendationCard->setVisible(!preferredGameVersion.isEmpty()
-                                   || !preferredLoader.isEmpty());
+    recommendationCard->setVisible(hasFilter);
     auto *recommendationCardLayout = new QVBoxLayout(recommendationCard);
-    recommendationCardLayout->setContentsMargins(14, 11, 14, 11);
-    recommendationCardLayout->setSpacing(6);
+    recommendationCardLayout->setContentsMargins(14, 12, 14, 12);
+    recommendationCardLayout->setSpacing(7);
+
     auto *recommendationHeader = new QHBoxLayout();
     recommendationHeader->setContentsMargins(0, 0, 0, 0);
     recommendationHeader->setSpacing(8);
-    recommendationHeader->addWidget(Theme::label(
-        QStringLiteral("推荐下载"), 14, QFont::DemiBold,
-        Theme::Accent, recommendationCard));
+    recommendationHeader->addWidget(Theme::label(QStringLiteral("推荐下载"), 14,
+                                                 QFont::DemiBold, Theme::Accent,
+                                                 recommendationCard));
     recommendationHeader->addStretch();
     if (!preferredGameVersion.isEmpty()) {
         recommendationHeader->addWidget(Theme::badge(
@@ -1419,40 +1640,32 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
     }
     recommendationCardLayout->addLayout(recommendationHeader);
     recommendationCardLayout->addWidget(mutedLabel(
-        QStringLiteral("以下版本根据当前筛选条件整理；下方仍保留全部兼容版本。"),
+        QStringLiteral("仅显示匹配当前筛选条件的版本。"),
         recommendationCard));
 
     auto *recommendationScroll = new QScrollArea(recommendationCard);
     recommendationScroll->setWidgetResizable(true);
     recommendationScroll->setFrameShape(QFrame::NoFrame);
     recommendationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    recommendationScroll->setMaximumHeight(116);
+    recommendationScroll->setMaximumHeight(250);
     recommendationScroll->viewport()->setAutoFillBackground(false);
     auto *recommendationContent = new QWidget();
     recommendationContent->setAttribute(Qt::WA_NoSystemBackground);
     auto *recommendationLayout = new QVBoxLayout(recommendationContent);
     recommendationLayout->setContentsMargins(0, 0, 7, 0);
-    recommendationLayout->setSpacing(4);
-    if (!preferredGameVersion.isEmpty() || !preferredLoader.isEmpty()) {
-        auto *loadingRow = new QWidget(recommendationContent);
-        auto *loadingRowLayout = new QHBoxLayout(loadingRow);
-        loadingRowLayout->setContentsMargins(0, 5, 0, 5);
-        loadingRowLayout->setSpacing(7);
-        auto *indicator = new LoadingIndicator(loadingRow, Theme::Accent);
-        indicator->setFixedSize(17, 17);
-        loadingRowLayout->addWidget(indicator);
-        loadingRowLayout->addWidget(mutedLabel(
-            QStringLiteral("正在整理匹配的 Mod 版本…"), loadingRow));
-        loadingRowLayout->addStretch();
-        recommendationLayout->addWidget(loadingRow);
-    }
+    recommendationLayout->setSpacing(3);
     recommendationScroll->setWidget(recommendationContent);
     recommendationCardLayout->addWidget(recommendationScroll);
     root->addWidget(recommendationCard);
 
-    auto *versionTitle = Theme::label(QStringLiteral("按 Minecraft 版本浏览下载"),
-                                      15, QFont::DemiBold, Theme::TextPrimary, dialog);
-    root->addWidget(versionTitle);
+    auto *versionHeader = new QHBoxLayout();
+    versionHeader->setContentsMargins(0, 0, 0, 0);
+    versionHeader->setSpacing(10);
+    versionHeader->addWidget(Theme::label(QStringLiteral("选择版本"), 15,
+                                          QFont::DemiBold, Theme::TextPrimary, dialog));
+    versionHeader->addStretch();
+    root->addLayout(versionHeader);
+
     auto *versionScroll = new QScrollArea(dialog);
     versionScroll->setWidgetResizable(true);
     versionScroll->setFrameShape(QFrame::NoFrame);
@@ -1463,7 +1676,6 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
     auto *versionsLayout = new QVBoxLayout(versionsContent);
     versionsLayout->setContentsMargins(0, 0, 7, 0);
     versionsLayout->setSpacing(7);
-    versionsLayout->addWidget(mutedLabel(QStringLiteral("正在加载版本列表…"), versionsContent));
     versionScroll->setWidget(versionsContent);
     root->addWidget(versionScroll, 1);
 
@@ -1472,7 +1684,8 @@ void DownloadModsPage::showProjectDetails(const QJsonObject &project)
                const QString &modName) {
             return startDownload(url, path, sha1, modName);
         };
-    requestProjectVersions(projectId, dialog, recommendationLayout, versionsLayout,
+    requestProjectVersions(projectId, title, m_categoryName, m_projectType,
+                           dialog, recommendationLayout, versionsLayout,
                            m_gameDirectory, m_gameVersionIds,
                            preferredGameVersion, preferredLoader, downloadCallback);
     dialog->show();
@@ -1483,15 +1696,18 @@ bool DownloadModsPage::startDownload(const QUrl &url,
                                      const QByteArray &sha1,
                                      const QString &modName)
 {
-    if (m_downloadTask) {
-        emit notifyRequested(QStringLiteral("已有模组正在下载，请等待完成后再试。"));
+    if (m_downloadTask || (m_modpackInstaller && m_modpackInstaller->isBusy())) {
+        emit notifyRequested(QStringLiteral("已有下载或安装任务正在进行，请等待完成后再试。"));
         return false;
     }
     if (!url.isValid() || url.host().isEmpty()
         || (url.scheme() != QStringLiteral("https")
             && url.scheme() != QStringLiteral("http"))) {
-        emit notifyRequested(QStringLiteral("模组下载链接无效。"));
+        emit notifyRequested(QStringLiteral("%1下载链接无效。").arg(m_categoryName));
         return false;
+    }
+    if (m_projectType == QStringLiteral("modpack")) {
+        return startModpackInstall(url, fileName, sha1, modName);
     }
 
     m_downloadName->setText(QStringLiteral("正在下载：%1").arg(modName));
@@ -1548,7 +1764,7 @@ bool DownloadModsPage::startDownload(const QUrl &url,
         m_downloadName->setText(QStringLiteral("下载完成：%1").arg(modName));
         m_downloadSpeed->setText(QDir::toNativeSeparators(path));
         emit modsChanged();
-        emit notifyRequested(QStringLiteral("%1 下载完成。").arg(modName));
+        emit notifyRequested(QStringLiteral("%1 下载并安装完成。").arg(modName));
     });
     connect(task, &DownloadTask::failed, this, [this, modName](const QString &reason) {
         if (reason == QStringLiteral("下载已取消。")) {
@@ -1573,5 +1789,81 @@ bool DownloadModsPage::startDownload(const QUrl &url,
         task->deleteLater();
     });
     task->start();
+    return true;
+}
+
+bool DownloadModsPage::startModpackInstall(const QUrl &url,
+                                           const QString &fileName,
+                                           const QByteArray &sha1,
+                                           const QString &displayName)
+{
+    if (m_gameDirectory.isEmpty()) {
+        emit notifyRequested(QStringLiteral("请先在设置中配置 Minecraft 游戏目录。"));
+        return false;
+    }
+    if (m_modpackInstaller) {
+        m_modpackInstaller->deleteLater();
+        m_modpackInstaller = nullptr;
+    }
+    {
+        m_modpackInstaller = new ModpackInstaller(m_gameDirectory, this);
+        connect(m_modpackInstaller, &ModpackInstaller::phaseChanged, this,
+                [this](const QString &phase) {
+            if (m_modpackProgress) {
+                m_modpackProgress->setLabelText(phase);
+            }
+        });
+        connect(m_modpackInstaller, &ModpackInstaller::percentChanged, this,
+                [this](int percent) {
+            if (m_modpackProgress) {
+                m_modpackProgress->setValue(qBound(0, percent, 100));
+            }
+        });
+        connect(m_modpackInstaller, &ModpackInstaller::finished, this,
+                [this](const QString &) {
+            if (m_modpackProgress) {
+                m_modpackProgress->hide();
+                m_modpackProgress->deleteLater();
+                m_modpackProgress = nullptr;
+            }
+            emit modsChanged();
+            emit notifyRequested(QStringLiteral("整合包安装完成，已添加到主页。"));
+        });
+        connect(m_modpackInstaller, &ModpackInstaller::failed, this,
+                [this](const QString &reason) {
+            if (m_modpackProgress) {
+                m_modpackProgress->hide();
+                m_modpackProgress->deleteLater();
+                m_modpackProgress = nullptr;
+            }
+            emit notifyRequested(QStringLiteral("整合包安装失败：%1").arg(reason));
+            QMessageBox::warning(this, QStringLiteral("整合包安装失败"), reason);
+        });
+        connect(m_modpackInstaller, &ModpackInstaller::cancelled, this, [this]() {
+            if (m_modpackProgress) {
+                m_modpackProgress->hide();
+                m_modpackProgress->deleteLater();
+                m_modpackProgress = nullptr;
+            }
+            emit notifyRequested(QStringLiteral("整合包安装已取消。"));
+        });
+    }
+    if (m_modpackInstaller->isBusy()) {
+        emit notifyRequested(QStringLiteral("已有整合包正在安装，请等待完成后再试。"));
+        return false;
+    }
+    m_modpackProgress = new QProgressDialog(
+        QStringLiteral("正在准备整合包安装"), QStringLiteral("取消安装"),
+        0, 100, window());
+    m_modpackProgress->setWindowTitle(QStringLiteral("安装整合包"));
+    m_modpackProgress->setWindowModality(Qt::WindowModal);
+    m_modpackProgress->setAutoClose(false);
+    m_modpackProgress->setAutoReset(false);
+    m_modpackProgress->setMinimumDuration(0);
+    connect(m_modpackProgress, &QProgressDialog::canceled,
+            m_modpackInstaller, &ModpackInstaller::cancel);
+    m_modpackProgress->show();
+    m_modpackInstaller->start(url, safeDownloadFileName(fileName, QStringLiteral("pack.mrpack")),
+                              QString::fromLatin1(sha1), displayName);
     return true;
 }

@@ -44,7 +44,11 @@ enum class Type {
     Package,
     Grid,
     Download,
-    External
+    External,
+    Puzzle,
+    Image,
+    Sun,
+    Boxes
 };
 
 QIcon icon(Type type, const QColor &color, int size = 18);

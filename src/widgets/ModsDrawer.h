@@ -35,6 +35,7 @@ public:
 
     void open();
     void closeDrawer();
+    void refreshBackground();
 
     qreal revealProgress() const;
     void setRevealProgress(qreal progress);
@@ -56,6 +57,8 @@ private:
     void updateEnabledCount();
     void applyFilter(const QString &query);
     void setModEnabled(int index, bool enabled);
+    void showVersionSettings();
+    void reloadBackground();
 
     VersionInfo m_version;
     QWidget *m_panel = nullptr;

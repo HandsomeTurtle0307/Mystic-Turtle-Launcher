@@ -79,13 +79,23 @@ AboutPage::AboutPage(QWidget *parent)
     root->setContentsMargins(34, 26, 34, 24);
     root->setSpacing(0);
 
-    auto *eyebrow = Theme::label(QStringLiteral("关于  /  ABOUT"), 9, QFont::Bold,
-                                 Theme::Accent, this);
-    QFont eyebrowFont = eyebrow->font();
-    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
-    eyebrow->setFont(eyebrowFont);
-    root->addWidget(eyebrow);
-    root->addSpacing(3);
+    auto *warning = new QLabel(this);
+    warning->setTextFormat(Qt::RichText);
+    warning->setWordWrap(true);
+    warning->setOpenExternalLinks(true);
+    warning->setText(QStringLiteral(
+        "由于当前版本功能过多，作者一个人有点测不太过来了...不过我尽量排查了一遍。"
+        "如果你在使用过程中发现了任何问题，欢迎在"
+        "<a href=\"https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher/issues\">"
+        "Issues</a>里分享！谢谢大家啦！OvO"));
+    warning->setStyleSheet(QStringLiteral(
+        "QLabel { color: #F5B45C; background: rgba(245, 158, 66, 22);"
+        "border: 1px solid rgba(245, 158, 66, 95); border-radius: 9px;"
+        "padding: 10px 13px; }"
+        "QLabel a { color: #FFC477; font-weight: 600; }"));
+    root->addWidget(warning);
+    root->addSpacing(14);
+
     root->addWidget(Theme::label(QStringLiteral("关于 MysticTurtle"), 27, QFont::DemiBold,
                                  Theme::TextPrimary, this, true));
     root->addWidget(Theme::label(QStringLiteral("呜呜呜，可是乌龟真的很可爱啊ovo"),
@@ -117,12 +127,6 @@ AboutPage::AboutPage(QWidget *parent)
     headText->addWidget(Theme::label(QStringLiteral("MysticTurtle Launcher"),
                                      20, QFont::DemiBold, Theme::TextPrimary, card, true));
     head->addLayout(headText, 1);
-    head->addWidget(Theme::badge(QStringLiteral("v1.0"), Theme::Accent,
-                                 QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                        Theme::Accent.blue(), 22),
-                                 card, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                              Theme::Accent.blue(), 70)),
-                    0, Qt::AlignTop);
     cardLayout->addLayout(head);
     cardLayout->addSpacing(20);
     cardLayout->addWidget(Theme::divider(card));
@@ -132,7 +136,7 @@ AboutPage::AboutPage(QWidget *parent)
                                   QStringLiteral("HandsomeTurtle0307"), card));
     cardLayout->addSpacing(12);
     cardLayout->addWidget(infoRow(QStringLiteral("当前版本"),
-                                  QStringLiteral("v1.0"), card));
+                                  QStringLiteral("v2.0"), card));
     cardLayout->addSpacing(12);
     cardLayout->addWidget(Theme::label(QStringLiteral("鸣谢"), 11, QFont::DemiBold,
                                        Theme::TextMuted, card));

@@ -10,13 +10,12 @@
 #include "SettingsPage.h"
 
 #include "AccentButton.h"
-#include "AnimatedComboBox.h"
 #include "CardWidget.h"
+#include "GlobalSettingsWidget.h"
 #include "IconFactory.h"
 #include "MinecraftPaths.h"
 #include "Theme.h"
 #include "ToggleSwitch.h"
-#include "network/MojangMirror.h"
 
 #include <QComboBox>
 #include <QDir>
@@ -133,13 +132,6 @@ SettingsPage::SettingsPage(QWidget *parent)
         initialSettings.value(QStringLiteral("ui/backgroundImage")).toString();
     m_backgroundOpacity = qBound(
         0, initialSettings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
-    const int memoryGb = qBound(
-        2, initialSettings.value(QStringLiteral("game/memoryGb"), 8).toInt(), 16);
-    const QString savedJavaPath =
-        initialSettings.value(QStringLiteral("game/javaPath")).toString();
-    const QString downloadSource =
-        initialSettings.value(QStringLiteral("network/downloadSource"),
-                              QStringLiteral("bmclapi")).toString();
 
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(32, 22, 32, 16);
@@ -151,24 +143,12 @@ SettingsPage::SettingsPage(QWidget *parent)
     auto *headerText = new QVBoxLayout();
     headerText->setContentsMargins(0, 0, 0, 0);
     headerText->setSpacing(3);
-    auto *eyebrow = Theme::label(QStringLiteral("偏好  /  PREFERENCES"), 9, QFont::Bold,
-                                 Theme::Accent, this);
-    QFont eyebrowFont = eyebrow->font();
-    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
-    eyebrow->setFont(eyebrowFont);
-    headerText->addWidget(eyebrow);
     headerText->addWidget(Theme::label(QStringLiteral("设置"), 27, QFont::DemiBold,
                                        Theme::TextPrimary, this, true));
-    headerText->addWidget(Theme::label(QStringLiteral("调整启动器的外观与本地运行环境。"),
+    headerText->addWidget(Theme::label(QStringLiteral("调整启动、内存、皮肤与高级运行选项。"),
                                        12, QFont::Normal, Theme::TextMuted, this));
     header->addLayout(headerText);
     header->addStretch();
-    header->addWidget(Theme::badge(QStringLiteral("设置会自动保存"), Theme::Accent,
-                                   QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                          Theme::Accent.blue(), 18),
-                                   this, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                                Theme::Accent.blue(), 45)),
-                      0, Qt::AlignVCenter);
     root->addLayout(header);
     root->addSpacing(16);
 
@@ -183,6 +163,12 @@ SettingsPage::SettingsPage(QWidget *parent)
     auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(0, 0, 7, 4);
     contentLayout->setSpacing(14);
+
+    m_globalSettings = new GlobalSettingsWidget(content);
+    connect(m_globalSettings, &GlobalSettingsWidget::notifyRequested,
+            this, &SettingsPage::notifyRequested);
+    connect(m_globalSettings, &GlobalSettingsWidget::versionIsolationChanged,
+            this, &SettingsPage::versionIsolationChanged);
 
     auto *cardsRow = new QHBoxLayout();
     cardsRow->setContentsMargins(0, 0, 0, 0);
@@ -259,9 +245,6 @@ SettingsPage::SettingsPage(QWidget *parent)
     backgroundClear->setCompact(true);
     backgroundClear->setVariant(AccentButton::Variant::Ghost);
     connect(backgroundClear, &QAbstractButton::clicked, this, [this]() {
-        if (m_backgroundPathEdit->text().isEmpty()) {
-            return;
-        }
         setBackgroundImage(QString());
         emit notifyRequested(QStringLiteral("已清除自定义背景图片。"));
     });
@@ -290,7 +273,6 @@ SettingsPage::SettingsPage(QWidget *parent)
     auto *opacityLayout = new QVBoxLayout(opacityControl);
     opacityLayout->setContentsMargins(0, 0, 0, 0);
     opacityLayout->setSpacing(2);
-    const int backgroundTransparency = 100 - m_backgroundOpacity;
     auto *opacityValue = Theme::label(
         QStringLiteral("%1%").arg(m_backgroundOpacity), 11,
         QFont::DemiBold, Theme::Accent, opacityControl);
@@ -298,87 +280,37 @@ SettingsPage::SettingsPage(QWidget *parent)
     opacityLayout->addWidget(opacityValue);
     auto *opacitySlider = new QSlider(Qt::Horizontal, opacityControl);
     opacitySlider->setRange(0, 100);
-    opacitySlider->setValue(backgroundTransparency);
-    // The stored value remains transparency; only the visual direction is
-    // inverted so the UI reads as opacity (0% left, 100% right).
-    opacitySlider->setInvertedAppearance(true);
+    opacitySlider->setValue(m_backgroundOpacity);
     opacitySlider->setFixedWidth(170);
     opacityLayout->addWidget(opacitySlider);
     connect(opacitySlider, &QSlider::valueChanged, this, [this, opacityValue](int value) {
-        m_backgroundOpacity = 100 - value;
+        m_backgroundOpacity = value;
         opacityValue->setText(QStringLiteral("%1%").arg(m_backgroundOpacity));
         QSettings settings;
         settings.setValue(QStringLiteral("ui/backgroundOpacity"), m_backgroundOpacity);
         emit backgroundChanged(m_backgroundPathEdit->text(), m_backgroundOpacity);
     });
     appearanceLayout->addWidget(settingRow(
-        Icons::Type::Sparkles, QStringLiteral("背景透明度"), QString(),
+        Icons::Type::Sparkles, QStringLiteral("背景图片不透明度"),
+        QStringLiteral("0% 为完全透明，100% 为完全不透明。"),
         opacityControl, appearance));
 
     appearanceLayout->addStretch();
 
-    // Game environment
+    // Download and local files
     auto *game = new CardWidget(content);
     game->setAccentColor(Theme::Blue);
-    game->setMinimumHeight(360);
+    game->setMinimumHeight(260);
     game->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     auto *gameLayout = new QVBoxLayout(game);
     gameLayout->setContentsMargins(22, 19, 22, 19);
     gameLayout->setSpacing(0);
-    gameLayout->addWidget(Theme::label(QStringLiteral("游戏与运行环境"), 17, QFont::DemiBold,
+    gameLayout->addWidget(Theme::label(QStringLiteral("下载与本地文件"), 17, QFont::DemiBold,
                                        Theme::TextPrimary, game));
-    gameLayout->addWidget(Theme::label(QStringLiteral("Java 路径、内存上限与本地游戏目录。"),
+    gameLayout->addWidget(Theme::label(QStringLiteral("游戏目录与文件下载源。"),
                                        10, QFont::Normal, Theme::TextMuted, game));
     gameLayout->addSpacing(12);
     gameLayout->addWidget(Theme::divider(game));
-    gameLayout->addSpacing(12);
-
-    m_javaEdit = new QLineEdit(game);
-    m_javaEdit->setReadOnly(true);
-    m_javaEdit->setPlaceholderText(QStringLiteral("自动检测 Java"));
-    if (!savedJavaPath.trimmed().isEmpty()) {
-        m_javaEdit->setText(QDir::toNativeSeparators(savedJavaPath));
-    }
-    auto *javaBrowse = new AccentButton(QStringLiteral("浏览"), Icons::Type::Folder, game);
-    connect(javaBrowse, &QAbstractButton::clicked, this, [this]() {
-        const QString file = QFileDialog::getOpenFileName(
-            this, QStringLiteral("选择 Java 可执行文件"), QString(),
-            QStringLiteral("Java 可执行文件 (java.exe java);;所有文件 (*)"));
-        if (!file.isEmpty()) {
-            m_javaEdit->setText(QDir::toNativeSeparators(file));
-            QSettings settings;
-            settings.setValue(QStringLiteral("game/javaPath"), file);
-            settings.sync();
-            emit notifyRequested(QStringLiteral("Java 路径已保存。"));
-        }
-    });
-    gameLayout->addWidget(pathBlock(Icons::Type::Cpu, QStringLiteral("Java 运行时"),
-                                    QStringLiteral("留空时自动检测；选择后将用于启动游戏。"),
-                                    m_javaEdit, javaBrowse, game));
-    gameLayout->addSpacing(12);
-
-    auto *memoryControl = new QWidget(game);
-    auto *memoryLayout = new QVBoxLayout(memoryControl);
-    memoryLayout->setContentsMargins(0, 0, 0, 0);
-    memoryLayout->setSpacing(2);
-    auto *memoryValue = Theme::label(QStringLiteral("%1 GB").arg(memoryGb), 11,
-                                     QFont::DemiBold, Theme::Accent, memoryControl);
-    memoryValue->setAlignment(Qt::AlignRight);
-    memoryLayout->addWidget(memoryValue);
-    auto *memorySlider = new QSlider(Qt::Horizontal, memoryControl);
-    memorySlider->setRange(2, 16);
-    memorySlider->setValue(memoryGb);
-    memorySlider->setFixedWidth(170);
-    connect(memorySlider, &QSlider::valueChanged, this, [memoryValue](int value) {
-        memoryValue->setText(QStringLiteral("%1 GB").arg(value));
-        QSettings settings;
-        settings.setValue(QStringLiteral("game/memoryGb"), value);
-    });
-    memoryLayout->addWidget(memorySlider);
-    gameLayout->addWidget(settingRow(
-        Icons::Type::Memory, QStringLiteral("内存分配"),
-        QStringLiteral("启动游戏时使用的最大 Java 堆内存，推荐 6–8 GB。"),
-        memoryControl, game));
     gameLayout->addSpacing(12);
 
     m_gameDirEdit = new QLineEdit(
@@ -400,41 +332,12 @@ SettingsPage::SettingsPage(QWidget *parent)
                                     m_gameDirEdit, gameDirBrowse, game));
     gameLayout->addSpacing(12);
 
-    auto *sourceCombo = new AnimatedComboBox(game);
-    sourceCombo->setFixedWidth(220);
-    sourceCombo->addItem(QStringLiteral("BMCLAPI 镜像（国内推荐）"),
-                         QStringLiteral("bmclapi"));
-    sourceCombo->addItem(QStringLiteral("Mojang 官方源"),
-                         QStringLiteral("official"));
-    const int sourceIndex = sourceCombo->findData(
-        downloadSource == QStringLiteral("official")
-            ? QStringLiteral("official")
-            : QStringLiteral("bmclapi"));
-    sourceCombo->setCurrentIndex(qMax(0, sourceIndex));
-    connect(sourceCombo, &QComboBox::currentIndexChanged, this,
-            [this, sourceCombo](int) {
-                const QString source = sourceCombo->currentData().toString();
-                QSettings settings;
-                settings.setValue(QStringLiteral("network/downloadSource"), source);
-                settings.sync();
-                MojangMirror::setDownloadSource(
-                    source == QStringLiteral("official")
-                        ? MojangMirror::DownloadSource::Official
-                        : MojangMirror::DownloadSource::Bmclapi);
-                emit notifyRequested(
-                    source == QStringLiteral("official")
-                        ? QStringLiteral("已切换到 Mojang 官方下载源。")
-                        : QStringLiteral("已切换到 BMCLAPI 镜像下载源。"));
-            });
-    gameLayout->addWidget(settingRow(
-        Icons::Type::Download, QStringLiteral("游戏文件下载源"),
-        QStringLiteral("影响版本清单、客户端、依赖库和资源文件；加载器使用各自接口。"),
-        sourceCombo, game));
     gameLayout->addStretch();
 
     cardsRow->addWidget(appearance, 1);
     cardsRow->addWidget(game, 1);
     contentLayout->addLayout(cardsRow);
+    contentLayout->addWidget(m_globalSettings);
     contentLayout->addStretch(1);
 
     scroll->setWidget(content);
@@ -447,14 +350,24 @@ void SettingsPage::setGameDirectory(const QString &directory)
         return;
     }
     m_gameDirEdit->setText(QDir::toNativeSeparators(QDir(directory).absolutePath()));
+    if (m_globalSettings) {
+        m_globalSettings->setGameDirectory(directory);
+    }
 }
 
 void SettingsPage::setJavaPath(const QString &path)
 {
-    if (!m_javaEdit || path.trimmed().isEmpty()) {
+    if (!m_globalSettings || path.trimmed().isEmpty()) {
         return;
     }
-    m_javaEdit->setText(QDir::toNativeSeparators(path));
+    m_globalSettings->setJavaPath(path);
+}
+
+void SettingsPage::flushGlobalSettings()
+{
+    if (m_globalSettings) {
+        m_globalSettings->flush();
+    }
 }
 
 void SettingsPage::setBackgroundImage(const QString &imagePath)

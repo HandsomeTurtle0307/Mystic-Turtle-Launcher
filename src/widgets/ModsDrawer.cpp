@@ -14,7 +14,14 @@
 #include "SearchField.h"
 #include "Theme.h"
 #include "ToggleSwitch.h"
+#include "settings/GlobalSettings.h"
+#include "settings/VersionSettings.h"
 
+#include <QCheckBox>
+#include <QDialog>
+#include <QDesktopServices>
+#include <QDialogButtonBox>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFrame>
@@ -33,9 +40,12 @@
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScrollArea>
+#include <QSpinBox>
 #include <QShortcut>
 #include <QSignalBlocker>
+#include <QTextEdit>
 #include <QToolTip>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QImageReader>
 
@@ -136,16 +146,7 @@ ModsDrawer::ModsDrawer(const VersionInfo &version, QWidget *parent)
     setAutoFillBackground(false);
     setFocusPolicy(Qt::StrongFocus);
 
-    const QSettings settings;
-    m_backgroundOpacity =
-        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
-    const QString backgroundPath =
-        settings.value(QStringLiteral("ui/backgroundImage")).toString();
-    if (!backgroundPath.isEmpty()) {
-        QImageReader reader(backgroundPath);
-        reader.setAutoTransform(true);
-        m_backgroundImage = reader.read();
-    }
+    reloadBackground();
 
     if (parent) {
         parent->installEventFilter(this);
@@ -218,10 +219,40 @@ void ModsDrawer::buildUi()
     loaderBorder.setAlpha(64);
     statsRow->addWidget(Theme::badge(QStringLiteral("%1 %2").arg(m_version.loader, m_version.loaderVersion),
                                      m_version.accent, loaderBackground, m_panel, loaderBorder));
+    if (m_version.isolated) {
+        statsRow->addWidget(Theme::badge(
+            QStringLiteral("已启用隔离"), QColor(QStringLiteral("#57D7A0")),
+            QColor(87, 215, 160, 22), m_panel, QColor(87, 215, 160, 80)));
+    }
     m_countLabel = Theme::label(QString(), 10, QFont::Normal, Theme::TextSecondary, m_panel);
     statsRow->addWidget(m_countLabel);
     statsRow->addStretch();
     panelLayout->addLayout(statsRow);
+    panelLayout->addSpacing(10);
+
+    auto *actions = new QHBoxLayout();
+    actions->setContentsMargins(0, 0, 0, 0);
+    actions->setSpacing(8);
+    auto *versionSettingsButton =
+        new AccentButton(QStringLiteral("版本独立设置"), Icons::Type::Sliders, m_panel);
+    versionSettingsButton->setVariant(AccentButton::Variant::Secondary);
+    connect(versionSettingsButton, &QAbstractButton::clicked,
+            this, &ModsDrawer::showVersionSettings);
+    actions->addWidget(versionSettingsButton);
+    auto *openFolderButton =
+        new AccentButton(QStringLiteral("打开版本文件夹"), Icons::Type::Folder, m_panel);
+    openFolderButton->setVariant(AccentButton::Variant::Secondary);
+    connect(openFolderButton, &QAbstractButton::clicked, this, [this]() {
+        if (!QDir().mkpath(m_version.versionDirectory)
+            || !QDesktopServices::openUrl(
+                QUrl::fromLocalFile(m_version.versionDirectory))) {
+            emit notifyRequested(QStringLiteral("无法打开版本文件夹：%1")
+                                     .arg(m_version.versionDirectory));
+        }
+    });
+    actions->addWidget(openFolderButton);
+    actions->addStretch();
+    panelLayout->addLayout(actions);
     panelLayout->addSpacing(12);
 
     m_search = new SearchField(QStringLiteral("搜索已安装的模组…"), m_panel);
@@ -303,6 +334,100 @@ void ModsDrawer::buildUi()
     panelLayout->addWidget(m_scroll, 1);
 }
 
+void ModsDrawer::showVersionSettings()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("%1 - 版本独立设置")
+                              .arg(m_version.displayName.isEmpty()
+                                       ? m_version.versionId
+                                       : m_version.displayName));
+    dialog.setMinimumWidth(520);
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(20, 18, 20, 18);
+    layout->setSpacing(12);
+    layout->addWidget(Theme::label(QStringLiteral("仅覆盖当前版本的全局设置"),
+                                   15, QFont::DemiBold, Theme::TextPrimary, &dialog));
+
+    const GlobalSettings globalSettings = GlobalSettings::load();
+    QString loadError;
+    VersionSettings settings =
+        VersionSettings::load(m_version.versionDirectory, &loadError);
+    if (!loadError.isEmpty()) {
+        emit notifyRequested(loadError);
+        return;
+    }
+
+    auto *memoryOverride = new QCheckBox(
+        QStringLiteral("为此版本单独分配内存"), &dialog);
+    memoryOverride->setChecked(settings.overrideMemory);
+    auto *memoryMb = new QSpinBox(&dialog);
+    memoryMb->setRange(0, GlobalSettings::physicalMemoryMb());
+    memoryMb->setSingleStep(512);
+    memoryMb->setSuffix(QStringLiteral(" MB"));
+    memoryMb->setSpecialValueText(QStringLiteral("自动"));
+    memoryMb->setValue(settings.overrideMemory
+                           ? settings.memoryMb
+                           : globalSettings.effectiveMemoryMb());
+    memoryMb->setEnabled(settings.overrideMemory);
+    connect(memoryOverride, &QCheckBox::toggled, memoryMb, &QSpinBox::setEnabled);
+    layout->addWidget(memoryOverride);
+    layout->addWidget(memoryMb);
+
+    auto *jvmOverride = new QCheckBox(
+        QStringLiteral("为此版本单独设置 JVM 参数"), &dialog);
+    jvmOverride->setChecked(settings.overrideJvmArguments);
+    auto *jvmArguments = new QTextEdit(&dialog);
+    jvmArguments->setPlainText(settings.overrideJvmArguments
+                                   ? settings.jvmArguments
+                                   : globalSettings.advanced.jvmArgs);
+    jvmArguments->setMinimumHeight(120);
+    jvmArguments->setEnabled(settings.overrideJvmArguments);
+    connect(jvmOverride, &QCheckBox::toggled, jvmArguments, &QTextEdit::setEnabled);
+    layout->addWidget(jvmOverride);
+    layout->addWidget(jvmArguments);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    settings.overrideMemory = memoryOverride->isChecked();
+    settings.memoryMb = memoryMb->value();
+    settings.overrideJvmArguments = jvmOverride->isChecked();
+    settings.jvmArguments = jvmArguments->toPlainText();
+    QString error;
+    if (!settings.save(m_version.versionDirectory, &error)) {
+        emit notifyRequested(error);
+        return;
+    }
+    emit notifyRequested(QStringLiteral("已保存此版本的独立设置。"));
+}
+
+void ModsDrawer::refreshBackground()
+{
+    reloadBackground();
+}
+
+void ModsDrawer::reloadBackground()
+{
+    m_backgroundImage = QImage();
+    const QSettings settings;
+    m_backgroundOpacity =
+        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
+    const QString backgroundPath =
+        settings.value(QStringLiteral("ui/backgroundImage")).toString();
+    if (!backgroundPath.isEmpty()) {
+        QImageReader reader(backgroundPath);
+        reader.setAutoTransform(true);
+        m_backgroundImage = reader.read();
+    }
+    update();
+}
+
 void ModsDrawer::open()
 {
     if (!parentWidget()) {
@@ -310,6 +435,7 @@ void ModsDrawer::open()
     }
 
     m_closing = false;
+    reloadBackground();
     setGeometry(parentWidget()->rect());
     updatePanelGeometry();
     show();

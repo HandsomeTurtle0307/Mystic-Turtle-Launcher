@@ -29,16 +29,20 @@ class QPushButton;
 class QShowEvent;
 class QToolButton;
 class DownloadTask;
+class ModpackInstaller;
 class VersionManifestClient;
 class QUrl;
 class QVBoxLayout;
+class QProgressDialog;
 
 class DownloadModsPage : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit DownloadModsPage(QWidget *parent = nullptr);
+    explicit DownloadModsPage(const QString &projectType = QStringLiteral("mod"),
+                              const QString &categoryName = QStringLiteral("Mod"),
+                              QWidget *parent = nullptr);
     void setGameDirectory(const QString &directory);
 
 signals:
@@ -57,6 +61,8 @@ private:
                        const QByteArray &sha1,
                        const QString &modName);
     void setSearchStatus(const QString &message);
+    bool startModpackInstall(const QUrl &url, const QString &fileName,
+                             const QByteArray &sha1, const QString &displayName);
 
     QLineEdit *m_nameEdit = nullptr;
     QComboBox *m_gameVersionCombo = nullptr;
@@ -81,6 +87,8 @@ private:
     VersionManifestClient *m_manifestClient = nullptr;
     QPointer<QNetworkReply> m_searchReply;
     QPointer<DownloadTask> m_downloadTask;
+    QPointer<ModpackInstaller> m_modpackInstaller;
+    QPointer<QProgressDialog> m_modpackProgress;
     QStringList m_gameVersionIds;
     QElapsedTimer m_speedClock;
     qint64 m_previousBytes = 0;
@@ -89,4 +97,6 @@ private:
     bool m_initialSearchStarted = false;
     QString m_pendingLoadError;
     QString m_gameDirectory;
+    QString m_projectType;
+    QString m_categoryName;
 };

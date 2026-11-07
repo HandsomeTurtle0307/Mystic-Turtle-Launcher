@@ -22,6 +22,7 @@
 #include <QFileInfo>
 #include <QSet>
 #include <QStringList>
+#include "settings/GlobalSettings.h"
 
 #include <algorithm>
 
@@ -137,6 +138,10 @@ QVector<ModInfo> versionMods(const QDir &versionDirectory,
                              const QVector<ModInfo> &globalMods,
                              bool isolateVersions)
 {
+    if (!isolateVersions) {
+        return globalMods;
+    }
+
     const QString isolatedMods = versionDirectory.filePath(QStringLiteral("mods"));
     if (QDir(isolatedMods).exists()) {
         return scanMods(isolatedMods);
@@ -148,7 +153,7 @@ QVector<ModInfo> versionMods(const QDir &versionDirectory,
         return scanMods(nestedMods);
     }
 
-    return isolateVersions ? QVector<ModInfo>() : globalMods;
+    return {};
 }
 
 QString formatLastModified(const QDateTime &dateTime)
@@ -178,18 +183,10 @@ QString gameDataDirectory(const QDir &versionDirectory,
                           const QString &defaultDirectory,
                           bool isolateVersions)
 {
-    const QString isolatedMods =
-        versionDirectory.filePath(QStringLiteral("mods"));
-    if (QDir(isolatedMods).exists()) {
-        return versionDirectory.absolutePath();
+    if (isolateVersions
+        && QDir(versionDirectory.filePath(QStringLiteral(".minecraft/mods"))).exists()) {
+        return versionDirectory.filePath(QStringLiteral(".minecraft"));
     }
-
-    const QString nestedGameDirectory =
-        versionDirectory.filePath(QStringLiteral(".minecraft"));
-    if (QDir(QDir(nestedGameDirectory).filePath(QStringLiteral("mods"))).exists()) {
-        return nestedGameDirectory;
-    }
-
     return isolateVersions ? versionDirectory.absolutePath() : defaultDirectory;
 }
 
@@ -205,7 +202,7 @@ Result scan(const QString &gameDirectory)
 {
     Result result;
     result.gameDirectory = QDir(gameDirectory).absolutePath();
-    const bool isolateVersions = true;
+    const GlobalSettings globalSettings = GlobalSettings::load();
 
     const QVector<ModInfo> globalMods =
         scanMods(QDir(result.gameDirectory).filePath(QStringLiteral("mods")));
@@ -327,6 +324,7 @@ Result scan(const QString &gameDirectory)
         }
         const QString minecraftVersion =
             inheritsFrom.isEmpty() ? versionId : inheritsFrom;
+        const bool isolateVersions = globalSettings.isolatesVersion(loader.name);
         QFile metadataFile(QDir(candidate.jsonFile.dir().absolutePath())
                                .filePath(QStringLiteral("launcher.json")));
         QString displayName;
@@ -366,6 +364,7 @@ Result scan(const QString &gameDirectory)
         version.gameDataDirectory =
             gameDataDirectory(candidate.jsonFile.dir(), result.gameDirectory,
                               isolateVersions);
+        version.isolated = isolateVersions;
         result.versions.append(version);
     }
 

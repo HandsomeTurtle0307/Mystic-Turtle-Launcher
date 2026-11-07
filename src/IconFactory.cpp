@@ -141,6 +141,71 @@ void paint(QPainter &painter,
         painter.drawLine(QPointF(15.3, 15.3), QPointF(20.3, 20.3));
         break;
     }
+    case Type::Puzzle: {
+        QPainterPath path;
+        path.moveTo(9.0, 4.0);
+        path.lineTo(9.0, 7.0);
+        path.cubicTo(9.0, 9.2, 5.0, 9.2, 5.0, 7.0);
+        path.lineTo(3.5, 7.0);
+        path.lineTo(3.5, 18.5);
+        path.lineTo(9.0, 18.5);
+        path.cubicTo(9.0, 16.3, 13.0, 16.3, 13.0, 18.5);
+        path.lineTo(20.5, 18.5);
+        path.lineTo(20.5, 13.0);
+        path.cubicTo(18.3, 13.0, 18.3, 9.0, 20.5, 9.0);
+        path.lineTo(20.5, 4.0);
+        path.closeSubpath();
+        painter.drawPath(path);
+        break;
+    }
+    case Type::Image:
+        painter.drawRoundedRect(QRectF(3.5, 4.5, 17.0, 15.0), 2.0, 2.0);
+        painter.drawEllipse(QPointF(9.0, 9.0), 1.6, 1.6);
+        painter.drawLine(QPointF(5.5, 17.0), QPointF(10.0, 12.5));
+        painter.drawLine(QPointF(10.0, 12.5), QPointF(13.0, 15.0));
+        painter.drawLine(QPointF(13.0, 15.0), QPointF(16.0, 11.5));
+        painter.drawLine(QPointF(16.0, 11.5), QPointF(19.0, 15.0));
+        break;
+    case Type::Sun: {
+        painter.drawEllipse(QPointF(12.0, 12.0), 4.0, 4.0);
+        const QPointF inner[] = {
+            {12.0, 2.5}, {12.0, 17.5}, {2.5, 12.0}, {17.5, 12.0},
+            {5.3, 5.3}, {16.7, 16.7}, {18.7, 5.3}, {5.3, 18.7}
+        };
+        const QPointF outer[] = {
+            {12.0, 5.2}, {12.0, 21.5}, {5.2, 12.0}, {21.5, 12.0},
+            {7.0, 7.0}, {18.0, 18.0}, {17.0, 7.0}, {7.0, 17.0}
+        };
+        for (int i = 0; i < 8; ++i) {
+            painter.drawLine(inner[i], outer[i]);
+        }
+        break;
+    }
+    case Type::Boxes: {
+        const auto drawBox = [&painter](qreal x, qreal y, qreal size) {
+            QPainterPath top;
+            top.moveTo(x + size / 2.0, y);
+            top.lineTo(x + size, y + size / 4.0);
+            top.lineTo(x + size / 2.0, y + size / 2.0);
+            top.lineTo(x, y + size / 4.0);
+            top.closeSubpath();
+            painter.drawPath(top);
+            painter.drawLine(QPointF(x, y + size / 4.0),
+                             QPointF(x, y + size * 3.0 / 4.0));
+            painter.drawLine(QPointF(x, y + size * 3.0 / 4.0),
+                             QPointF(x + size / 2.0, y + size));
+            painter.drawLine(QPointF(x + size, y + size / 4.0),
+                             QPointF(x + size, y + size * 3.0 / 4.0));
+            painter.drawLine(QPointF(x + size, y + size * 3.0 / 4.0),
+                             QPointF(x + size / 2.0, y + size));
+            painter.drawLine(QPointF(x + size / 2.0, y + size / 2.0),
+                             QPointF(x + size / 2.0, y + size));
+        };
+        drawBox(8.0, 2.0, 8.0);
+        drawBox(2.5, 10.0, 8.0);
+        drawBox(13.5, 10.0, 8.0);
+        break;
+    }
     case Type::Close: {
         painter.drawLine(QPointF(6.2, 6.2), QPointF(17.8, 17.8));
         painter.drawLine(QPointF(17.8, 6.2), QPointF(6.2, 17.8));

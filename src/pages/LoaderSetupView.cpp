@@ -514,7 +514,7 @@ void LoaderSetupView::requestJson(
     QNetworkRequest request{QUrl(url)};
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("MysticTurtle/0.2"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("MysticTurtle/2.0"));
     request.setTransferTimeout(30000);
 
     QNetworkReply *reply = m_network->get(request);

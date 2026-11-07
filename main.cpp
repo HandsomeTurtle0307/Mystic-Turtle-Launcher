@@ -10,12 +10,12 @@
 #include "mainwindow.h"
 #include "Theme.h"
 #include "network/MojangMirror.h"
+#include "settings/GlobalSettings.h"
 
 #include <QApplication>
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QLocale>
-#include <QSettings>
 
 int main(int argc, char *argv[])
 {
@@ -23,19 +23,17 @@ int main(int argc, char *argv[])
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QApplication app(argc, argv);
-    QApplication::setApplicationVersion(QStringLiteral("1.0.0"));
+    QApplication::setApplicationVersion(QStringLiteral("2.0.0"));
     QLocale::setDefault(QLocale(QLocale::Chinese, QLocale::China));
 
     QCoreApplication::setOrganizationName(QStringLiteral("MysticTurtle"));
     QCoreApplication::setApplicationName(QStringLiteral("MysticTurtle"));
-    const QSettings settings;
-    const QString downloadSource =
-        settings.value(QStringLiteral("network/downloadSource"),
-                       QStringLiteral("bmclapi")).toString();
+    const GlobalSettings globalSettings = GlobalSettings::load();
     MojangMirror::setDownloadSource(
-        downloadSource == QStringLiteral("official")
+        globalSettings.network.downloadSource == QStringLiteral("official")
             ? MojangMirror::DownloadSource::Official
             : MojangMirror::DownloadSource::Bmclapi);
+    globalSettings.applyNetworkProxy();
 
     Theme::apply(app);
 

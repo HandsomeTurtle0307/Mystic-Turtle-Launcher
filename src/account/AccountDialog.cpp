@@ -98,16 +98,7 @@ AccountDialog::AccountDialog(QWidget *parent)
     setModal(true);
     setFixedSize(600, 580);
 
-    const QSettings settings;
-    m_backgroundOpacity =
-        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
-    const QString backgroundPath =
-        settings.value(QStringLiteral("ui/backgroundImage")).toString();
-    if (!backgroundPath.isEmpty()) {
-        QImageReader reader(backgroundPath);
-        reader.setAutoTransform(true);
-        m_backgroundImage = reader.read();
-    }
+    reloadBackground();
 
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(18, 18, 18, 18);
@@ -248,7 +239,24 @@ void AccountDialog::showEvent(QShowEvent *event)
         const QPoint center = host->mapToGlobal(host->rect().center());
         move(center.x() - width() / 2, center.y() - height() / 2);
     }
+    reloadBackground();
     m_usernameEdit->setFocus(Qt::OtherFocusReason);
+}
+
+void AccountDialog::reloadBackground()
+{
+    m_backgroundImage = QImage();
+    const QSettings settings;
+    m_backgroundOpacity =
+        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
+    const QString backgroundPath =
+        settings.value(QStringLiteral("ui/backgroundImage")).toString();
+    if (!backgroundPath.isEmpty()) {
+        QImageReader reader(backgroundPath);
+        reader.setAutoTransform(true);
+        m_backgroundImage = reader.read();
+    }
+    update();
 }
 
 void AccountDialog::rebuildList()

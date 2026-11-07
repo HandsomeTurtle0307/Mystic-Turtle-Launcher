@@ -34,6 +34,7 @@ struct VersionInfo {
     QString versionDirectory;
     QString gameDataDirectory;
     QString displayName;
+    bool isolated = false;
 };
 
 struct GameRelease {

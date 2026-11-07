@@ -12,6 +12,8 @@
 #include "DownloadManager.h"
 #include "DownloadTask.h"
 #include "MinecraftPaths.h"
+#include "GlobalSettings.h"
+#include "settings/VersionSettings.h"
 #include "account/AccountManager.h"
 
 #include <QCryptographicHash>
@@ -41,6 +43,7 @@
 #include <QSysInfo>
 #include <QTimer>
 #include <QVector>
+#include <algorithm>
 #include <utility>
 
 namespace {
@@ -1639,7 +1642,7 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
     values.insert(QStringLiteral("classpath"), QDir::toNativeSeparators(classPath));
     values.insert(QStringLiteral("classpath_separator"), QStringLiteral(";"));
     values.insert(QStringLiteral("launcher_name"), QStringLiteral("MysticTurtle"));
-    values.insert(QStringLiteral("launcher_version"), QStringLiteral("1.0.0"));
+    values.insert(QStringLiteral("launcher_version"), QStringLiteral("2.0.0"));
     values.insert(QStringLiteral("resolution_width"), QStringLiteral("854"));
     values.insert(QStringLiteral("resolution_height"), QStringLiteral("480"));
 
@@ -1668,16 +1671,95 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
     jvmArgs.append(QStringLiteral("-Djava.library.path=%1")
                        .arg(QDir::toNativeSeparators(nativesDirectory)));
 
-    const QSettings settings;
-    const int memoryGb = qBound(
-        2, settings.value(QStringLiteral("game/memoryGb"), 8).toInt(), 16);
-    jvmArgs.append(QStringLiteral("-Xmx%1G").arg(memoryGb));
+    QString versionSettingsError;
+    const VersionSettings versionSettings = VersionSettings::load(
+        gameDir.filePath(QStringLiteral("versions/%1").arg(versionId)),
+        &versionSettingsError);
+    if (!versionSettingsError.isEmpty()) {
+        if (errorMessage) {
+            *errorMessage = versionSettingsError;
+        }
+        return false;
+    }
+    const GlobalSettings globalSettings =
+        versionSettings.applyTo(GlobalSettings::load());
+    if (globalSettings.launch.windowSize == QStringLiteral("widescreen")
+        || globalSettings.launch.windowSize == QStringLiteral("windowed")) {
+        values.insert(QStringLiteral("resolution_width"), QStringLiteral("1280"));
+        values.insert(QStringLiteral("resolution_height"), QStringLiteral("720"));
+    }
+    const QStringList customJvmArgs =
+        QProcess::splitCommand(globalSettings.advanced.jvmArgs);
+    for (const QString &argument : customJvmArgs) {
+        if (!argument.trimmed().isEmpty()) {
+            jvmArgs.append(argument);
+        }
+    }
+
+    const QString memoryManagement = globalSettings.advanced.memoryManagement;
+    const bool customGarbageCollector = std::any_of(
+        customJvmArgs.cbegin(), customJvmArgs.cend(),
+        [](const QString &argument) {
+            const bool collectorFlag =
+                argument.startsWith(QStringLiteral("-XX:+Use"))
+                || argument.startsWith(QStringLiteral("-XX:-Use"));
+            return collectorFlag
+                && (argument.contains(QStringLiteral("GC"), Qt::CaseInsensitive)
+                    || argument.contains(QStringLiteral("ZGC"), Qt::CaseInsensitive)
+                    || argument.contains(QStringLiteral("Shenandoah"),
+                                         Qt::CaseInsensitive));
+        });
+    if (!customGarbageCollector
+        && memoryManagement == QStringLiteral("g1gc")) {
+        jvmArgs.append(QStringLiteral("-XX:+UseG1GC"));
+    } else if (!customGarbageCollector
+               && memoryManagement == QStringLiteral("zgc")) {
+        jvmArgs.append(QStringLiteral("-XX:+UseZGC"));
+    } else if (!customGarbageCollector
+               && memoryManagement == QStringLiteral("shenandoah")) {
+        jvmArgs.append(QStringLiteral("-XX:+UseShenandoahGC"));
+    }
+    if (globalSettings.advanced.disableLaunchWrapper) {
+        jvmArgs.append(QStringLiteral("-Dforge.disableLaunchWrapper=true"));
+    }
+    if (globalSettings.advanced.disableLwjglUnsafeAgent) {
+        jvmArgs.append(QStringLiteral("-Dorg.lwjgl.system.unsafe=false"));
+    }
+    if (globalSettings.advanced.preferHighPerformanceGpu) {
+        jvmArgs.append(QStringLiteral("-Dmysticturtle.gpu=high-performance"));
+    }
+
+    // Memory is applied last so custom JVM arguments cannot silently override it.
+    // Zero means "leave the JVM default heap limit in place".
+    if (globalSettings.effectiveMemoryMb() > 0) {
+        jvmArgs.append(QStringLiteral("-Xmx%1M")
+                           .arg(globalSettings.effectiveMemoryMb()));
+    }
 
     QStringList gameArgs;
     if (!gameArguments.isEmpty()) {
         appendArgumentArray(gameArguments, &gameArgs, values);
     } else if (!legacyArguments.isEmpty()) {
         gameArgs = QProcess::splitCommand(substitute(legacyArguments, values));
+    }
+
+    const QString windowSize = globalSettings.launch.windowSize;
+    if (windowSize == QStringLiteral("fullscreen")) {
+        gameArgs.append(QStringLiteral("--fullscreen"));
+    } else if (windowSize == QStringLiteral("widescreen")
+               || windowSize == QStringLiteral("windowed")) {
+        gameArgs.append(QStringLiteral("--width"));
+        gameArgs.append(QStringLiteral("1280"));
+        gameArgs.append(QStringLiteral("--height"));
+        gameArgs.append(QStringLiteral("720"));
+    }
+
+    const QStringList extraGameArgs =
+        QProcess::splitCommand(globalSettings.advanced.gameArgs);
+    for (const QString &argument : extraGameArgs) {
+        if (!argument.trimmed().isEmpty()) {
+            gameArgs.append(argument);
+        }
     }
 
     if (!assetsId.isEmpty() && !QFileInfo::exists(assetIndexPath)) {

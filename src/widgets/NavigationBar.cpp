@@ -51,8 +51,7 @@ NavigationBar::NavigationBar(QWidget *parent)
         Icons::Type icon;
     } items[] = {
         {"启动", Icons::Type::Play},
-        {"下载游戏", Icons::Type::Gamepad},
-        {"下载模组", Icons::Type::Cube},
+        {"下载中心", Icons::Type::Download},
         {"设置", Icons::Type::Sliders},
         {"关于", Icons::Type::Info},
     };

@@ -13,6 +13,7 @@
 #include <QWidget>
 
 class QLineEdit;
+class GlobalSettingsWidget;
 
 class SettingsPage : public QWidget
 {
@@ -22,6 +23,7 @@ public:
     explicit SettingsPage(QWidget *parent = nullptr);
     void setGameDirectory(const QString &directory);
     void setJavaPath(const QString &path);
+    void flushGlobalSettings();
 
 signals:
     void acrylicEnabledChanged(bool enabled);
@@ -29,12 +31,13 @@ signals:
     void backgroundChanged(const QString &imagePath, int opacity);
     void gameDirectoryChanged(const QString &directory);
     void notifyRequested(const QString &message);
+    void versionIsolationChanged();
 
 private:
     void setBackgroundImage(const QString &imagePath);
 
     QLineEdit *m_gameDirEdit = nullptr;
-    QLineEdit *m_javaEdit = nullptr;
     QLineEdit *m_backgroundPathEdit = nullptr;
+    GlobalSettingsWidget *m_globalSettings = nullptr;
     int m_backgroundOpacity = 35;
 };

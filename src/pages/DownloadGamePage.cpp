@@ -249,7 +249,7 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     m_views->setCurrentWidget(m_listPage);
 
     auto *root = new QVBoxLayout(m_listPage);
-    root->setContentsMargins(32, 22, 32, 16);
+    root->setContentsMargins(20, 14, 20, 12);
     root->setSpacing(0);
 
     auto *header = new QHBoxLayout();
@@ -258,20 +258,14 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     auto *headerText = new QVBoxLayout();
     headerText->setContentsMargins(0, 0, 0, 0);
     headerText->setSpacing(3);
-    auto *eyebrow = Theme::label(QStringLiteral("游戏库  /  GAME LIBRARY"), 9, QFont::Bold,
-                                 Theme::Accent, m_listPage);
-    QFont eyebrowFont = eyebrow->font();
-    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
-    eyebrow->setFont(eyebrowFont);
-    headerText->addWidget(eyebrow);
-    headerText->addWidget(Theme::label(QStringLiteral("下载游戏"), 27, QFont::DemiBold,
+    headerText->addWidget(Theme::label(QStringLiteral("原版游戏"), 23, QFont::DemiBold,
                                        Theme::TextPrimary, m_listPage, true));
     headerText->addWidget(Theme::label(QStringLiteral("选择 Minecraft 版本，准备好下一次启程。"),
                                        12, QFont::Normal, Theme::TextMuted, m_listPage));
     header->addLayout(headerText);
     header->addStretch();
     root->addLayout(header);
-    root->addSpacing(16);
+    root->addSpacing(10);
 
     auto *toolbar = new QHBoxLayout();
     toolbar->setContentsMargins(0, 0, 0, 0);
@@ -323,7 +317,7 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
         }
     });
     root->addLayout(toolbar);
-    root->addSpacing(8);
+    root->addSpacing(5);
 
     auto *manifestRow = new QHBoxLayout();
     manifestRow->setContentsMargins(2, 0, 2, 0);
@@ -344,7 +338,7 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
             this, &DownloadGamePage::fetchManifest);
     manifestRow->addWidget(m_retryManifestButton);
     root->addLayout(manifestRow);
-    root->addSpacing(10);
+    root->addSpacing(6);
 
     m_progressPanel = new CardWidget(m_listPage);
     m_progressPanel->setAccentColor(Theme::Accent);
@@ -512,10 +506,10 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     auto *featured = new CardWidget(content);
     featured->setAccentColor(Theme::Accent);
     featured->setCornerRadius(20.0);
-    featured->setFixedHeight(164);
+    featured->setFixedHeight(140);
     auto *featuredLayout = new QHBoxLayout(featured);
-    featuredLayout->setContentsMargins(26, 19, 26, 19);
-    featuredLayout->setSpacing(16);
+    featuredLayout->setContentsMargins(20, 14, 20, 14);
+    featuredLayout->setSpacing(12);
 
     auto *featuredText = new QVBoxLayout();
     featuredText->setContentsMargins(0, 0, 0, 0);
@@ -535,7 +529,7 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     m_featuredMetaLabel = Theme::label(QStringLiteral("请稍候"),
                                        11, QFont::Normal, Theme::TextMuted, featured);
     featuredText->addWidget(m_featuredMetaLabel);
-    featuredText->addSpacing(7);
+    featuredText->addSpacing(4);
 
     auto *featuredActions = new QHBoxLayout();
     featuredActions->setContentsMargins(0, 0, 0, 0);
@@ -558,7 +552,7 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     featuredText->addLayout(featuredActions);
     featuredLayout->addLayout(featuredText, 1);
     contentLayout->addWidget(featured);
-    contentLayout->addSpacing(18);
+    contentLayout->addSpacing(12);
 
     auto *listHeader = new QHBoxLayout();
     listHeader->setContentsMargins(2, 0, 2, 0);
@@ -571,12 +565,12 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     listHeader->addWidget(Theme::label(QStringLiteral("安装时读取官方版本清单"), 10,
                                        QFont::Normal, Theme::TextMuted, content));
     contentLayout->addLayout(listHeader);
-    contentLayout->addSpacing(10);
+    contentLayout->addSpacing(7);
 
     m_grid = new QGridLayout();
     m_grid->setContentsMargins(0, 0, 0, 0);
-    m_grid->setHorizontalSpacing(12);
-    m_grid->setVerticalSpacing(10);
+    m_grid->setHorizontalSpacing(10);
+    m_grid->setVerticalSpacing(8);
     contentLayout->addLayout(m_grid);
 
     m_emptyLabel = Theme::label(QStringLiteral("没有找到匹配的版本，换个关键词试试。"), 12,

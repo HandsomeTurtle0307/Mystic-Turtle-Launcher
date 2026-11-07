@@ -12,6 +12,7 @@
 #include "AnimatedStackedWidget.h"
 #include "DownloadGamePage.h"
 #include "DownloadModsPage.h"
+#include "DownloadCenterPage.h"
 #include "HeaderBar.h"
 #include "HomePage.h"
 #include "LogoMark.h"
@@ -27,6 +28,8 @@
 #include "minecraft/GameLauncher.h"
 #include "minecraft/JavaRuntimeInstaller.h"
 #include "platform/WindowEffects.h"
+#include "settings/GlobalSettings.h"
+#include "settings/VersionSettings.h"
 
 #include <QAbstractAnimation>
 #include <QApplication>
@@ -48,6 +51,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QProcess>
 #include <QPushButton>
 #include <QProgressBar>
 #include <QPropertyAnimation>
@@ -60,6 +64,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWindow>
+
+#include <string>
 #include <QDebug>
 
 #ifdef Q_OS_WIN
@@ -181,6 +187,162 @@ void terminateProcess(qint64)
 }
 #endif
 
+void trimLauncherWorkingSet()
+{
+#ifdef Q_OS_WIN
+    SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1),
+                             static_cast<SIZE_T>(-1));
+#endif
+}
+
+bool setProcessPriority(qint64 processId, const QString &priority)
+{
+#ifdef Q_OS_WIN
+    if (processId <= 0) {
+        return false;
+    }
+    DWORD priorityClass = NORMAL_PRIORITY_CLASS;
+    if (priority == QStringLiteral("high")) {
+        priorityClass = HIGH_PRIORITY_CLASS;
+    } else if (priority == QStringLiteral("above_normal")) {
+        priorityClass = ABOVE_NORMAL_PRIORITY_CLASS;
+    } else if (priority == QStringLiteral("below_normal")) {
+        priorityClass = BELOW_NORMAL_PRIORITY_CLASS;
+    } else if (priority == QStringLiteral("low")) {
+        priorityClass = IDLE_PRIORITY_CLASS;
+    }
+    HANDLE process = OpenProcess(PROCESS_SET_INFORMATION, FALSE,
+                                 static_cast<DWORD>(processId));
+    if (!process) {
+        return false;
+    }
+    const bool applied = SetPriorityClass(process, priorityClass) != FALSE;
+    CloseHandle(process);
+    return applied;
+#else
+    Q_UNUSED(processId)
+    Q_UNUSED(priority)
+    return false;
+#endif
+}
+
+#ifdef Q_OS_WIN
+struct WindowTitleSearch {
+    DWORD processId = 0;
+    std::wstring title;
+    bool found = false;
+};
+
+BOOL CALLBACK setWindowTitleCallback(HWND window, LPARAM parameter)
+{
+    auto *search = reinterpret_cast<WindowTitleSearch *>(parameter);
+    DWORD processId = 0;
+    GetWindowThreadProcessId(window, &processId);
+    if (processId != search->processId || !IsWindowVisible(window)) {
+        return TRUE;
+    }
+    SetWindowTextW(window, search->title.c_str());
+    search->found = true;
+    return FALSE;
+}
+#endif
+
+void setGameWindowTitle(qint64 processId, const QString &title)
+{
+    if (processId <= 0 || title.trimmed().isEmpty()) {
+        return;
+    }
+#ifdef Q_OS_WIN
+    WindowTitleSearch search;
+    search.processId = static_cast<DWORD>(processId);
+    search.title = title.toStdWString();
+    EnumWindows(setWindowTitleCallback, reinterpret_cast<LPARAM>(&search));
+#else
+    Q_UNUSED(processId)
+    Q_UNUSED(title)
+#endif
+}
+
+void applyHighPerformanceGpuPreference(const QString &javaPath)
+{
+#ifdef Q_OS_WIN
+    if (javaPath.isEmpty()) {
+        return;
+    }
+    QSettings preferences(
+        QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\DirectX\\UserGpuPreferences"),
+        QSettings::NativeFormat);
+    preferences.setValue(QDir::toNativeSeparators(QFileInfo(javaPath).absoluteFilePath()),
+                         QStringLiteral("GpuPreference=2;"));
+    preferences.sync();
+#else
+    Q_UNUSED(javaPath)
+#endif
+}
+
+#ifdef Q_OS_WIN
+struct BorderlessWindowSearch {
+    DWORD processId = 0;
+};
+
+BOOL CALLBACK makeWindowBorderless(HWND window, LPARAM parameter)
+{
+    auto *search = reinterpret_cast<BorderlessWindowSearch *>(parameter);
+    DWORD processId = 0;
+    GetWindowThreadProcessId(window, &processId);
+    if (processId != search->processId || !IsWindowVisible(window)) {
+        return TRUE;
+    }
+
+    wchar_t className[256];
+    const int classLength = GetClassNameW(window, className, 255);
+    className[qMax(0, classLength)] = L'\0';
+    wchar_t title[512];
+    const int titleLength = GetWindowTextW(window, title, 511);
+    title[qMax(0, titleLength)] = L'\0';
+    const QString titleText = QString::fromWCharArray(title, qMax(0, titleLength));
+    const QString classText = QString::fromWCharArray(className, qMax(0, classLength));
+    if (!titleText.contains(QStringLiteral("Minecraft"), Qt::CaseInsensitive)
+        && !classText.contains(QStringLiteral("GLFW"), Qt::CaseInsensitive)
+        && !classText.contains(QStringLiteral("LWJGL"), Qt::CaseInsensitive)) {
+        return TRUE;
+    }
+
+    LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
+    style |= WS_POPUP | WS_VISIBLE;
+    SetWindowLongPtrW(window, GWL_STYLE, style);
+
+    MONITORINFO monitorInfo;
+    monitorInfo.cbSize = sizeof(monitorInfo);
+    const HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+    if (monitor && GetMonitorInfoW(monitor, &monitorInfo)) {
+        const RECT &bounds = monitorInfo.rcMonitor;
+        SetWindowPos(window, HWND_TOP, bounds.left, bounds.top,
+                     bounds.right - bounds.left, bounds.bottom - bounds.top,
+                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    } else {
+        SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    }
+    return FALSE;
+}
+#endif
+
+void applyBorderlessWindow(qint64 processId)
+{
+    if (processId <= 0) {
+        return;
+    }
+#ifdef Q_OS_WIN
+    BorderlessWindowSearch search;
+    search.processId = static_cast<DWORD>(processId);
+    EnumWindows(makeWindowBorderless, reinterpret_cast<LPARAM>(&search));
+#else
+    Q_UNUSED(processId)
+#endif
+}
+
 QString readLaunchLog(const QString &path)
 {
     QFile file(path);
@@ -259,20 +421,20 @@ void MainWindow::setupUi()
 
     m_pages = new AnimatedStackedWidget(this);
     m_homePage = new HomePage(m_pages);
-    m_downloadGamePage = new DownloadGamePage(m_pages);
-    m_downloadModsPage = new DownloadModsPage(m_pages);
+    m_downloadCenterPage = new DownloadCenterPage(m_pages);
+    m_downloadGamePage = m_downloadCenterPage->gamePage();
+    m_downloadModsPage = m_downloadCenterPage->modsPage();
     m_settingsPage = new SettingsPage(m_pages);
     m_aboutPage = new AboutPage(m_pages);
     m_pages->addPage(m_homePage);
-    m_pages->addPage(m_downloadGamePage);
-    m_pages->addPage(m_downloadModsPage);
+    m_pages->addPage(m_downloadCenterPage);
     m_pages->addPage(m_settingsPage);
     m_pages->addPage(m_aboutPage);
     m_pages->setCurrentIndex(0, false);
     m_pages->setAnimationsEnabled(m_animationsEnabled);
     m_header->navigationBar()->setAnimationsEnabled(m_animationsEnabled);
-    m_downloadGamePage->setGameDirectory(m_homePage->gameDirectory());
-    m_downloadModsPage->setGameDirectory(m_homePage->gameDirectory());
+    m_downloadCenterPage->setGameDirectory(m_homePage->gameDirectory());
+    m_settingsPage->setGameDirectory(m_homePage->gameDirectory());
     root->addWidget(m_pages, 1);
 
     connect(m_header, &HeaderBar::minimizeRequested, this, &QWidget::showMinimized);
@@ -289,14 +451,12 @@ void MainWindow::setupUi()
 
     NavigationBar *navigation = m_header->navigationBar();
     connect(navigation, &NavigationBar::navigationRequested, this, &MainWindow::navigateTo);
-    for (int i = 1; i < m_pages->count(); ++i) {
+    for (int i = 1; i < 4; ++i) {
         navigation->setItemEnabled(i, false);
     }
-    // Keep the unfinished general mod browser locked; the Modrinth browser is available.
     navigation->setItemEnabled(1, true);
     navigation->setItemEnabled(2, true);
     navigation->setItemEnabled(3, true);
-    navigation->setItemEnabled(4, true);
 
     connect(m_homePage, &HomePage::detailsRequested,
             this, &MainWindow::openVersionDetails);
@@ -305,10 +465,11 @@ void MainWindow::setupUi()
             this, &MainWindow::launchSelectedVersion);
     connect(m_homePage, &HomePage::gameDirectoryChanged, this,
             [this](const QString &directory) {
-                m_downloadGamePage->setGameDirectory(directory);
-                m_downloadModsPage->setGameDirectory(directory);
+                m_downloadCenterPage->setGameDirectory(directory);
                 m_settingsPage->setGameDirectory(directory);
             });
+    connect(m_settingsPage, &SettingsPage::versionIsolationChanged,
+            m_homePage, &HomePage::reloadLocalVersions);
     connect(m_downloadGamePage, &DownloadGamePage::installSucceeded, this,
             [this](const QString &) {
                 m_homePage->reloadLocalVersions();
@@ -319,9 +480,9 @@ void MainWindow::setupUi()
             });
     connect(m_downloadGamePage, &DownloadGamePage::notifyRequested,
             this, &MainWindow::showToast);
-    connect(m_downloadModsPage, &DownloadModsPage::notifyRequested,
+    connect(m_downloadCenterPage, &DownloadCenterPage::notifyRequested,
             this, &MainWindow::showToast);
-    connect(m_downloadModsPage, &DownloadModsPage::modsChanged,
+    connect(m_downloadCenterPage, &DownloadCenterPage::modsChanged,
             m_homePage, &HomePage::reloadLocalVersions);
     connect(m_settingsPage, &SettingsPage::notifyRequested, this, &MainWindow::showToast);
     connect(m_settingsPage, &SettingsPage::acrylicEnabledChanged,
@@ -347,12 +508,12 @@ void MainWindow::setupUi()
     connect(m_settingsPage, &SettingsPage::gameDirectoryChanged, this,
             [this](const QString &directory) {
                 m_homePage->setGameDirectory(directory);
-                m_downloadGamePage->setGameDirectory(directory);
-                m_downloadModsPage->setGameDirectory(directory);
+                m_downloadCenterPage->setGameDirectory(directory);
+                m_settingsPage->setGameDirectory(directory);
                 showToast(QStringLiteral("游戏目录已更新。"));
             });
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 4; ++i) {
         if (!navigation->isItemEnabled(i)) {
             continue;
         }
@@ -546,13 +707,38 @@ void MainWindow::startSelectedVersion(const VersionInfo &version,
                                       const PlayerAccount &account)
 {
     const QString gameDirectory = m_homePage->gameDirectory();
+    m_settingsPage->flushGlobalSettings();
+    QString versionSettingsError;
+    const VersionSettings versionSettings =
+        VersionSettings::load(version.versionDirectory, &versionSettingsError);
+    if (!versionSettingsError.isEmpty()) {
+        closeLaunchProgress();
+        QMessageBox::warning(this, QStringLiteral("版本独立设置无效"),
+                             versionSettingsError);
+        return;
+    }
+    const GlobalSettings globalSettings =
+        versionSettings.applyTo(GlobalSettings::load());
+    m_launchVisibility = globalSettings.launch.launcherVisibility;
 
     updateLaunchProgress(8, QStringLiteral("正在检查 Java 运行时…"));
     const int requiredJava =
         GameLauncher::requiredJavaMajor(gameDirectory, version.versionId);
     QString javaError;
-    QString javaPath = GameLauncher::findCompatibleJava(
-        gameDirectory, requiredJava, &javaError);
+    QString javaPath;
+    const QString configuredJava = globalSettings.advanced.javaPath;
+    if (!configuredJava.isEmpty() && QFileInfo::exists(configuredJava)) {
+        const int configuredMajor = GameLauncher::javaMajorVersion(configuredJava);
+        const bool compatible = requiredJava <= 0
+            || (requiredJava <= 8 ? configuredMajor == requiredJava
+                                  : configuredMajor >= requiredJava);
+        if (compatible) {
+            javaPath = configuredJava;
+        }
+    }
+    if (javaPath.isEmpty()) {
+        javaPath = GameLauncher::findCompatibleJava(gameDirectory, requiredJava, &javaError);
+    }
     if (m_launchCancelled) {
         closeLaunchProgress();
         showToast(QStringLiteral("游戏启动已取消。"));
@@ -561,6 +747,14 @@ void MainWindow::startSelectedVersion(const VersionInfo &version,
 
     if (javaPath.isEmpty()) {
         closeLaunchProgress();
+        if (!globalSettings.advanced.autoDownloadJava) {
+            QMessageBox::warning(
+                this, QStringLiteral("缺少 Java"),
+                QStringLiteral("没有找到适用于 Minecraft %1 的 Java。\n\n"
+                               "「允许启动器自动下载 Java 运行时」已关闭，请先在高级设置中选择 Java。")
+                    .arg(version.minecraft));
+            return;
+        }
         const int downloadMajor = requiredJava > 0 ? requiredJava : 17;
         const QString javaDiagnostic = javaError.isEmpty()
             ? QStringLiteral("未找到可运行且版本兼容的 Java。")
@@ -614,12 +808,74 @@ void MainWindow::startSelectedVersion(const VersionInfo &version,
 
     QString error;
     qint64 processId = 0;
-    const QString gameDataDirectory = version.gameDataDirectory.trimmed().isEmpty()
-        ? gameDirectory
-        : version.gameDataDirectory;
+    const bool isolated = globalSettings.isolatesVersion(version.loader);
+    const QString gameDataDirectory = isolated
+        ? (version.gameDataDirectory.trimmed().isEmpty()
+               ? QDir(version.versionDirectory).absolutePath()
+               : version.gameDataDirectory)
+        : gameDirectory;
+    // Minecraft resolves saves, resource packs, options.txt and servers.dat
+    // relative to --gameDir, so using the instance directory redirects these
+    // paths without mutating or replacing data in the shared game root.
+    const QStringList instanceDirectories = {
+        QStringLiteral("mods"), QStringLiteral("saves"),
+        QStringLiteral("resourcepacks"), QStringLiteral("shaderpacks"),
+        QStringLiteral("config"), QStringLiteral("logs")
+    };
+    if (!QDir().mkpath(gameDataDirectory)) {
+        closeLaunchProgress();
+        showToast(QStringLiteral("无法创建游戏数据目录：%1").arg(gameDataDirectory));
+        return;
+    }
+    for (const QString &directory : instanceDirectories) {
+        if (!QDir().mkpath(QDir(gameDataDirectory).filePath(directory))) {
+            closeLaunchProgress();
+            showToast(QStringLiteral("无法创建版本隔离目录：%1")
+                          .arg(QDir(gameDataDirectory).filePath(directory)));
+            return;
+        }
+    }
     m_launchStderrLogPath =
         QDir(gameDataDirectory).filePath(
             QStringLiteral("logs/mysticturtle-launcher.stderr.log"));
+
+    const QString preLaunchCommand = globalSettings.advanced.preLaunchCommand.trimmed();
+    if (!preLaunchCommand.isEmpty()) {
+        updateLaunchProgress(28, QStringLiteral("正在执行启动前命令…"));
+        QProcess commandProcess;
+#ifdef Q_OS_WIN
+        commandProcess.setProgram(QStringLiteral("cmd.exe"));
+        commandProcess.setArguments({QStringLiteral("/c"), preLaunchCommand});
+#else
+        commandProcess.setProgram(QStringLiteral("/bin/sh"));
+        commandProcess.setArguments({QStringLiteral("-c"), preLaunchCommand});
+#endif
+        commandProcess.setWorkingDirectory(gameDataDirectory);
+        commandProcess.start();
+        if (!commandProcess.waitForStarted(5000)
+            || !commandProcess.waitForFinished(30000)
+            || commandProcess.exitStatus() != QProcess::NormalExit
+            || commandProcess.exitCode() != 0) {
+            const QString output = QString::fromLocal8Bit(
+                commandProcess.readAllStandardError()
+                + commandProcess.readAllStandardOutput()).trimmed();
+            closeLaunchProgress();
+            QMessageBox::warning(
+                this, QStringLiteral("启动前命令失败"),
+                QStringLiteral("命令未成功执行：\n%1\n\n%2")
+                    .arg(preLaunchCommand,
+                         output.isEmpty() ? QStringLiteral("（无输出）") : output));
+            return;
+        }
+    }
+
+    if (globalSettings.memory.optimizeBeforeLaunch) {
+        trimLauncherWorkingSet();
+    }
+    if (globalSettings.advanced.preferHighPerformanceGpu) {
+        applyHighPerformanceGpuPreference(javaPath);
+    }
+
     const bool launched = GameLauncher::launch(
         gameDirectory, version.versionId, account, javaPath,
         [this](int percent, const QString &status) {
@@ -645,6 +901,11 @@ void MainWindow::startSelectedVersion(const VersionInfo &version,
         closeLaunchProgress();
         showToast(QStringLiteral("游戏启动已取消。"));
         return;
+    }
+
+    if (processId > 0
+        && !setProcessPriority(processId, globalSettings.launch.processPriority)) {
+        showToast(QStringLiteral("无法应用进程优先级设置。"));
     }
 
     updateLaunchProgress(100, QStringLiteral("等待窗口出现"));
@@ -776,6 +1037,34 @@ void MainWindow::checkGameWindow()
     const bool byTitle = m_gameWindowWaitTicks > 15 && gameWindowVisible(0);
     if (byProcess || byTitle) {
         closeLaunchProgress();
+        const GlobalSettings launchSettings = GlobalSettings::load();
+        QString title = launchSettings.launch.windowTitle.trimmed();
+        const QString customInfo = launchSettings.launch.customInfo.trimmed();
+        if (!customInfo.isEmpty()) {
+            title = title.isEmpty() ? customInfo
+                                    : QStringLiteral("%1 | %2").arg(title, customInfo);
+        }
+        if (m_launchPid > 0 && !title.isEmpty()) {
+            setGameWindowTitle(m_launchPid, title);
+        }
+        if (launchSettings.launch.windowSize == QStringLiteral("borderless")
+            && m_launchPid > 0) {
+            applyBorderlessWindow(m_launchPid);
+        }
+        if (m_launchVisibility == QStringLiteral("minimize")) {
+            showMinimized();
+        } else if (m_launchVisibility == QStringLiteral("hide")
+                   && m_launchPid > 0) {
+            m_hiddenForGame = true;
+            hide();
+            if (!m_gameExitTimer) {
+                m_gameExitTimer = new QTimer(this);
+                m_gameExitTimer->setInterval(1500);
+                connect(m_gameExitTimer, &QTimer::timeout,
+                        this, &MainWindow::checkGameExit);
+            }
+            m_gameExitTimer->start();
+        }
         if (!m_pendingLaunchToast.isEmpty()) {
             showToast(m_pendingLaunchToast);
             m_pendingLaunchToast.clear();
@@ -799,6 +1088,15 @@ void MainWindow::checkGameWindow()
         if (details.isEmpty()) {
             details = QStringLiteral("Java 已退出，但没有写入启动错误输出。");
         }
+        const QString crashBehavior =
+            GlobalSettings::load().launch.crashBehavior;
+        if (crashBehavior == QStringLiteral("silent")) {
+            return;
+        }
+        if (crashBehavior == QStringLiteral("keep_open")) {
+            showToast(QStringLiteral("游戏进程已退出，启动器保持打开。"));
+            return;
+        }
         QMessageBox::warning(
             this, QStringLiteral("游戏启动失败"),
             QStringLiteral("Minecraft Java 进程已退出，未能创建游戏窗口。\n\n%1\n\n"
@@ -810,6 +1108,22 @@ void MainWindow::checkGameWindow()
     if (m_gameWindowWaitTicks >= 2250) {
         closeLaunchProgress();
         showToast(QStringLiteral("游戏已启动，但等待窗口出现超时。"));
+    }
+}
+
+void MainWindow::checkGameExit()
+{
+    if (m_launchPid > 0 && processStillRunning(m_launchPid)) {
+        return;
+    }
+    if (m_gameExitTimer) {
+        m_gameExitTimer->stop();
+    }
+    if (m_hiddenForGame) {
+        m_hiddenForGame = false;
+        showNormal();
+        raise();
+        activateWindow();
     }
 }
 
@@ -983,6 +1297,9 @@ void MainWindow::applyBackground(const QString &imagePath, int opacity)
 
     m_backgroundImage = image;
     m_backgroundOpacity = qBound(0, opacity, 100);
+    if (m_drawer) {
+        m_drawer->refreshBackground();
+    }
     update();
 }
 
