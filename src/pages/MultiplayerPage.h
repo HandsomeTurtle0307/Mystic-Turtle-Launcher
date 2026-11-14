@@ -1,4 +1,4 @@
-/*
+﻿/*
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (C) 2026 HandsomeTurtle0307
  *
@@ -10,6 +10,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QStringList>
 
 #include <functional>
 
@@ -49,7 +50,9 @@ public slots:
 private:
     void refreshRoomCode();
     void ensureEasyTier(std::function<void(bool)> callback);
-    void finishEnsure(bool success);
+    void startEasyTierDownload();
+    void finishEasyTierArchive();
+     void finishEnsure(bool success);
     void startCreateRoom(const QString &roomName, const QString &password,
                          const QString &virtualIp);
     void startJoinRoom(const QString &target);
@@ -85,6 +88,10 @@ private:
     QNetworkReply *m_downloadReply = nullptr;
     QFile *m_downloadFile = nullptr;
     QString m_easytierBinaryPath;
+    QStringList m_easyTierDownloadUrls;
+    QString m_easyTierDirectory;
+    QString m_easyTierZipPath;
+    int m_easyTierDownloadIndex = 0;
     std::function<void(bool)> m_ensureCallback;
     QString m_pendingRoomName;
     QString m_pendingRoomPassword;

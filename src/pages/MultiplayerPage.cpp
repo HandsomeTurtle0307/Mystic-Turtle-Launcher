@@ -817,6 +817,7 @@ void MultiplayerPage::ensureEasyTier(std::function<void(bool)> callback)
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setTransferTimeout(20000);
     QNetworkReply *releaseReply = m_network->get(request);
     connect(releaseReply, &QNetworkReply::finished, this,
             [this, releaseReply, directory]() {
@@ -858,141 +859,209 @@ void MultiplayerPage::ensureEasyTier(std::function<void(bool)> callback)
             return;
         }
 
-        const QString zipPath = QDir(directory).filePath(
+        m_easyTierDirectory = directory;
+        m_easyTierZipPath = QDir(directory).filePath(
             QStringLiteral("easytier-download.zip"));
-        m_downloadFile = new QFile(zipPath, this);
-        if (!m_downloadFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            appendLog(QStringLiteral("无法写入 EasyTier 下载文件：%1")
-                          .arg(m_downloadFile->errorString()));
+        m_easyTierDownloadUrls.clear();
+        const QStringList mirrorPrefixes = {
+            QStringLiteral("https://ghfast.top/"),
+            QStringLiteral("https://gh-proxy.com/"),
+            QStringLiteral("https://ghproxy.net/")
+        };
+        for (const QString &prefix : mirrorPrefixes) {
+            m_easyTierDownloadUrls.append(prefix + downloadUrl);
+        }
+        // 官方地址作为最后兜底。
+        m_easyTierDownloadUrls.append(downloadUrl);
+        m_easyTierDownloadIndex = 0;
+        startEasyTierDownload();
+    });
+}
+
+void MultiplayerPage::startEasyTierDownload()
+{
+    if (m_easyTierDownloadIndex >= m_easyTierDownloadUrls.size()) {
+        appendLog(QStringLiteral(
+            "EasyTier 下载失败：已尝试国内镜像和 GitHub 官方源，请检查网络后重试。"));
+        finishEnsure(false);
+        return;
+    }
+
+    if (m_downloadReply) {
+        m_downloadReply->abort();
+        m_downloadReply->deleteLater();
+        m_downloadReply = nullptr;
+    }
+    if (m_downloadFile) {
+        m_downloadFile->close();
+        m_downloadFile->deleteLater();
+        m_downloadFile = nullptr;
+    }
+    QFile::remove(m_easyTierZipPath);
+
+    const int sourceIndex = m_easyTierDownloadIndex;
+    const QString url = m_easyTierDownloadUrls.at(sourceIndex);
+    appendLog(QStringLiteral("EasyTier 下载源 %1/%2：%3")
+                  .arg(sourceIndex + 1)
+                  .arg(m_easyTierDownloadUrls.size())
+                  .arg(sourceIndex == m_easyTierDownloadUrls.size() - 1
+                           ? QStringLiteral("GitHub 官方")
+                           : QStringLiteral("国内镜像")));
+
+    m_downloadFile = new QFile(m_easyTierZipPath, this);
+    if (!m_downloadFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        appendLog(QStringLiteral("无法写入 EasyTier 下载文件：%1")
+                      .arg(m_downloadFile->errorString()));
+        m_downloadFile->deleteLater();
+        m_downloadFile = nullptr;
+        finishEnsure(false);
+        return;
+    }
+
+    QNetworkRequest request{QUrl(url)};
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("MysticTurtle/1.0"));
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setTransferTimeout(90000);
+    m_downloadReply = m_network->get(request);
+
+    auto lastPercent = std::make_shared<int>(-1);
+    connect(m_downloadReply, &QNetworkReply::downloadProgress, this,
+            [this, lastPercent](qint64 received, qint64 total) {
+        const int percent = total > 0 ? int(received * 100 / total) : -1;
+        if (percent >= 0 && (percent >= *lastPercent + 10 || percent == 100)) {
+            *lastPercent = percent;
+            appendLog(QStringLiteral("EasyTier 下载进度：%1%").arg(percent));
+        }
+    });
+    connect(m_downloadReply, &QNetworkReply::readyRead, this, [this]() {
+        if (m_downloadFile && m_downloadReply) {
+            m_downloadFile->write(m_downloadReply->readAll());
+        }
+    });
+    connect(m_downloadReply, &QNetworkReply::finished, this,
+            [this, sourceIndex]() {
+        QNetworkReply *reply = m_downloadReply;
+        m_downloadReply = nullptr;
+        if (m_downloadFile) {
+            if (reply) {
+                m_downloadFile->write(reply->readAll());
+            }
+            m_downloadFile->flush();
+            m_downloadFile->close();
             m_downloadFile->deleteLater();
             m_downloadFile = nullptr;
-            finishEnsure(false);
+        }
+
+        bool failed = !reply || reply->error() != QNetworkReply::NoError;
+        const QString errorString = reply ? reply->errorString()
+                                          : QStringLiteral("未知错误");
+        if (reply) {
+            reply->deleteLater();
+        }
+        if (!failed) {
+            const QFileInfo zipInfo(m_easyTierZipPath);
+            if (!zipInfo.exists() || zipInfo.size() < 100 * 1024) {
+                failed = true;
+            } else {
+                QFile zip(m_easyTierZipPath);
+                if (!zip.open(QIODevice::ReadOnly) || zip.read(2) != "PK") {
+                    failed = true;
+                }
+            }
+        }
+
+        if (failed) {
+            appendLog(QStringLiteral("下载源失败（%1），尝试下一个来源...")
+                          .arg(errorString));
+            QFile::remove(m_easyTierZipPath);
+            ++m_easyTierDownloadIndex;
+            QTimer::singleShot(250, this, &MultiplayerPage::startEasyTierDownload);
             return;
         }
 
-        appendLog(QStringLiteral("开始下载 EasyTier..."));
-        QNetworkRequest downloadRequest{QUrl(downloadUrl)};
-        downloadRequest.setHeader(QNetworkRequest::UserAgentHeader,
-                                  QStringLiteral("MysticTurtle/1.0"));
-        downloadRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                                    QNetworkRequest::NoLessSafeRedirectPolicy);
-        m_downloadReply = m_network->get(downloadRequest);
-
-        auto lastPercent = std::make_shared<int>(-1);
-        connect(m_downloadReply, &QNetworkReply::downloadProgress, this,
-                [this, lastPercent](qint64 received, qint64 total) {
-            const int percent = total > 0
-                ? int(received * 100 / total) : -1;
-            if (percent >= 0 && (percent >= *lastPercent + 10 || percent == 100)) {
-                *lastPercent = percent;
-                appendLog(QStringLiteral("EasyTier 下载进度：%1%").arg(percent));
-            }
-        });
-        connect(m_downloadReply, &QNetworkReply::readyRead, this, [this]() {
-            if (m_downloadFile && m_downloadReply) {
-                m_downloadFile->write(m_downloadReply->readAll());
-            }
-        });
-        connect(m_downloadReply, &QNetworkReply::finished, this,
-                [this, directory, zipPath]() {
-            QNetworkReply *reply = m_downloadReply;
-            m_downloadReply = nullptr;
-            if (m_downloadFile) {
-                if (reply) {
-                    m_downloadFile->write(reply->readAll());
-                }
-                m_downloadFile->flush();
-                m_downloadFile->close();
-                m_downloadFile->deleteLater();
-                m_downloadFile = nullptr;
-            }
-            if (reply) {
-                reply->deleteLater();
-            }
-            if (!reply || reply->error() != QNetworkReply::NoError) {
-                appendLog(QStringLiteral("EasyTier 下载失败：%1")
-                              .arg(reply ? reply->errorString()
-                                         : QStringLiteral("未知错误")));
-                finishEnsure(false);
-                return;
-            }
-
-            bool extracted = false;
-            const QString tar = QStandardPaths::findExecutable(QStringLiteral("tar"));
-            if (!tar.isEmpty()) {
-                QProcess process;
-                process.setProgram(tar);
-                process.setArguments({QStringLiteral("-xf"), zipPath,
-                                      QStringLiteral("-C"), directory});
-                process.start();
-                extracted = process.waitForFinished(120000)
-                    && process.exitStatus() == QProcess::NormalExit
-                    && process.exitCode() == 0;
-                if (!extracted) {
-                    appendLog(QStringLiteral("tar 解压失败，尝试 PowerShell..."));
-                }
-            }
-            if (!extracted) {
-                const QString escapedZip = QString(zipPath).replace(QLatin1Char('\''),
-                                                                     QStringLiteral("''"));
-                const QString escapedDir = QString(directory).replace(QLatin1Char('\''),
-                                                                      QStringLiteral("''"));
-                QProcess process;
-                process.setProgram(QStandardPaths::findExecutable(
-                    QStringLiteral("powershell.exe")));
-                process.setArguments({
-                    QStringLiteral("-NoProfile"),
-                    QStringLiteral("-Command"),
-                    QStringLiteral("Expand-Archive -LiteralPath '%1' -DestinationPath '%2' -Force")
-                        .arg(escapedZip, escapedDir)
-                });
-                process.start();
-                extracted = process.waitForFinished(120000)
-                    && process.exitStatus() == QProcess::NormalExit
-                    && process.exitCode() == 0;
-            }
-
-            if (!extracted) {
-                appendLog(QStringLiteral("EasyTier 压缩包解压失败。"));
-                finishEnsure(false);
-                return;
-            }
-
-            QString binary;
-            QDirIterator iterator(directory,
-                                  QStringList{QStringLiteral("easytier-core.exe")},
-                                  QDir::Files, QDirIterator::Subdirectories);
-            if (iterator.hasNext()) {
-                binary = iterator.next();
-            }
-            if (binary.isEmpty()) {
-                appendLog(QStringLiteral("解压后没有找到 easytier-core.exe。"));
-                finishEnsure(false);
-                return;
-            }
-
-            const QFileInfo binaryInfo(binary);
-            if (binaryInfo.absolutePath() != QDir(directory).absolutePath()) {
-                QDir sourceDir(binaryInfo.absolutePath());
-                const QFileInfoList files = sourceDir.entryInfoList(QDir::Files);
-                for (const QFileInfo &file : files) {
-                    const QString destination = QDir(directory).filePath(file.fileName());
-                    if (file.absoluteFilePath() != destination) {
-                        QFile::remove(destination);
-                        QFile::copy(file.absoluteFilePath(), destination);
-                    }
-                }
-                binary = QDir(directory).filePath(QStringLiteral("easytier-core.exe"));
-            }
-
-            m_easytierBinaryPath = binary;
-            m_easyTier->setBinaryPath(binary);
-            QFile::remove(zipPath);
-            appendLog(QStringLiteral("EasyTier 已就绪：%1")
-                          .arg(QDir::toNativeSeparators(binary)));
-            finishEnsure(true);
-        });
+        appendLog(QStringLiteral("EasyTier 下载完成，开始解压..."));
+        finishEasyTierArchive();
     });
+}
+
+void MultiplayerPage::finishEasyTierArchive()
+{
+    bool extracted = false;
+    const QString tar = QStandardPaths::findExecutable(QStringLiteral("tar"));
+    if (!tar.isEmpty()) {
+        QProcess process;
+        process.setProgram(tar);
+        process.setArguments({QStringLiteral("-xf"), m_easyTierZipPath,
+                              QStringLiteral("-C"), m_easyTierDirectory});
+        process.start();
+        extracted = process.waitForFinished(120000)
+            && process.exitStatus() == QProcess::NormalExit
+            && process.exitCode() == 0;
+        if (!extracted) {
+            appendLog(QStringLiteral("tar 解压失败，尝试 PowerShell..."));
+        }
+    }
+    if (!extracted) {
+        const QString escapedZip = QString(m_easyTierZipPath).replace(
+            QLatin1Char('\''), QStringLiteral("''"));
+        const QString escapedDir = QString(m_easyTierDirectory).replace(
+            QLatin1Char('\''), QStringLiteral("''"));
+        QProcess process;
+        process.setProgram(QStandardPaths::findExecutable(
+            QStringLiteral("powershell.exe")));
+        process.setArguments({
+            QStringLiteral("-NoProfile"),
+            QStringLiteral("-Command"),
+            QStringLiteral("Expand-Archive -LiteralPath '%1' -DestinationPath '%2' -Force")
+                .arg(escapedZip, escapedDir)
+        });
+        process.start();
+        extracted = process.waitForFinished(120000)
+            && process.exitStatus() == QProcess::NormalExit
+            && process.exitCode() == 0;
+    }
+
+    if (!extracted) {
+        appendLog(QStringLiteral("EasyTier 压缩包解压失败。"));
+        finishEnsure(false);
+        return;
+    }
+
+    QString binary;
+    QDirIterator iterator(m_easyTierDirectory,
+                          QStringList{QStringLiteral("easytier-core.exe")},
+                          QDir::Files, QDirIterator::Subdirectories);
+    if (iterator.hasNext()) {
+        binary = iterator.next();
+    }
+    if (binary.isEmpty()) {
+        appendLog(QStringLiteral("解压后没有找到 easytier-core.exe。"));
+        finishEnsure(false);
+        return;
+    }
+
+    const QFileInfo binaryInfo(binary);
+    if (binaryInfo.absolutePath() != QDir(m_easyTierDirectory).absolutePath()) {
+        QDir sourceDir(binaryInfo.absolutePath());
+        const QFileInfoList files = sourceDir.entryInfoList(QDir::Files);
+        for (const QFileInfo &file : files) {
+            const QString destination = QDir(m_easyTierDirectory).filePath(file.fileName());
+            if (file.absoluteFilePath() != destination) {
+                QFile::remove(destination);
+                QFile::copy(file.absoluteFilePath(), destination);
+            }
+        }
+        binary = QDir(m_easyTierDirectory).filePath(QStringLiteral("easytier-core.exe"));
+    }
+
+    m_easytierBinaryPath = binary;
+    m_easyTier->setBinaryPath(binary);
+    QFile::remove(m_easyTierZipPath);
+    appendLog(QStringLiteral("EasyTier 已就绪：%1")
+                  .arg(QDir::toNativeSeparators(binary)));
+    finishEnsure(true);
 }
 
 void MultiplayerPage::finishEnsure(bool success)
