@@ -861,6 +861,17 @@
     transform: scale(1.3);
   }
 
+  .page-dots:focus-visible {
+    outline: 2px solid var(--mint-bright);
+    outline-offset: 4px;
+    border-radius: 14px;
+  }
+
+  .page-dots a:focus-visible {
+    outline: 2px solid var(--mint-bright);
+    outline-offset: 1px;
+  }
+
   /* Responsive */
 
   @media (max-width: 860px) {
@@ -922,14 +933,14 @@
 <div class="aurora aurora-b" aria-hidden="true"></div>
 
 <header class="topbar">
-  <a class="brand" href="#page-1" data-page="1" aria-label="MysticTurtle Launcher 首页">
+  <a class="brand" href="#home" data-page="1" aria-label="MysticTurtle Launcher 首页">
     <img src="data:image/jpeg;base64,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" alt="MysticTurtle 图标">
     <span>MysticTurtle</span>
     <span class="brand-launcher">Launcher</span>
   </a>
   <nav class="top-nav" aria-label="主要导航">
-    <a href="#page-2" data-page="2">功能</a>
-    <a href="#page-3" data-page="3">下载</a>
+    <a href="#features" data-page="2">功能</a>
+    <a href="#download" data-page="3">下载</a>
     <a class="nav-icon" href="https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.61.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.88 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.6 9.6 0 0 1 12 6.8a9.6 9.6 0 0 1 2.5.34c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"></path>
@@ -940,7 +951,7 @@
 
 <div class="pages" id="pages">
   <!-- Page 1 -->
-  <section class="page page-one is-active" id="page-1" aria-label="首页">
+  <section class="page page-one is-active" id="home" aria-label="首页">
     <div class="page-inner">
       <div class="hero-badge">Qt 6 · C++17 · 开源</div>
 
@@ -987,20 +998,17 @@
           <span>实际界面截图</span>
         </div>
         <div class="home-preview-frame">
-          <picture>
-            <source srcset="assets/website/home-preview.webp" type="image/webp">
-            <img class="home-preview-image"
-                 src="assets/website/home-preview.png"
-                 alt="MysticTurtle 启动器主页，展示当前版本、启动游戏按钮和 Live2D 看板娘"
-                 width="2560" height="1440" loading="lazy" decoding="async">
-          </picture>
+          <img class="home-preview-image"
+               src="assets/website/home-preview.webp"
+               alt="MysticTurtle 启动器主页，展示当前版本、启动游戏按钮和 Live2D 看板娘"
+               width="1920" height="1080" loading="lazy" decoding="async">
         </div>
       </div>
     </div>
   </section>
 
   <!-- Page 2 -->
-  <section class="page page-two" id="page-2" aria-label="功能特性">
+  <section class="page page-two" id="features" aria-label="功能特性">
     <div class="page-inner">
       <div class="section-heading">
         <h2>功能特性</h2>
@@ -1131,7 +1139,7 @@
   </section>
 
   <!-- Page 3 -->
-  <section class="page page-three" id="page-3" aria-label="下载">
+  <section class="page page-three" id="download" aria-label="下载">
     <div class="page-inner">
       <div class="final-card">
         <div class="final-icon">
@@ -1181,26 +1189,51 @@
   </section>
 </div>
 
-<div class="page-dots" aria-label="页面导航">
-  <a href="#page-1" data-page="1" class="is-active" aria-label="第一页：首页"></a>
-  <a href="#page-2" data-page="2" aria-label="第二页：功能特性"></a>
-  <a href="#page-3" data-page="3" aria-label="第三页：下载"></a>
+<div class="page-dots" role="button" tabindex="0" aria-label="页面导航，按回车或空格切换下一页">
+  <a href="#home" data-page="1" class="is-active" aria-label="第一页：首页"></a>
+  <a href="#features" data-page="2" aria-label="第二页：功能特性"></a>
+  <a href="#download" data-page="3" aria-label="第三页：下载"></a>
 </div>
 
 <script>
   (() => {
     const pages = Array.from(document.querySelectorAll('.page'));
     const dots = Array.from(document.querySelectorAll('.page-dots a'));
+    const dotsContainer = document.querySelector('.page-dots');
     const scroller = document.getElementById('pages');
+    const pageHashes = ['home', 'features', 'download'];
+    const hashToIndex = {
+      home: 0,
+      features: 1,
+      download: 2,
+      'page-1': 0,
+      'page-2': 1,
+      'page-3': 2
+    };
+
+    const syncHash = (index) => {
+      const hash = '#' + pageHashes[index];
+      if (window.location.hash !== hash) {
+        window.history.replaceState(null, '', hash);
+      }
+    };
 
     const setActive = (index) => {
       pages.forEach((page, i) => page.classList.toggle('is-active', i === index));
-      dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('is-active', i === index);
+        if (i === index) {
+          dot.setAttribute('aria-current', 'page');
+        } else {
+          dot.removeAttribute('aria-current');
+        }
+      });
     };
 
     const goTo = (index) => {
       const page = pages[index];
       if (!page) return;
+      syncHash(index);
       scroller.scrollTo({ top: page.offsetTop, behavior: 'smooth' });
     };
 
@@ -1211,6 +1244,9 @@
         if (page.offsetTop <= midpoint) active = index;
       });
       setActive(active);
+      if (!('IntersectionObserver' in window)) {
+        syncHash(active);
+      }
     };
 
     let scrollIdleTimer = 0;
@@ -1223,8 +1259,35 @@
       updateActiveFromScroll();
     }, { passive: true });
 
+    if ('IntersectionObserver' in window) {
+      const pageObserver = new IntersectionObserver((entries) => {
+        let bestIndex = -1;
+        let bestRatio = -1;
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const index = pages.indexOf(entry.target);
+          if (index < 0) return;
+          if (entry.intersectionRatio >= bestRatio) {
+            bestIndex = index;
+            bestRatio = entry.intersectionRatio;
+          }
+        });
+        if (bestIndex >= 0) {
+          setActive(bestIndex);
+          syncHash(bestIndex);
+        }
+      }, {
+        root: scroller,
+        rootMargin: '-40% 0px -40% 0px',
+        threshold: [0, 0.25, 0.5, 0.75, 1]
+      });
+      pages.forEach((page) => pageObserver.observe(page));
+    }
+
     const initialPage = (() => {
-      const match = location.hash.match(/^#page-(\d+)$/);
+      const key = window.location.hash.replace('#', '');
+      if (key in hashToIndex) return hashToIndex[key];
+      const match = key.match(/^page-(\d+)$/);
       return match ? Math.min(pages.length - 1, Number(match[1]) - 1) : 0;
     })();
 
@@ -1232,15 +1295,47 @@
       requestAnimationFrame(() => {
         scroller.scrollTop = pages[initialPage].offsetTop;
         updateActiveFromScroll();
+        syncHash(initialPage);
       });
+    } else {
+      updateActiveFromScroll();
+      syncHash(0);
     }
-    updateActiveFromScroll();
 
     document.querySelectorAll('[data-page]').forEach((link) => {
       link.addEventListener('click', (event) => {
         event.preventDefault();
         goTo(Number(link.dataset.page) - 1);
       });
+    });
+
+    // The dots container itself is focusable and works as a next-page control.
+    dotsContainer.addEventListener('keydown', (event) => {
+      if (event.target !== dotsContainer) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        dotsContainer.click();
+      }
+    });
+    dotsContainer.addEventListener('click', (event) => {
+      if (event.target !== dotsContainer) return;
+      const current = pages.findIndex((page) => page.classList.contains('is-active'));
+      goTo((current + 1) % pages.length);
+    });
+    dots.forEach((dot, index) => {
+      dot.addEventListener('keydown', (event) => {
+        if (event.key === ' ') {
+          event.preventDefault();
+          goTo(index);
+        }
+      });
+    });
+
+    window.addEventListener('hashchange', () => {
+      const key = window.location.hash.replace('#', '');
+      if (key in hashToIndex) {
+        goTo(hashToIndex[key]);
+      }
     });
 
     document.addEventListener('keydown', (event) => {
