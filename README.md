@@ -19,6 +19,7 @@ MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。
 - [项目简介](#mysticturtle-launcher)
 - [一些你需要知道的](#一些你需要知道的)
 - [下载功能](#下载功能)
+- [P2P 联机](#p2p-联机)
 - [功能与修复实现说明](#功能与修复实现说明)
 - [构建](#构建)
 - [下载原理](#下载原理)
@@ -39,6 +40,10 @@ MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。
 图形化界面，操作简便（部分设计灵感来自于PCL）
 
 支持国内镜像源加速
+
+内置 EasyTier P2P 联机，无需公网 IP 即可和好友组网
+
+顶部导航直接进入联机页，支持管理员权限提示和单实例启动
 
 界面操作丝滑
 
@@ -67,7 +72,37 @@ MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。
 5. 通过镜像加速与 SHA1 校验保证文件完整
 
 默认下载目录为 `%APPDATA%\.minecraft`，可在主页右侧通过「游戏目录」修改。下载会包含版本 JSON、客户端、依赖库、natives、资源索引和资源对象。
-「下载游戏」默认筛选正式版；安装时可自定义版本显示名称，并可选择 Fabric、Forge、NeoForge 或 OptiFine 等加载器。
+「下载游戏」默认筛选正式版；安装页顶部可直接编辑版本显示名称，并可选择 Fabric、Forge、NeoForge 或 OptiFine 等加载器。加载器安装页提供「刷新」按钮，可重新拉取全部加载器版本列表。
+
+## P2P 联机
+
+联机入口位于顶部导航的「联机」页，不再藏在「更多」里。启动器不接管游戏进程，也不自动开启服务端，只负责用 EasyTier 建立虚拟局域网，游戏内仍然使用 Minecraft 原生的「对局域网开放」和「直接连接」。
+
+### 建立虚拟局域网
+
+- 启动器首次使用时会自动从 EasyTier 的 GitHub Release 下载 Windows x64 压缩包，解压到可执行文件目录下的 `tools/easytier`。
+- 下载、解压、启动和错误信息会实时显示在联机页底部的 EasyTier 日志控制台。
+- 创建房间使用房主填写的房间名、房间密码和虚拟 IP 启动 EasyTier；加入方使用房间名、密码和自动分配的虚拟 IP。
+- 虚拟 IP 是 EasyTier 虚拟网卡地址，不是公网 IP。默认推荐 `10.126.126.1`；若与本地网络网段冲突，可改用 `10.126.127.1` 或 `10.126.128.1`。IP 冲突可能导致房间不可见、连接超时或只能单向通信。
+- 创建成功后可在页面中复制自己的虚拟 IP；加入方填写房主的虚拟 IP 和游戏端口后，可复制 `IP:端口`，在 Minecraft 的「多人游戏 → 直接连接」中粘贴加入。
+
+### 连接状态与节点检测
+
+- EasyTier 进程启动后显示黄色「正在连接...」。
+- 后台定时执行 `easytier-cli peer`，解析真实 peer 列表。
+- 本机已经进入虚拟网络、但尚未发现对端节点时显示「等待朋友加入」。
+- peer 列表出现对端虚拟 IP 后显示亮绿色「已连接对端节点」。
+- 超过 30 秒仍未连接时会提示可能打洞失败，并建议检查防火墙或尝试手机热点。
+- 若 `easytier-cli.exe` 不存在，会回退到 EasyTier 日志关键字判断，并在日志中说明。
+
+### 权限、清理和单实例
+
+- Windows 启动时检测管理员权限；非管理员会提示重启提权，因为 EasyTier 创建虚拟网卡需要管理员权限。
+- 使用 `QLocalServer` / `QLocalSocket` 实现单实例；重复启动会激活已有窗口，避免多个 EasyTier 抢占端口和虚拟网卡。
+- 停止联机、关闭窗口或退出启动器时会结束 EasyTier 进程；Windows 下额外使用 Job Object，在启动器异常退出时兜底终止子进程。
+- 页面会提示首次使用需要允许 EasyTier 和 Java 通过防火墙。
+
+实现文件：[MultiplayerPage.cpp](src/pages/MultiplayerPage.cpp)、[EasyTierProcess.cpp](src/network/EasyTierProcess.cpp)。
 
 ## 功能与修复实现说明
 
@@ -104,9 +139,19 @@ MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。
 
 版本独立设置保存在 `versions/<版本 ID>/settings.json`，可针对单个版本覆盖内存分配和 JVM 参数；未设置覆盖项时继续使用全局设置。无法解析独立设置文件时会中止启动并提示错误，不会静默忽略。
 
+### 版本名称与加载器安装页
+
+点击版本卡片上的「下载」后不会先弹出名称对话框，而是直接进入加载器安装页。
+
+- 页面顶部提供一个可编辑输入框，默认填入当前版本名称。
+- 用户可以在输入框中直接修改显示名称，点击「开始下载」时保存。
+- 输入框留空时回退到版本原始名称。
+- 页面顶部提供「刷新」按钮，可重新拉取 Forge、NeoForge、Fabric、OptiFine 和 Fabric API 的版本列表。
+- 刷新过程中会清空旧列表和错误状态，按钮暂时禁用，全部请求结束后恢复。
+
 ### 自定义版本显示名称
 
-下载 Minecraft 版本时可指定显示名称。纯原版版本的名称保存在该版本目录的 `launcher.json`；选择 Fabric、Forge 等加载器时，名称写入最终加载器版本，而不是它继承的原版基础版本。主页据此显示名称，同时保留原始版本 ID 和文件路径用于启动、扫描和删除。
+纯原版版本的名称保存在该版本目录的 `launcher.json`；选择 Fabric、Forge 等加载器时，名称写入最终加载器版本，而不是它继承的原版基础版本。主页据此显示名称，同时保留原始版本 ID 和文件路径用于启动、扫描和删除。
 
 ### Modrinth 模组版本选择
 
@@ -314,6 +359,7 @@ src/
   account/AccountDialog.*    账户列表、添加、改名、删除与切换
   network/DownloadTask.*     多线程下载、SHA1 校验与失败重试
   network/DownloadManager.*  8 并发下载队列与整体进度
+  network/EasyTierProcess.*  EasyTier 进程管理、日志转发与 peer 状态检测
   network/MojangMirror.*     Mojang CDN 到 BMCLAPI 的 URL 转换
   minecraft/VersionParser.*  版本 JSON 解析
   minecraft/GameInstaller.*  版本基础文件下载流程
@@ -324,7 +370,7 @@ src/
   minecraft/LocalVersionScanner.*  本地版本与模组扫描
   platform/WindowEffects.*   Windows DWM / Acrylic 平台层
   widgets/                   无边框标题栏、导航、动画容器、卡片、抽屉等
-  pages/                     主页 / 下载游戏 / 加载器选择 / 下载模组 / 设置
+  pages/                     主页 / 下载游戏 / 加载器选择 / 下载模组 / 联机 / 设置
 ```
 
 --- 
@@ -488,6 +534,7 @@ MysticTurtle 的实现依赖 Mojang 的公开元数据、第三方镜像、开�
 | [NeoForge](https://neoforged.net/)                    | NeoForge 版本列表与官方安装器                | 版权归 NeoForged 团队及其贡献者所有；本项目调用官方安装器完成安装，不重新分发安装器。                                                                 |
 | [OptiFine](https://optifine.net/)                     | OptiFine 安装器下载                          | 版权归 OptiFine 作者 sp614x 及相关权利人所有；本项目仅下载安装器，需用户手动运行，不重新分发。                                                        |
 | [Modrinth](https://modrinth.com/)                     | Fabric API 等 Mod 下载接口                   | 版权归 Modrinth 团队及相应 的Mod 作者所有；下载内容遵循各 Mod 自身许可证。                                                                            |
+| [EasyTier](https://github.com/EasyTier/EasyTier)      | 内置 P2P 虚拟局域网联机                      | 由 EasyTier 项目及贡献者提供，遵循其开源许可证；启动器首次使用时会自动下载并调用其命令行程序。                                                        |
 | [PCL](https://github.com/Meloong-Git/PCL)             | 界面设计灵感                                 | 感谢 PCL 项目及PCL-CE提供的设计参考！本项目与其没有隶属关系哦~                                                                                        |
 | [DeepSeek Harness](https://www.deepseek.com/)         | 开发协作                                     | 感谢大肥鱼（DeepSeek Harness）在开发过程中的协助！                                                                                                    |
 | [Visual Studio Code](https://code.visualstudio.com/)  | 开发工具                                     | 感谢 Visual Studio Code 提供的编辑器与开发环境。                                                                                                      |
