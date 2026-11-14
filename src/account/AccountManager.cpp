@@ -16,6 +16,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QSettings>
+#include <QUrl>
 #include <QUuid>
 
 namespace {
@@ -45,6 +46,24 @@ bool validateUsername(const QString &username, QString *errorMessage)
     return true;
 }
 
+bool validateExternalAccount(const PlayerAccount &account, QString *errorMessage)
+{
+    QString text = account.serverUrl.trimmed();
+    if (!text.contains(QStringLiteral("://"))) {
+        text.prepend(QStringLiteral("https://"));
+    }
+    const QUrl url(text);
+    if (account.serverUrl.trimmed().isEmpty()
+        || !url.isValid() || url.host().isEmpty()
+        || (url.scheme() != QStringLiteral("https") && url.scheme() != QStringLiteral("http"))) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("请输入有效的认证服务器地址。");
+        }
+        return false;
+    }
+    return true;
+}
+
 QString createAccountId()
 {
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -59,8 +78,23 @@ bool PlayerAccount::isValid() const
 
 QString PlayerAccount::typeLabel() const
 {
-    return type == Type::Premium ? QStringLiteral("正版账户")
-                                 : QStringLiteral("离线账户");
+    return type == Type::External ? QStringLiteral("第三方外置登录")
+                                  : QStringLiteral("离线账户");
+}
+
+QString PlayerAccount::serverLabel() const
+{
+    if (type != Type::External || serverUrl.trimmed().isEmpty()) {
+        return QString();
+    }
+    const QUrl url(serverUrl.contains(QStringLiteral("://"))
+                       ? serverUrl
+                       : QStringLiteral("https://") + serverUrl);
+    const QString host = url.host().trimmed();
+    if (host.contains(QStringLiteral("littleskin"), Qt::CaseInsensitive)) {
+        return QStringLiteral("LittleSkin");
+    }
+    return host.isEmpty() ? serverUrl : host;
 }
 
 AccountManager &AccountManager::instance()
@@ -101,9 +135,9 @@ bool AccountManager::hasAccount() const
     return findAccount(m_activeId) != nullptr;
 }
 
-bool AccountManager::addOfflineAccount(const QString &username,
-                                       QString *errorMessage,
-                                       QString *newAccountId)
+bool AccountManager::addAccount(const PlayerAccount &account,
+                                QString *errorMessage,
+                                QString *newAccountId)
 {
     if (errorMessage) {
         errorMessage->clear();
@@ -112,30 +146,124 @@ bool AccountManager::addOfflineAccount(const QString &username,
         newAccountId->clear();
     }
 
-    const QString cleaned = username.trimmed();
-    if (!validateUsername(cleaned, errorMessage)) {
+    PlayerAccount candidate = account;
+    candidate.username = candidate.username.trimmed();
+    if (!validateUsername(candidate.username, errorMessage)) {
         return false;
     }
-    if (usernameExists(cleaned)) {
+    if (usernameExists(candidate.username)) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("账户列表中已经有这个用户名。");
         }
         return false;
     }
+    if (candidate.type == PlayerAccount::Type::External
+        && !validateExternalAccount(candidate, errorMessage)) {
+        return false;
+    }
 
-    PlayerAccount account;
-    account.id = createAccountId();
-    account.username = cleaned;
-    account.type = PlayerAccount::Type::Offline;
-    m_accounts.append(account);
-    m_activeId = account.id;
+    candidate.id = createAccountId();
+    candidate.serverUrl = candidate.serverUrl.trimmed();
+    candidate.accessToken = candidate.accessToken.trimmed();
+    candidate.uuid = candidate.uuid.trimmed();
+    candidate.clientToken = candidate.clientToken.trimmed();
+    m_accounts.append(candidate);
+    m_activeId = candidate.id;
 
     persist();
     emit accountChanged();
     if (newAccountId) {
-        *newAccountId = account.id;
+        *newAccountId = candidate.id;
     }
     return true;
+}
+
+bool AccountManager::updateAccount(const QString &id, const PlayerAccount &account,
+                                   QString *errorMessage)
+{
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+
+    PlayerAccount *target = findAccount(id);
+    if (!target) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("找不到这个账户。");
+        }
+        return false;
+    }
+
+    PlayerAccount candidate = account;
+    candidate.username = candidate.username.trimmed();
+    if (!validateUsername(candidate.username, errorMessage)) {
+        return false;
+    }
+    if (usernameExists(candidate.username, id)) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("账户列表中已经有这个用户名。");
+        }
+        return false;
+    }
+    if (candidate.type == PlayerAccount::Type::External
+        && !validateExternalAccount(candidate, errorMessage)) {
+        return false;
+    }
+
+    candidate.id = id;
+    candidate.serverUrl = candidate.serverUrl.trimmed();
+    candidate.accessToken = candidate.accessToken.trimmed();
+    candidate.uuid = candidate.uuid.trimmed();
+    candidate.clientToken = candidate.clientToken.trimmed();
+    *target = candidate;
+
+    persist();
+    emit accountChanged();
+    return true;
+}
+
+bool AccountManager::updateExternalSession(const QString &id,
+                                           const QString &accessToken,
+                                           const QString &clientToken,
+                                           const QString &uuid,
+                                           const QString &username,
+                                           QString *errorMessage)
+{
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    PlayerAccount *account = findAccount(id);
+    if (!account || account->type != PlayerAccount::Type::External) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("找不到这个外置登录账户。");
+        }
+        return false;
+    }
+
+    if (!accessToken.trimmed().isEmpty()) {
+        account->accessToken = accessToken.trimmed();
+    }
+    if (!clientToken.trimmed().isEmpty()) {
+        account->clientToken = clientToken.trimmed();
+    }
+    if (!uuid.trimmed().isEmpty()) {
+        account->uuid = uuid.trimmed();
+    }
+    if (!username.trimmed().isEmpty()) {
+        account->username = username.trimmed();
+    }
+    persist();
+    emit accountChanged();
+    return true;
+}
+
+bool AccountManager::addOfflineAccount(const QString &username,
+                                       QString *errorMessage,
+                                       QString *newAccountId)
+{
+    PlayerAccount account;
+    account.username = username;
+    account.type = PlayerAccount::Type::Offline;
+    return addAccount(account, errorMessage, newAccountId);
 }
 
 bool AccountManager::renameAccount(const QString &id, const QString &username,
@@ -289,11 +417,28 @@ void AccountManager::load()
                     account.id = createAccountId();
                 }
                 account.username = username;
+                const QString accountType =
+                    object.value(QStringLiteral("accountType")).toString();
+                const QString legacyType =
+                    object.value(QStringLiteral("type")).toString();
                 account.type =
-                    object.value(QStringLiteral("type")).toString()
-                            == QStringLiteral("premium")
-                        ? PlayerAccount::Type::Premium
+                    accountType == QStringLiteral("external")
+                        || legacyType == QStringLiteral("external")
+                        ? PlayerAccount::Type::External
                         : PlayerAccount::Type::Offline;
+                account.serverUrl =
+                    object.value(QStringLiteral("serverUrl")).toString().trimmed();
+                account.accessToken =
+                    object.value(QStringLiteral("accessToken")).toString().trimmed();
+                account.uuid =
+                    object.value(QStringLiteral("uuid")).toString().trimmed();
+                account.clientToken =
+                    object.value(QStringLiteral("clientToken")).toString().trimmed();
+                if (account.type == PlayerAccount::Type::External
+                    && account.serverUrl.isEmpty()) {
+                    // A previous premium marker has no auth server information.
+                    account.type = PlayerAccount::Type::Offline;
+                }
                 usedIds.insert(account.id);
                 usedNames.insert(nameKey);
                 m_accounts.append(account);
@@ -315,11 +460,7 @@ void AccountManager::load()
                 account.id = createAccountId();
             }
             account.username = legacyUsername;
-            account.type =
-                settings.value(kLegacyAccountGroup + QStringLiteral("/type")).toString()
-                        == QStringLiteral("premium")
-                    ? PlayerAccount::Type::Premium
-                    : PlayerAccount::Type::Offline;
+            account.type = PlayerAccount::Type::Offline;
             m_accounts.append(account);
             m_activeId = account.id;
             settings.remove(kLegacyAccountGroup);
@@ -348,10 +489,14 @@ void AccountManager::persist()
         QJsonObject object;
         object.insert(QStringLiteral("id"), account.id);
         object.insert(QStringLiteral("username"), account.username);
-        object.insert(QStringLiteral("type"),
-                      account.type == PlayerAccount::Type::Premium
-                          ? QStringLiteral("premium")
+        object.insert(QStringLiteral("accountType"),
+                      account.type == PlayerAccount::Type::External
+                          ? QStringLiteral("external")
                           : QStringLiteral("offline"));
+        object.insert(QStringLiteral("serverUrl"), account.serverUrl);
+        object.insert(QStringLiteral("accessToken"), account.accessToken);
+        object.insert(QStringLiteral("uuid"), account.uuid);
+        object.insert(QStringLiteral("clientToken"), account.clientToken);
         array.append(object);
     }
 

@@ -15,18 +15,19 @@
 #include <QString>
 #include <QWidget>
 
-class AnimatedStackedWidget;
-class AboutPage;
 class DownloadGamePage;
 class DownloadCenterPage;
 class DownloadModsPage;
 class HeaderBar;
 class HomePage;
+class MorePage;
 class ModsDrawer;
-class QGraphicsOpacityEffect;
+class MultiplayerPage;
 class QDialog;
+class QGraphicsOpacityEffect;
 class QLabel;
 class QPropertyAnimation;
+class QStackedWidget;
 class QTimer;
 class SettingsPage;
 struct PlayerAccount;
@@ -50,6 +51,8 @@ protected:
 private:
     void setupUi();
     void navigateTo(int index);
+    void animatePageTo(int index);
+    void stopPageTransition();
     void toggleMaximize();
     void updateWindowChrome();
     void applyAcrylic(bool enabled);
@@ -66,13 +69,17 @@ private:
     void positionToast();
 
     HeaderBar *m_header = nullptr;
-    AnimatedStackedWidget *m_pages = nullptr;
+    QStackedWidget *m_pages = nullptr;
     HomePage *m_homePage = nullptr;
     DownloadCenterPage *m_downloadCenterPage = nullptr;
     DownloadGamePage *m_downloadGamePage = nullptr;
     DownloadModsPage *m_downloadModsPage = nullptr;
     SettingsPage *m_settingsPage = nullptr;
-    AboutPage *m_aboutPage = nullptr;
+    MultiplayerPage *m_multiplayerPage = nullptr;
+    MorePage *m_morePage = nullptr;
+    QGraphicsOpacityEffect *m_pageOpacityEffect = nullptr;
+    QPropertyAnimation *m_pageFadeAnimation = nullptr;
+    int m_pendingPageIndex = -1;
 
     QPointer<ModsDrawer> m_drawer;
     QPointer<QDialog> m_launchProgress;
@@ -90,6 +97,8 @@ private:
     int m_backgroundOpacity = 35;
     bool m_acrylicEnabled = false;
     bool m_animationsEnabled = true;
+    bool m_liquidGlassEnabled = true;
+    bool m_buttonSpotlightEnabled = true;
     bool m_nativeEffectsApplied = false;
 
     QLabel *m_toast = nullptr;

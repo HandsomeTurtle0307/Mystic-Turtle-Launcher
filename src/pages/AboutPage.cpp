@@ -16,8 +16,10 @@
 #include "Theme.h"
 
 #include <QDesktopServices>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QScrollArea>
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -47,15 +49,19 @@ QToolButton *creditLink(const QString &name,
 {
     auto *button = new QToolButton(parent);
     button->setText(name);
-    button->setIcon(Icons::icon(icon, accent, 20));
-    button->setIconSize(QSize(20, 20));
+    button->setIcon(Icons::icon(icon, accent, 17));
+    button->setIconSize(QSize(17, 17));
     button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     button->setCursor(Qt::PointingHandCursor);
     button->setAutoRaise(true);
+    button->setFixedHeight(36);
+    button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     button->setStyleSheet(QStringLiteral(
         "QToolButton { color: %1; border: 1px solid %2; border-radius: 9px;"
-        "padding: 9px 12px; text-align: left; }"
-        "QToolButton:hover { background: rgba(%3, %4, %5, 24); }")
+        "padding: 4px 9px; text-align: left; font-size: 10.5px;"
+        "background: rgba(255, 255, 255, 2); }"
+        "QToolButton:hover { background: rgba(%3, %4, %5, 24);"
+        "border-color: rgba(%3, %4, %5, 80); }")
         .arg(Theme::TextPrimary.name(), Theme::Border.name())
         .arg(accent.red())
         .arg(accent.green())
@@ -75,9 +81,26 @@ AboutPage::AboutPage(QWidget *parent)
     setAttribute(Qt::WA_NoSystemBackground);
     setAutoFillBackground(false);
 
-    auto *root = new QVBoxLayout(this);
+    auto *pageLayout = new QVBoxLayout(this);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setSpacing(0);
+
+    auto *scroll = new QScrollArea(this);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet(QStringLiteral(
+        "QScrollArea { background: transparent; border: none; }"
+        "QScrollArea > QWidget > QWidget { background: transparent; }"));
+
+    auto *content = new QWidget(scroll);
+    content->setAttribute(Qt::WA_NoSystemBackground);
+
+    auto *root = new QVBoxLayout(content);
     root->setContentsMargins(34, 26, 34, 24);
     root->setSpacing(0);
+    scroll->setWidget(content);
+    pageLayout->addWidget(scroll);
 
     auto *warning = new QLabel(this);
     warning->setTextFormat(Qt::RichText);
@@ -109,8 +132,8 @@ AboutPage::AboutPage(QWidget *parent)
     auto *card = new CardWidget(this);
     card->setAccentColor(Theme::Accent);
     card->setInteractive(false);
-    card->setMinimumWidth(620);
-    card->setMaximumWidth(760);
+    card->setMinimumWidth(680);
+    card->setMaximumWidth(860);
     card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     auto *cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(30, 26, 30, 26);
@@ -136,7 +159,7 @@ AboutPage::AboutPage(QWidget *parent)
                                   QStringLiteral("HandsomeTurtle0307"), card));
     cardLayout->addSpacing(12);
     cardLayout->addWidget(infoRow(QStringLiteral("当前版本"),
-                                  QStringLiteral("v2.0"), card));
+                                  QStringLiteral("v3.0"), card));
     cardLayout->addSpacing(12);
     cardLayout->addWidget(Theme::label(QStringLiteral("鸣谢"), 11, QFont::DemiBold,
                                        Theme::TextMuted, card));
@@ -160,7 +183,57 @@ AboutPage::AboutPage(QWidget *parent)
                                   Icons::Type::External, Theme::Accent,
                                   QStringLiteral("https://github.com/features/copilot"), card),
                        1, 1);
+    credits->setColumnStretch(0, 1);
+    credits->setColumnStretch(1, 1);
     cardLayout->addLayout(credits);
+    cardLayout->addSpacing(12);
+
+    auto *easyTierPanel = new QFrame(card);
+    easyTierPanel->setObjectName(QStringLiteral("easyTierCredit"));
+    easyTierPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    easyTierPanel->setStyleSheet(QStringLiteral(
+        "QFrame#easyTierCredit {"
+        "  background: rgba(96, 165, 250, 8);"
+        "  border: 1px solid rgba(96, 165, 250, 42);"
+        "  border-radius: 12px;"
+        "}"));
+    auto *easyTierLayout = new QHBoxLayout(easyTierPanel);
+    easyTierLayout->setContentsMargins(13, 10, 10, 10);
+    easyTierLayout->setSpacing(10);
+
+    auto *easyTierIcon = new QLabel(easyTierPanel);
+    easyTierIcon->setFixedSize(30, 30);
+    easyTierIcon->setAlignment(Qt::AlignCenter);
+    easyTierIcon->setPixmap(Icons::icon(Icons::Type::External, Theme::Blue, 17)
+                                .pixmap(17, 17));
+    easyTierIcon->setStyleSheet(QStringLiteral(
+        "background: rgba(96, 165, 250, 20);"
+        "border: 1px solid rgba(96, 165, 250, 52);"
+        "border-radius: 8px;"));
+    easyTierLayout->addWidget(easyTierIcon);
+
+    auto *easyTierText = new QVBoxLayout();
+    easyTierText->setContentsMargins(0, 0, 0, 0);
+    easyTierText->setSpacing(2);
+    easyTierText->addWidget(Theme::label(QStringLiteral("联机基础由 EasyTier 提供"),
+                                         11, QFont::DemiBold,
+                                         Theme::TextPrimary, easyTierPanel));
+    easyTierText->addWidget(Theme::label(
+        QStringLiteral("虚拟局域网与 P2P 联通能力来自 EasyTier 开源项目。"),
+        9, QFont::Normal, Theme::TextMuted, easyTierPanel));
+    easyTierLayout->addLayout(easyTierText, 1);
+
+    auto *easyTierLink = new AccentButton(QStringLiteral("EasyTier GitHub"),
+                                           Icons::Type::External, easyTierPanel);
+    easyTierLink->setVariant(AccentButton::Variant::Ghost);
+    easyTierLink->setCompact(true);
+    connect(easyTierLink, &QAbstractButton::clicked, this, []() {
+        QDesktopServices::openUrl(
+            QUrl(QStringLiteral("https://github.com/EasyTier/EasyTier")));
+    });
+    easyTierLayout->addWidget(easyTierLink, 0, Qt::AlignVCenter);
+    cardLayout->addWidget(easyTierPanel);
+
     cardLayout->addSpacing(18);
     cardLayout->addWidget(Theme::divider(card));
     cardLayout->addSpacing(16);

@@ -24,6 +24,7 @@
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
+#include <QOverload>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileDialog>
@@ -269,6 +270,7 @@ GlobalSettingsWidget::GlobalSettingsWidget(QWidget *parent)
     connect(m_saveTimer, &QTimer::timeout, this, &GlobalSettingsWidget::saveNow);
 
     root->addWidget(buildNetworkCard(this));
+    root->addWidget(buildHomepageCard(this));
     root->addWidget(buildLaunchCard(this));
     root->addWidget(buildMemoryCard(this));
     root->addWidget(buildSkinCard(this));
@@ -404,6 +406,225 @@ QWidget *GlobalSettingsWidget::buildNetworkCard(QWidget *parent)
         m_settings.network.downloadSource == QStringLiteral("official")
             ? MojangMirror::DownloadSource::Official
             : MojangMirror::DownloadSource::Bmclapi);
+    return card;
+}
+
+QWidget *GlobalSettingsWidget::buildHomepageCard(QWidget *parent)
+{
+    auto *card = new CardWidget(parent);
+    card->setAccentColor(Theme::Blue);
+    card->setInteractive(true);
+    auto *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(22, 19, 22, 19);
+    layout->setSpacing(0);
+    layout->addWidget(Theme::label(QStringLiteral("个性化 / 主页"), 17, QFont::DemiBold,
+                                   Theme::TextPrimary, card));
+    layout->addWidget(sectionHint(QStringLiteral("选择主页右侧展示的本地页面。"), card));
+    layout->addSpacing(12);
+    layout->addWidget(Theme::divider(card));
+    layout->addSpacing(12);
+
+    auto *modeControl = new QWidget(card);
+    auto *modeLayout = new QHBoxLayout(modeControl);
+    modeLayout->setContentsMargins(0, 0, 0, 0);
+    modeLayout->setSpacing(14);
+    m_homepageBlank = new QRadioButton(QStringLiteral("空白"), modeControl);
+    m_homepageNews = new QRadioButton(QStringLiteral("资讯页"), modeControl);
+    m_homepageStatus = new QRadioButton(QStringLiteral("状态页"), modeControl);
+    m_homepageGroup = new QButtonGroup(modeControl);
+    m_homepageGroup->addButton(m_homepageBlank, 0);
+    m_homepageGroup->addButton(m_homepageNews, 1);
+    m_homepageGroup->addButton(m_homepageStatus, 2);
+    modeLayout->addWidget(m_homepageBlank);
+    modeLayout->addWidget(m_homepageNews);
+    modeLayout->addWidget(m_homepageStatus);
+    modeLayout->addStretch();
+
+    if (m_settings.homepage.mode == QStringLiteral("blank")) {
+        m_homepageBlank->setChecked(true);
+    } else if (m_settings.homepage.mode == QStringLiteral("status")) {
+        m_homepageStatus->setChecked(true);
+    } else {
+        m_homepageNews->setChecked(true);
+    }
+
+    m_blankHomepageAnimation = new QCheckBox(
+        QStringLiteral("显示空白主页动画"), card);
+    m_blankHomepageAnimation->setChecked(m_settings.homepage.blankAnimation);
+    m_blankHomepageAnimation->setEnabled(
+        m_settings.homepage.mode == QStringLiteral("blank"));
+    connect(m_blankHomepageAnimation, &QCheckBox::toggled, this, [this](bool checked) {
+        m_settings.homepage.blankAnimation = checked;
+        if (m_saveTimer) {
+            m_saveTimer->stop();
+        }
+        saveNow();
+        emit homepageChanged();
+    });
+
+    auto *styleRow = new QHBoxLayout();
+    styleRow->setContentsMargins(0, 8, 0, 0);
+    styleRow->setSpacing(9);
+    styleRow->addWidget(Theme::label(QStringLiteral("空白主页样式"), 10,
+                                     QFont::Normal, Theme::TextMuted, card));
+    m_blankHomepageStyle = new QComboBox(card);
+    m_blankHomepageStyle->addItem(QStringLiteral("几何乌龟"),
+                                  QStringLiteral("turtle"));
+    m_blankHomepageStyle->addItem(QStringLiteral("蓝发女仆"),
+                                  QStringLiteral("live2d-maid"));
+    m_blankHomepageStyle->addItem(QStringLiteral("白发卫衣"),
+                                  QStringLiteral("live2d-white-hoodie"));
+    m_blankHomepageStyle->addItem(QStringLiteral("红发少女"),
+                                  QStringLiteral("live2d-red"));
+    m_blankHomepageStyle->addItem(QStringLiteral("粉发少女"),
+                                  QStringLiteral("live2d-pink"));
+    m_blankHomepageStyle->addItem(QStringLiteral("蓝帽学姐"),
+                                  QStringLiteral("live2d-blue-hat"));
+    m_blankHomepageStyle->addItem(QStringLiteral("粉发抱熊"),
+                                  QStringLiteral("live2d-pink-teddy"));
+    m_blankHomepageStyle->addItem(QStringLiteral("黑发马尾"),
+                                  QStringLiteral("live2d-black-ponytail"));
+    m_blankHomepageStyle->addItem(QStringLiteral("蓝白双马尾"),
+                                  QStringLiteral("live2d-twintails"));
+    m_blankHomepageStyle->addItem(QStringLiteral("黑白长裙"),
+                                  QStringLiteral("live2d-black-dress"));
+    m_blankHomepageStyle->addItem(QStringLiteral("白发卫衣（二）"),
+                                  QStringLiteral("live2d-white-hoodie-2"));
+    m_blankHomepageStyle->addItem(QStringLiteral("粉发T恤"),
+                                  QStringLiteral("live2d-pink-tee"));
+    const int styleIndex =
+        m_blankHomepageStyle->findData(m_settings.homepage.blankAnimationStyle);
+    m_blankHomepageStyle->setCurrentIndex(styleIndex >= 0 ? styleIndex : 0);
+    m_blankHomepageStyle->setEnabled(
+        m_settings.homepage.mode == QStringLiteral("blank"));
+    m_blankHomepageStyle->setMinimumWidth(170);
+    styleRow->addWidget(m_blankHomepageStyle, 1);
+    connect(m_blankHomepageStyle,
+            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this](int) {
+        m_settings.homepage.blankAnimationStyle =
+            m_blankHomepageStyle->currentData().toString();
+        if (m_saveTimer) {
+            m_saveTimer->stop();
+        }
+        saveNow();
+        emit homepageChanged();
+    });
+
+    auto *live2dControls = new QWidget(card);
+    auto *live2dLayout = new QVBoxLayout(live2dControls);
+    live2dLayout->setContentsMargins(0, 0, 0, 0);
+    live2dLayout->setSpacing(7);
+
+    const auto makeAmplitudeControl = [this, card](int initialValue,
+                                                    int *target,
+                                                    const QString &unit) {
+        auto *control = new QWidget(card);
+        auto *layout = new QVBoxLayout(control);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(2);
+        auto *valueLabel = Theme::label(
+            QStringLiteral("%1%2").arg(initialValue).arg(unit), 10,
+            QFont::DemiBold, Theme::Accent, control);
+        valueLabel->setAlignment(Qt::AlignRight);
+        auto *slider = new QSlider(Qt::Horizontal, control);
+        slider->setRange(0, 100);
+        slider->setValue(initialValue);
+        slider->setFixedWidth(190);
+        connect(slider, &QSlider::valueChanged, this,
+                [this, target, valueLabel, unit](int value) {
+            *target = value;
+            valueLabel->setText(QStringLiteral("%1%2").arg(value).arg(unit));
+            if (m_saveTimer) {
+                m_saveTimer->stop();
+            }
+            saveNow();
+            emit homepageChanged();
+        });
+        layout->addWidget(valueLabel);
+        layout->addWidget(slider);
+        return control;
+    };
+
+    live2dLayout->addWidget(settingRow(
+        Icons::Type::Sparkles, QStringLiteral("呼吸幅度"),
+        QStringLiteral("控制 Live2D 立绘的周期性纵向拉伸幅度。"),
+        makeAmplitudeControl(m_settings.homepage.live2dBreathAmplitude,
+                             &m_settings.homepage.live2dBreathAmplitude,
+                             QStringLiteral("%")),
+        live2dControls));
+    live2dLayout->addWidget(settingRow(
+        Icons::Type::Refresh, QStringLiteral("晃动幅度"),
+        QStringLiteral("控制发丝与身体的柔和风动幅度，不会出现分层接缝。"),
+        makeAmplitudeControl(m_settings.homepage.live2dSwayAmplitude,
+                             &m_settings.homepage.live2dSwayAmplitude,
+                             QStringLiteral("%")),
+        live2dControls));
+    live2dLayout->addWidget(settingRow(
+        Icons::Type::Image, QStringLiteral("眼神跟随幅度"),
+        QStringLiteral("仅对睁眼立绘生效，控制眼睛高光的跟随位移。"),
+        makeAmplitudeControl(m_settings.homepage.live2dEyeAmplitude,
+                             &m_settings.homepage.live2dEyeAmplitude,
+                             QStringLiteral("%")),
+        live2dControls));
+    const auto updateLive2dControls = [this, live2dControls]() {
+        const bool enabled = m_settings.homepage.mode == QStringLiteral("blank")
+            && m_settings.homepage.blankAnimationStyle
+                   .startsWith(QStringLiteral("live2d"));
+        live2dControls->setEnabled(enabled);
+    };
+    updateLive2dControls();
+    connect(m_blankHomepageStyle,
+            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [updateLive2dControls](int) { updateLive2dControls(); });
+
+    connect(m_homepageGroup, &QButtonGroup::idToggled, this,
+            [this, updateLive2dControls](int id, bool checked) {
+        if (!checked) {
+            return;
+        }
+        m_settings.homepage.mode = id == 0 ? QStringLiteral("blank")
+            : id == 2 ? QStringLiteral("status")
+                      : QStringLiteral("news");
+        m_blankHomepageAnimation->setEnabled(id == 0);
+        m_blankHomepageStyle->setEnabled(id == 0);
+        updateLive2dControls();
+        if (m_saveTimer) {
+            m_saveTimer->stop();
+        }
+        saveNow();
+        emit homepageChanged();
+    });
+
+    layout->addWidget(settingRow(
+        Icons::Type::Grid, QStringLiteral("主页模式"),
+        QStringLiteral("空白、资讯页或状态页，全部使用本地 UI 渲染。"),
+        modeControl, card));
+    layout->addSpacing(10);
+    layout->addWidget(m_blankHomepageAnimation);
+    layout->addLayout(styleRow);
+    layout->addWidget(live2dControls);
+
+    auto *live2dDisclaimer = new QLabel(
+        QStringLiteral(
+            "免责声明：Live2D 立绘素材来源于网络，部分素材经过 AI 与图形处理程序加工。"
+            "如相关素材侵犯了您的版权，请通过 "
+            "<a href=\"https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher/issues\">"
+            "GitHub Issues</a> 联系作者，我会在确认后删除。"),
+        card);
+    live2dDisclaimer->setWordWrap(true);
+    live2dDisclaimer->setTextFormat(Qt::RichText);
+    live2dDisclaimer->setOpenExternalLinks(true);
+    live2dDisclaimer->setStyleSheet(QStringLiteral(
+        "QLabel { background: rgba(255, 255, 255, 3);"
+        "border: 1px solid rgba(255, 255, 255, 14);"
+        "border-radius: 8px; padding: 8px 10px;"
+        "color: %1; font-size: 9px; }"
+        "QLabel a { color: %2; text-decoration: none; }")
+        .arg(Theme::TextMuted.name(), Theme::Accent.name()));
+    layout->addSpacing(8);
+    layout->addWidget(live2dDisclaimer);
+    layout->addStretch();
     return card;
 }
 
@@ -794,7 +1015,7 @@ QWidget *GlobalSettingsWidget::buildSkinCard(QWidget *parent)
     });
     layout->addWidget(settingRow(
         Icons::Type::Palette, QStringLiteral("皮肤选择"),
-        QStringLiteral("离线皮肤仅保存在本地，不会修改正版账号。"),
+        QStringLiteral("皮肤仅保存在本地，不会修改服务器上的角色数据。"),
         skinControl, card));
     layout->addSpacing(12);
 

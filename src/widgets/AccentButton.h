@@ -12,9 +12,11 @@
 #include "IconFactory.h"
 
 #include <QColor>
+#include <QPointF>
 #include <QPushButton>
 
 class QEnterEvent;
+class QMouseEvent;
 class QPropertyAnimation;
 
 class AccentButton : public QPushButton
@@ -22,6 +24,7 @@ class AccentButton : public QPushButton
     Q_OBJECT
     Q_PROPERTY(qreal hoverProgress READ hoverProgress WRITE setHoverProgress)
     Q_PROPERTY(qreal pressProgress READ pressProgress WRITE setPressProgress)
+    Q_PROPERTY(qreal spotlightProgress READ spotlightProgress WRITE setSpotlightProgress)
 
 public:
     enum class Variant {
@@ -52,6 +55,8 @@ public:
     void setHoverProgress(qreal progress);
     qreal pressProgress() const;
     void setPressProgress(qreal progress);
+    qreal spotlightProgress() const;
+    void setSpotlightProgress(qreal progress);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -60,10 +65,12 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
     void animateHover(qreal target);
     void animatePress(qreal target);
+    void animateSpotlight(qreal target);
     QFont paintFont() const;
 
     Variant m_variant = Variant::Secondary;
@@ -73,6 +80,9 @@ private:
     QColor m_accent = QColor(QStringLiteral("#6EE7B7"));
     qreal m_hoverProgress = 0.0;
     qreal m_pressProgress = 0.0;
+    qreal m_spotlightProgress = 0.0;
+    QPointF m_spotlightPosition;
     QPropertyAnimation *m_hoverAnimation = nullptr;
     QPropertyAnimation *m_pressAnimation = nullptr;
+    QPropertyAnimation *m_spotlightAnimation = nullptr;
 };

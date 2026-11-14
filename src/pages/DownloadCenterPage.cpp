@@ -92,8 +92,8 @@ DownloadCenterPage::DownloadCenterPage(QWidget *parent)
         connectProjectPage(page);
     }
 
-    auto *group = new QButtonGroup(sidebar);
-    group->setExclusive(true);
+    m_categoryGroup = new QButtonGroup(sidebar);
+    m_categoryGroup->setExclusive(true);
     const struct {
         const char *title;
         Icons::Type icon;
@@ -110,7 +110,7 @@ DownloadCenterPage::DownloadCenterPage(QWidget *parent)
                                     categories[0].icon, sidebar);
     original->setIcon(Icons::icon(categories[0].icon, Theme::Blue, 17));
     original->setChecked(true);
-    group->addButton(original, 0);
+    m_categoryGroup->addButton(original, 0);
     sidebarLayout->addWidget(original);
     connect(original, &QPushButton::clicked, this, [this]() {
         m_content->setCurrentIndex(0);
@@ -126,7 +126,7 @@ DownloadCenterPage::DownloadCenterPage(QWidget *parent)
     for (int index = 1; index < 6; ++index) {
         auto *button = categoryButton(QString::fromUtf8(categories[index].title),
                                       categories[index].icon, sidebar);
-        group->addButton(button, index);
+        m_categoryGroup->addButton(button, index);
         sidebarLayout->addWidget(button);
         connect(button, &QPushButton::toggled, this,
                 [button, icon = categories[index].icon](bool checked) {
@@ -163,6 +163,16 @@ void DownloadCenterPage::setGameDirectory(const QString &directory)
     m_gamePage->setGameDirectory(directory);
     for (DownloadModsPage *page : m_projectPages) {
         page->setGameDirectory(directory);
+    }
+}
+
+void DownloadCenterPage::showModpacks()
+{
+    if (m_categoryGroup && m_categoryGroup->button(2)) {
+        m_categoryGroup->button(2)->setChecked(true);
+    }
+    if (m_content) {
+        m_content->setCurrentIndex(2);
     }
 }
 

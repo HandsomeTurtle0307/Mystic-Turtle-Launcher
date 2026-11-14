@@ -1121,7 +1121,8 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
                           qint64 *processId,
                           QString *errorMessage,
                           const QString &gameDataDirectory,
-                          const CancelCallback &cancel)
+                          const CancelCallback &cancel,
+                          const QString &authlibInjectorJar)
 {
     const auto report = [&progress](int percent, const QString &status) {
         if (progress) {
@@ -1263,6 +1264,12 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
                                                      .arg(assetsId));
 
     QString java = javaExecutable.trimmed();
+    const VersionSettings earlyVersionSettings = VersionSettings::load(
+        gameDir.filePath(QStringLiteral("versions/%1").arg(versionId)));
+    if (earlyVersionSettings.overrideJavaPath
+        && QFileInfo::exists(earlyVersionSettings.javaPath)) {
+        java = earlyVersionSettings.javaPath;
+    }
     if (java.isEmpty() || !QFileInfo::exists(java)) {
         const QSettings settings;
         const QString configured =
@@ -1619,15 +1626,46 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
     if (cancelled()) {
         return false;
     }
-    const QString uuid = offlineUuid(account.username);
+    const bool externalAccount =
+        account.type == PlayerAccount::Type::External;
+    if (externalAccount) {
+        if (account.serverUrl.trimmed().isEmpty()
+            || account.accessToken.trimmed().isEmpty()
+            || account.uuid.trimmed().isEmpty()) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral(
+                    "外置登录账户缺少认证服务器、accessToken 或 UUID，"
+                    "请先在账户管理中补全并验证。");
+            }
+            return false;
+        }
+        if (authlibInjectorJar.trimmed().isEmpty()
+            || !QFileInfo::exists(authlibInjectorJar)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("缺少 authlib-injector.jar，无法启动外置登录。");
+            }
+            return false;
+        }
+    }
+
+    QString uuid = externalAccount ? account.uuid : offlineUuid(account.username);
+    uuid.remove(QLatin1Char('-'));
     QHash<QString, QString> values;
     values.insert(QStringLiteral("auth_player_name"), account.username);
     values.insert(QStringLiteral("auth_uuid"), uuid);
-    values.insert(QStringLiteral("auth_access_token"), QStringLiteral("0"));
-    values.insert(QStringLiteral("auth_session"), QStringLiteral("0"));
-    values.insert(QStringLiteral("user_type"), QStringLiteral("legacy"));
+    values.insert(QStringLiteral("auth_access_token"),
+                  externalAccount ? account.accessToken : QStringLiteral("0"));
+    values.insert(QStringLiteral("auth_session"),
+                  externalAccount ? account.accessToken : QStringLiteral("0"));
+    values.insert(QStringLiteral("user_type"),
+                  externalAccount ? QStringLiteral("mojang") : QStringLiteral("legacy"));
     values.insert(QStringLiteral("user_properties"), QStringLiteral("{}"));
-    values.insert(QStringLiteral("clientid"), QStringLiteral("mysticturtle"));
+    values.insert(QStringLiteral("clientid"),
+                  externalAccount
+                      ? (account.clientToken.isEmpty()
+                             ? QStringLiteral("mysticturtle")
+                             : account.clientToken)
+                      : QStringLiteral("mysticturtle"));
     values.insert(QStringLiteral("auth_xuid"), QString());
     values.insert(QStringLiteral("version_name"), versionId);
     values.insert(QStringLiteral("version_type"), versionType);
@@ -1642,7 +1680,7 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
     values.insert(QStringLiteral("classpath"), QDir::toNativeSeparators(classPath));
     values.insert(QStringLiteral("classpath_separator"), QStringLiteral(";"));
     values.insert(QStringLiteral("launcher_name"), QStringLiteral("MysticTurtle"));
-    values.insert(QStringLiteral("launcher_version"), QStringLiteral("2.0.0"));
+    values.insert(QStringLiteral("launcher_version"), QStringLiteral("3.0.0"));
     values.insert(QStringLiteral("resolution_width"), QStringLiteral("854"));
     values.insert(QStringLiteral("resolution_height"), QStringLiteral("480"));
 
@@ -1664,6 +1702,11 @@ bool GameLauncher::launch(const QString &gameDirectory, const QString &versionId
         }
     }
     jvmArgs = filteredJvmArgs;
+    if (externalAccount) {
+        jvmArgs.append(QStringLiteral("-javaagent:%1=%2")
+                           .arg(QDir::toNativeSeparators(authlibInjectorJar),
+                                account.serverUrl));
+    }
     if (!hasClassPath) {
         jvmArgs.append(QStringLiteral("-cp"));
         jvmArgs.append(QDir::toNativeSeparators(classPath));

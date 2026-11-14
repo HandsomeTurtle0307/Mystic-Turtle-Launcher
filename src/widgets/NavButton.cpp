@@ -39,6 +39,7 @@ NavButton::NavButton(const QString &text, Icons::Type icon, QWidget *parent)
     setCursor(Qt::PointingHandCursor);
     setFocusPolicy(Qt::StrongFocus);
     setAttribute(Qt::WA_Hover, true);
+    setMouseTracking(true);
     setFixedHeight(38);
     setFont(Theme::font(13, QFont::DemiBold));
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -137,20 +138,10 @@ void NavButton::paintEvent(QPaintEvent *event)
         painter.setOpacity(0.34);
     }
 
-    const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    const qreal radius = 10.0;
-
-    if (m_activeProgress < 0.99) {
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(255, 255, 255,
-                                static_cast<int>(20 * m_hoverProgress * (1.0 - m_activeProgress))));
-        painter.drawRoundedRect(bounds, radius, radius);
-    }
-
     const QColor idle = Theme::isDarkMode()
         ? mix(Theme::TextMuted, Theme::TextPrimary, 0.22 + 0.35 * m_hoverProgress)
         : QColor(255, 255, 255, static_cast<int>(215 + 35 * m_hoverProgress));
-    const QColor color = mix(idle, Theme::Accent, m_activeProgress);
+    const QColor color = mix(idle, Theme::AccentDark, m_activeProgress);
 
     const int iconSize = 17;
     const int gap = 8;
@@ -170,19 +161,10 @@ void NavButton::paintEvent(QPaintEvent *event)
 
     if (m_activeProgress > 0.05) {
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(Theme::Accent.red(), Theme::Accent.green(), Theme::Accent.blue(),
+        painter.setBrush(QColor(Theme::AccentDark.red(), Theme::AccentDark.green(),
+                                Theme::AccentDark.blue(),
                                 static_cast<int>(190 * m_activeProgress)));
         const qreal dotX = width() / 2.0;
         painter.drawEllipse(QPointF(dotX, height() - 3.5), 2.0, 1.2);
-    }
-
-    if (hasFocus()) {
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(Theme::isDarkMode()
-                                ? QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                         Theme::Accent.blue(), 120)
-                                : QColor(255, 255, 255, 150),
-                            1.0));
-        painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), radius - 1, radius - 1);
     }
 }

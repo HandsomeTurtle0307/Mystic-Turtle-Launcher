@@ -7,7 +7,7 @@
 
 cmake_minimum_required(VERSION 3.21)
 
-project(MysticTurtle VERSION 2.0.0 LANGUAGES CXX)
+project(MysticTurtle VERSION 3.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,11 +33,17 @@ set(MYSTIC_TURTLE_SOURCES
     src/account/AccountManager.h
     src/account/AccountDialog.cpp
     src/account/AccountDialog.h
+    src/account/ExternalAuth.cpp
+    src/account/ExternalAuth.h
+    src/account/AuthlibInjector.cpp
+    src/account/AuthlibInjector.h
 
     src/network/DownloadTask.cpp
     src/network/DownloadTask.h
     src/network/DownloadManager.cpp
     src/network/DownloadManager.h
+    src/network/EasyTierProcess.cpp
+    src/network/EasyTierProcess.h
     src/network/MojangMirror.cpp
     src/network/MojangMirror.h
 
@@ -69,8 +75,12 @@ set(MYSTIC_TURTLE_SOURCES
     src/widgets/AnimatedComboBox.h
     src/widgets/AnimatedStackedWidget.cpp
     src/widgets/AnimatedStackedWidget.h
+    src/widgets/AnimePortraitWidget.cpp
+    src/widgets/AnimePortraitWidget.h
     src/widgets/AvatarWidget.cpp
     src/widgets/AvatarWidget.h
+    src/widgets/BackgroundStore.cpp
+    src/widgets/BackgroundStore.h
     src/widgets/CardWidget.cpp
     src/widgets/CardWidget.h
     src/widgets/HeaderBar.cpp
@@ -89,6 +99,8 @@ set(MYSTIC_TURTLE_SOURCES
     src/widgets/SearchField.h
     src/widgets/ToggleSwitch.cpp
     src/widgets/ToggleSwitch.h
+    src/widgets/TurtleAnimationWidget.cpp
+    src/widgets/TurtleAnimationWidget.h
     src/widgets/VersionCard.cpp
     src/widgets/VersionCard.h
     src/widgets/WindowButton.cpp
@@ -96,6 +108,12 @@ set(MYSTIC_TURTLE_SOURCES
 
     src/pages/HomePage.cpp
     src/pages/HomePage.h
+    src/pages/HomeNewsWidget.cpp
+    src/pages/HomeNewsWidget.h
+    src/pages/HomeStatusWidget.cpp
+    src/pages/HomeStatusWidget.h
+    src/pages/VersionSelectPage.cpp
+    src/pages/VersionSelectPage.h
     src/pages/LoaderSetupView.cpp
     src/pages/LoaderSetupView.h
     src/pages/DownloadCenterPage.cpp
@@ -106,6 +124,12 @@ set(MYSTIC_TURTLE_SOURCES
     src/pages/DownloadModsPage.h
     src/pages/SettingsPage.cpp
     src/pages/SettingsPage.h
+    src/pages/MorePage.cpp
+    src/pages/MorePage.h
+    src/pages/MultiplayerPage.cpp
+    src/pages/MultiplayerPage.h
+    src/pages/DonationPage.cpp
+    src/pages/DonationPage.h
     src/pages/AboutPage.cpp
     src/pages/AboutPage.h
 
@@ -113,6 +137,8 @@ set(MYSTIC_TURTLE_SOURCES
     src/settings/GlobalSettings.h
     src/settings/VersionSettings.cpp
     src/settings/VersionSettings.h
+    src/settings/VersionSettingsDialog.cpp
+    src/settings/VersionSettingsDialog.h
     src/settings/GlobalSettingsWidget.cpp
     src/settings/GlobalSettingsWidget.h
 )
@@ -121,6 +147,25 @@ qt_add_executable(Mystic-Turtle-Launcher
     WIN32
     MACOSX_BUNDLE
     ${MYSTIC_TURTLE_SOURCES}
+)
+
+qt_add_resources(Mystic-Turtle-Launcher donation_assets
+    PREFIX "/assets"
+    BASE assets
+    FILES
+        assets/donation-qr.png
+        assets/portrait-maid.png
+        assets/portrait-white-hoodie.png
+        assets/portrait-red.png
+        assets/portrait-pink.png
+        assets/portrait-blue-hat.png
+        assets/portrait-pink-teddy.png
+        assets/portrait-black-ponytail.png
+        assets/portrait-twintails.png
+        assets/portrait-black-dress.png
+        assets/portrait-white-hoodie-2.png
+        assets/portrait-pink-tee.png
+        assets/portrait-eyes.json
 )
 
 target_include_directories(Mystic-Turtle-Launcher
@@ -148,7 +193,7 @@ if(WIN32)
         NOMINMAX
         WIN32_LEAN_AND_MEAN
     )
-    target_link_libraries(Mystic-Turtle-Launcher PRIVATE dwmapi)
+    target_link_libraries(Mystic-Turtle-Launcher PRIVATE dwmapi shell32)
 endif()
 
 if(MSVC)

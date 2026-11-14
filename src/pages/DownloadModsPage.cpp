@@ -11,6 +11,7 @@
 
 #include "AccentButton.h"
 #include "AnimatedComboBox.h"
+#include "BackgroundStore.h"
 #include "CardWidget.h"
 #include "LoadingIndicator.h"
 #include "MinecraftPaths.h"
@@ -111,6 +112,8 @@ public:
         setAttribute(Qt::WA_NoSystemBackground);
         setAutoFillBackground(false);
         loadBackground();
+        connect(&BackgroundStore::instance(), &BackgroundStore::changed,
+                this, &ModDetailsDialog::loadBackground);
     }
 
 protected:
@@ -152,17 +155,8 @@ protected:
 private:
     void loadBackground()
     {
-        m_background = QImage();
-        const QSettings settings;
-        m_opacity = qBound(
-            0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
-        const QString path =
-            settings.value(QStringLiteral("ui/backgroundImage")).toString();
-        if (!path.isEmpty()) {
-            QImageReader reader(path);
-            reader.setAutoTransform(true);
-            m_background = reader.read();
-        }
+        m_background = BackgroundStore::instance().image();
+        m_opacity = BackgroundStore::instance().opacity();
         update();
     }
 

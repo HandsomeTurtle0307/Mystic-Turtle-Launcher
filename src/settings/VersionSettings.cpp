@@ -17,6 +17,33 @@
 #include <QJsonParseError>
 #include <QSaveFile>
 
+namespace {
+
+QString normalizeWindowSize(const QString &value)
+{
+    if (value == QStringLiteral("fullscreen")
+        || value == QStringLiteral("borderless")) {
+        return value;
+    }
+    return QStringLiteral("default");
+}
+
+QString normalizeJvmPreset(const QString &value)
+{
+    if (value == QStringLiteral("g1gc") || value == QStringLiteral("zgc")) {
+        return value;
+    }
+    return QStringLiteral("custom");
+}
+
+bool readBool(const QJsonObject &object, const QString &key, bool fallback)
+{
+    const QJsonValue value = object.value(key);
+    return value.isBool() ? value.toBool() : fallback;
+}
+
+} // namespace
+
 QString VersionSettings::settingsFilePath(const QString &versionDirectory)
 {
     return QDir(versionDirectory).filePath(QStringLiteral("settings.json"));
@@ -58,37 +85,35 @@ VersionSettings VersionSettings::load(const QString &versionDirectory,
 
     const QJsonObject root = document.object();
     const QJsonValue formatVersion = root.value(QStringLiteral("formatVersion"));
-    if (!formatVersion.isUndefined()
-        && (!formatVersion.isDouble() || formatVersion.toInt(-1) != 1)) {
+    const int format = formatVersion.isUndefined() ? 1 : formatVersion.toInt(-1);
+    if (format != 1 && format != 2) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("不支持的版本独立设置格式。");
         }
-        return settings;
+        return VersionSettings();
     }
+
     const QJsonValue memoryValue = root.value(QStringLiteral("memory"));
     const QJsonValue advancedValue = root.value(QStringLiteral("advanced"));
+    const QJsonValue javaValue = root.value(QStringLiteral("java"));
+    const QJsonValue windowValue = root.value(QStringLiteral("window"));
+    const QJsonValue launchValue = root.value(QStringLiteral("launch"));
     if ((!memoryValue.isUndefined() && !memoryValue.isObject())
-        || (!advancedValue.isUndefined() && !advancedValue.isObject())) {
+        || (!advancedValue.isUndefined() && !advancedValue.isObject())
+        || (!javaValue.isUndefined() && !javaValue.isObject())
+        || (!windowValue.isUndefined() && !windowValue.isObject())
+        || (!launchValue.isUndefined() && !launchValue.isObject())) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("版本独立设置中的 memory 或 advanced 项无效。");
+            *errorMessage = QStringLiteral("版本独立设置的 JSON 分组格式无效。");
         }
-        return settings;
+        return VersionSettings();
     }
-    const QJsonObject memory = root.value(QStringLiteral("memory")).toObject();
-    const QJsonObject advanced = root.value(QStringLiteral("advanced")).toObject();
-    const QJsonValue memoryOverride = memory.value(QStringLiteral("override"));
-    const QJsonValue jvmOverride =
-        advanced.value(QStringLiteral("overrideJvmArguments"));
-    if ((!memoryOverride.isUndefined() && !memoryOverride.isBool())
-        || (!jvmOverride.isUndefined() && !jvmOverride.isBool())) {
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("版本独立设置中的覆盖开关必须是布尔值。");
-        }
-        return settings;
-    }
-    settings.overrideMemory =
-        memoryOverride.toBool(false);
-    if (settings.overrideMemory
+
+    const QJsonObject memory = memoryValue.toObject();
+    const QJsonObject advanced = advancedValue.toObject();
+    settings.overrideMemory = readBool(memory, QStringLiteral("override"), false);
+    settings.automaticMemory = readBool(memory, QStringLiteral("automatic"), false);
+    if (settings.overrideMemory && !settings.automaticMemory
         && !memory.value(QStringLiteral("customMb")).isDouble()) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("版本独立内存设置缺少有效的 customMb 数值。");
@@ -98,8 +123,14 @@ VersionSettings VersionSettings::load(const QString &versionDirectory,
     settings.memoryMb = qBound(
         0, memory.value(QStringLiteral("customMb")).toInt(),
         GlobalSettings::physicalMemoryMb());
+
     settings.overrideJvmArguments =
-        jvmOverride.toBool(false);
+        readBool(advanced, QStringLiteral("overrideJvmArguments"), false);
+    settings.jvmArguments = advanced.value(QStringLiteral("jvmArgs")).toString();
+    settings.jvmPreset = normalizeJvmPreset(
+        advanced.value(QStringLiteral("jvmPreset"))
+            .toString(settings.overrideJvmArguments ? QStringLiteral("custom")
+                                                    : QStringLiteral("g1gc")));
     if (settings.overrideJvmArguments
         && !advanced.value(QStringLiteral("jvmArgs")).isString()) {
         if (errorMessage) {
@@ -107,9 +138,32 @@ VersionSettings VersionSettings::load(const QString &versionDirectory,
         }
         return VersionSettings();
     }
-    settings.jvmArguments =
-        advanced.value(QStringLiteral("jvmArgs")).toString();
+
+    const QJsonObject java = javaValue.toObject();
+    settings.overrideJavaPath = readBool(java, QStringLiteral("override"), false);
+    settings.javaPath = java.value(QStringLiteral("path")).toString();
+    if (settings.overrideJavaPath && settings.javaPath.trimmed().isEmpty()) {
+        settings.overrideJavaPath = false;
+    }
+
+    const QJsonObject window = windowValue.toObject();
+    settings.overrideWindowSize = readBool(window, QStringLiteral("override"), false);
+    settings.windowSize = normalizeWindowSize(
+        window.value(QStringLiteral("size")).toString(QStringLiteral("default")));
+
+    const QJsonObject launch = launchValue.toObject();
+    settings.overrideGameArgs = readBool(launch, QStringLiteral("override"), false);
+    settings.gameArgs = launch.value(QStringLiteral("args")).toString();
+    if (settings.overrideGameArgs && settings.gameArgs.trimmed().isEmpty()) {
+        settings.overrideGameArgs = false;
+    }
     return settings;
+}
+
+bool VersionSettings::hasOverrides() const
+{
+    return overrideMemory || overrideJvmArguments || overrideJavaPath
+        || overrideWindowSize || overrideGameArgs;
 }
 
 bool VersionSettings::save(const QString &versionDirectory,
@@ -119,7 +173,7 @@ bool VersionSettings::save(const QString &versionDirectory,
         errorMessage->clear();
     }
     const QString path = settingsFilePath(versionDirectory);
-    if (!overrideMemory && !overrideJvmArguments) {
+    if (!hasOverrides()) {
         if (QFileInfo::exists(path) && !QFile::remove(path)) {
             if (errorMessage) {
                 *errorMessage = QStringLiteral("无法移除版本独立设置文件：%1").arg(path);
@@ -138,17 +192,34 @@ bool VersionSettings::save(const QString &versionDirectory,
 
     QJsonObject memory;
     memory.insert(QStringLiteral("override"), overrideMemory);
+    memory.insert(QStringLiteral("automatic"), automaticMemory);
     memory.insert(QStringLiteral("customMb"),
                   qBound(0, memoryMb, GlobalSettings::physicalMemoryMb()));
 
     QJsonObject advanced;
     advanced.insert(QStringLiteral("overrideJvmArguments"), overrideJvmArguments);
     advanced.insert(QStringLiteral("jvmArgs"), jvmArguments);
+    advanced.insert(QStringLiteral("jvmPreset"), normalizeJvmPreset(jvmPreset));
+
+    QJsonObject java;
+    java.insert(QStringLiteral("override"), overrideJavaPath);
+    java.insert(QStringLiteral("path"), javaPath);
+
+    QJsonObject window;
+    window.insert(QStringLiteral("override"), overrideWindowSize);
+    window.insert(QStringLiteral("size"), normalizeWindowSize(windowSize));
+
+    QJsonObject launch;
+    launch.insert(QStringLiteral("override"), overrideGameArgs);
+    launch.insert(QStringLiteral("args"), gameArgs);
 
     QJsonObject root;
-    root.insert(QStringLiteral("formatVersion"), 1);
+    root.insert(QStringLiteral("formatVersion"), 2);
     root.insert(QStringLiteral("memory"), memory);
     root.insert(QStringLiteral("advanced"), advanced);
+    root.insert(QStringLiteral("java"), java);
+    root.insert(QStringLiteral("window"), window);
+    root.insert(QStringLiteral("launch"), launch);
 
     QSaveFile file(path);
     const QByteArray data = QJsonDocument(root).toJson(QJsonDocument::Indented);
@@ -166,13 +237,31 @@ bool VersionSettings::save(const QString &versionDirectory,
 GlobalSettings VersionSettings::applyTo(GlobalSettings settings) const
 {
     if (overrideMemory) {
-        settings.memory.automatic = false;
-        settings.memory.customMb =
-            qBound(0, memoryMb, GlobalSettings::physicalMemoryMb());
+        settings.memory.automatic = automaticMemory;
+        if (!automaticMemory) {
+            settings.memory.customMb =
+                qBound(0, memoryMb, GlobalSettings::physicalMemoryMb());
+        }
     }
     if (overrideJvmArguments) {
         settings.advanced.jvmArgs = jvmArguments;
-        settings.advanced.jvmPreset = QStringLiteral("custom");
+        settings.advanced.jvmPreset = normalizeJvmPreset(jvmPreset);
+    }
+    if (overrideJavaPath && !javaPath.trimmed().isEmpty()) {
+        settings.advanced.javaPath = javaPath.trimmed();
+        settings.advanced.autoDownloadJava = false;
+    }
+    if (overrideWindowSize) {
+        settings.launch.windowSize = normalizeWindowSize(windowSize);
+    }
+    if (overrideGameArgs) {
+        const QString extra = gameArgs.trimmed();
+        if (!extra.isEmpty()) {
+            settings.advanced.gameArgs =
+                settings.advanced.gameArgs.trimmed().isEmpty()
+                    ? extra
+                    : settings.advanced.gameArgs.trimmed() + QLatin1Char(' ') + extra;
+        }
     }
     return settings;
 }

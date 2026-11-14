@@ -11,17 +11,21 @@
 
 #include "AccountManager.h"
 #include "AccentButton.h"
+#include "BackgroundStore.h"
 #include "CardWidget.h"
 #include "Theme.h"
 #include "WindowButton.h"
 
 #include <QAbstractButton>
+#include <QComboBox>
+#include <QFormLayout>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QLineEdit>
+#include <QOverload>
 #include <QPainter>
 #include <QPoint>
 #include <QPainterPath>
@@ -96,9 +100,11 @@ AccountDialog::AccountDialog(QWidget *parent)
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
     setModal(true);
-    setFixedSize(600, 580);
+    setFixedSize(680, 690);
 
     reloadBackground();
+    connect(&BackgroundStore::instance(), &BackgroundStore::changed,
+            this, &AccountDialog::reloadBackground);
 
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(18, 18, 18, 18);
@@ -135,7 +141,7 @@ AccountDialog::AccountDialog(QWidget *parent)
 
     layout->addSpacing(5);
     layout->addWidget(Theme::label(
-        QStringLiteral("选择一个账户作为启动账户，目前仅支持离线账户。"),
+        QStringLiteral("支持离线账户和第三方外置登录（authlib-injector）。"),
         11, QFont::Normal, Theme::TextMuted, panel));
     layout->addSpacing(14);
 
@@ -154,32 +160,97 @@ AccountDialog::AccountDialog(QWidget *parent)
     layout->addWidget(m_scroll, 1);
 
     layout->addSpacing(15);
-    m_formLabel = Theme::label(QStringLiteral("添加离线账户"), 10, QFont::DemiBold,
+    m_formLabel = Theme::label(QStringLiteral("添加账户"), 10, QFont::DemiBold,
                                Theme::TextSecondary, panel);
     layout->addWidget(m_formLabel);
     layout->addSpacing(6);
 
-    auto *formRow = new QHBoxLayout();
-    formRow->setContentsMargins(0, 0, 0, 0);
-    formRow->setSpacing(8);
+    auto *typeRow = new QHBoxLayout();
+    typeRow->setContentsMargins(0, 0, 0, 0);
+    typeRow->setSpacing(9);
+    typeRow->addWidget(Theme::label(QStringLiteral("账号类型"), 10, QFont::Normal,
+                                    Theme::TextMuted, panel));
+    m_accountType = new QComboBox(panel);
+    m_accountType->addItem(QStringLiteral("离线账户"), QStringLiteral("offline"));
+    m_accountType->addItem(QStringLiteral("第三方外置登录"),
+                           QStringLiteral("external"));
+    m_accountType->setMinimumHeight(36);
+    m_accountType->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    typeRow->addWidget(m_accountType, 1);
+    layout->addLayout(typeRow);
+    layout->addSpacing(6);
+
+    auto *usernameRow = new QHBoxLayout();
+    usernameRow->setContentsMargins(0, 0, 0, 0);
+    usernameRow->setSpacing(9);
+    usernameRow->addWidget(Theme::label(QStringLiteral("用户名"), 10, QFont::Normal,
+                                        Theme::TextMuted, panel));
     m_usernameEdit = new QLineEdit(panel);
     m_usernameEdit->setPlaceholderText(QStringLiteral("输入用户名"));
     m_usernameEdit->setMaxLength(16);
-    m_usernameEdit->setMinimumHeight(40);
+    m_usernameEdit->setMinimumHeight(38);
     m_usernameEdit->setClearButtonEnabled(true);
-    formRow->addWidget(m_usernameEdit, 1);
+    usernameRow->addWidget(m_usernameEdit, 1);
+    layout->addLayout(usernameRow);
 
+    m_externalFields = new QWidget(panel);
+    auto *externalLayout = new QFormLayout(m_externalFields);
+    externalLayout->setContentsMargins(0, 6, 0, 0);
+    externalLayout->setHorizontalSpacing(9);
+    externalLayout->setVerticalSpacing(6);
+    externalLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    m_serverUrlEdit = new QLineEdit(m_externalFields);
+    m_serverUrlEdit->setPlaceholderText(
+        QStringLiteral("https://littleskin.cn/api/yggdrasil"));
+    m_serverUrlEdit->setMinimumHeight(36);
+    externalLayout->addRow(Theme::label(QStringLiteral("认证服务器"), 10,
+                                        QFont::Normal, Theme::TextMuted,
+                                        m_externalFields),
+                           m_serverUrlEdit);
+
+    m_accessTokenEdit = new QLineEdit(m_externalFields);
+    m_accessTokenEdit->setPlaceholderText(QStringLiteral("accessToken"));
+    m_accessTokenEdit->setEchoMode(QLineEdit::Password);
+    m_accessTokenEdit->setMinimumHeight(36);
+    externalLayout->addRow(Theme::label(QStringLiteral("Access Token"), 10,
+                                        QFont::Normal, Theme::TextMuted,
+                                        m_externalFields),
+                           m_accessTokenEdit);
+
+    m_uuidEdit = new QLineEdit(m_externalFields);
+    m_uuidEdit->setPlaceholderText(QStringLiteral("玩家 UUID，可留空等待登录返回"));
+    m_uuidEdit->setMinimumHeight(36);
+    externalLayout->addRow(Theme::label(QStringLiteral("UUID"), 10, QFont::Normal,
+                                        Theme::TextMuted, m_externalFields),
+                           m_uuidEdit);
+
+    m_clientTokenEdit = new QLineEdit(m_externalFields);
+    m_clientTokenEdit->setPlaceholderText(QStringLiteral("clientToken"));
+    m_clientTokenEdit->setEchoMode(QLineEdit::Password);
+    m_clientTokenEdit->setMinimumHeight(36);
+    externalLayout->addRow(Theme::label(QStringLiteral("Client Token"), 10,
+                                        QFont::Normal, Theme::TextMuted,
+                                        m_externalFields),
+                           m_clientTokenEdit);
+    m_externalFields->hide();
+    layout->addWidget(m_externalFields);
+
+    auto *buttonRow = new QHBoxLayout();
+    buttonRow->setContentsMargins(0, 8, 0, 0);
+    buttonRow->setSpacing(8);
+    buttonRow->addStretch();
     m_submitButton = new AccentButton(QStringLiteral("添加账户"), panel);
     m_submitButton->setVariant(AccentButton::Variant::Primary);
     m_submitButton->setCompact(true);
-    formRow->addWidget(m_submitButton);
+    buttonRow->addWidget(m_submitButton);
 
     m_cancelButton = new AccentButton(QStringLiteral("取消"), panel);
     m_cancelButton->setVariant(AccentButton::Variant::Ghost);
     m_cancelButton->setCompact(true);
     m_cancelButton->hide();
-    formRow->addWidget(m_cancelButton);
-    layout->addLayout(formRow);
+    buttonRow->addWidget(m_cancelButton);
+    layout->addLayout(buttonRow);
 
     m_errorLabel = Theme::label(QString(), 10, QFont::Normal, Theme::Danger, panel);
     m_errorLabel->setWordWrap(true);
@@ -190,6 +261,8 @@ AccountDialog::AccountDialog(QWidget *parent)
     connect(m_submitButton, &QAbstractButton::clicked, this, &AccountDialog::submitForm);
     connect(m_cancelButton, &QAbstractButton::clicked, this, &AccountDialog::leaveFormEdit);
     connect(m_usernameEdit, &QLineEdit::returnPressed, this, &AccountDialog::submitForm);
+    connect(m_accountType, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { updateEditorVisibility(); });
     connect(m_usernameEdit, &QLineEdit::textChanged, this, [this]() {
         if (m_errorLabel && !m_errorLabel->text().isEmpty()) {
             setError(QString());
@@ -245,17 +318,8 @@ void AccountDialog::showEvent(QShowEvent *event)
 
 void AccountDialog::reloadBackground()
 {
-    m_backgroundImage = QImage();
-    const QSettings settings;
-    m_backgroundOpacity =
-        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
-    const QString backgroundPath =
-        settings.value(QStringLiteral("ui/backgroundImage")).toString();
-    if (!backgroundPath.isEmpty()) {
-        QImageReader reader(backgroundPath);
-        reader.setAutoTransform(true);
-        m_backgroundImage = reader.read();
-    }
+    m_backgroundImage = BackgroundStore::instance().image();
+    m_backgroundOpacity = BackgroundStore::instance().opacity();
     update();
 }
 
@@ -279,7 +343,7 @@ void AccountDialog::rebuildList()
 
     if (manager.accounts().isEmpty()) {
         auto *empty = Theme::label(
-            QStringLiteral("还没有账户。在下方输入用户名，添加一个本地离线账户。"),
+            QStringLiteral("还没有账户。在下方添加离线账户或第三方外置登录账户。"),
             11, QFont::Normal, Theme::TextMuted, content);
         empty->setAlignment(Qt::AlignCenter);
         empty->setFixedHeight(140);
@@ -302,11 +366,36 @@ void AccountDialog::rebuildList()
         auto *text = new QVBoxLayout();
         text->setContentsMargins(0, 0, 0, 0);
         text->setSpacing(2);
-        text->addWidget(Theme::label(account.username, 12, QFont::DemiBold,
-                                     Theme::TextPrimary, row));
+        auto *nameRow = new QHBoxLayout();
+        nameRow->setContentsMargins(0, 0, 0, 0);
+        nameRow->setSpacing(6);
+        nameRow->addWidget(Theme::label(account.username, 12, QFont::DemiBold,
+                                        Theme::TextPrimary, row));
+        if (account.type == PlayerAccount::Type::External) {
+            const QString server = account.serverLabel().isEmpty()
+                ? QStringLiteral("外置")
+                : account.serverLabel();
+            nameRow->addWidget(Theme::badge(
+                QStringLiteral("[%1]").arg(server), Theme::Accent,
+                QColor(110, 231, 183, 22), row,
+                QColor(110, 231, 183, 70)), 0, Qt::AlignVCenter);
+        } else {
+            nameRow->addWidget(Theme::badge(
+                QStringLiteral("[离线]"), Theme::TextMuted,
+                QColor(255, 255, 255, 14), row,
+                QColor(255, 255, 255, 34)), 0, Qt::AlignVCenter);
+        }
+        nameRow->addStretch();
+        text->addLayout(nameRow);
+        QString subtitle = account.typeLabel();
+        if (account.type == PlayerAccount::Type::External
+            && !account.serverLabel().isEmpty()) {
+            subtitle += QStringLiteral(" · ") + account.serverLabel();
+        }
         text->addWidget(Theme::label(
-            account.typeLabel(), 9, QFont::Normal,
-            account.type == PlayerAccount::Type::Premium ? Theme::Amber : Theme::TextMuted,
+            subtitle, 9, QFont::Normal,
+            account.type == PlayerAccount::Type::External ? Theme::Accent
+                                                          : Theme::TextMuted,
             row));
         rowLayout->addLayout(text, 1);
 
@@ -330,14 +419,14 @@ void AccountDialog::rebuildList()
             rowLayout->addWidget(activate, 0, Qt::AlignVCenter);
         }
 
-        auto *rename = new AccentButton(QStringLiteral("改名"), row);
-        rename->setVariant(AccentButton::Variant::Ghost);
-        rename->setCompact(true);
-        rename->setAccessibleName(QStringLiteral("修改 %1 的用户名").arg(account.username));
-        connect(rename, &QAbstractButton::clicked, this, [this, id = account.id]() {
-            beginRename(id);
+        auto *edit = new AccentButton(QStringLiteral("编辑"), row);
+        edit->setVariant(AccentButton::Variant::Ghost);
+        edit->setCompact(true);
+        edit->setAccessibleName(QStringLiteral("编辑账户 %1").arg(account.username));
+        connect(edit, &QAbstractButton::clicked, this, [this, id = account.id]() {
+            beginEdit(id);
         });
-        rowLayout->addWidget(rename, 0, Qt::AlignVCenter);
+        rowLayout->addWidget(edit, 0, Qt::AlignVCenter);
 
         const bool deleteArmed = m_deleteArmedId == account.id;
         auto *remove = new AccentButton(deleteArmed ? QStringLiteral("确认删除")
@@ -357,7 +446,7 @@ void AccountDialog::rebuildList()
     m_listLayout->addStretch(1);
 }
 
-void AccountDialog::beginRename(const QString &id)
+void AccountDialog::beginEdit(const QString &id)
 {
     const QVector<PlayerAccount> &accounts = AccountManager::instance().accounts();
     const PlayerAccount *selected = nullptr;
@@ -373,10 +462,17 @@ void AccountDialog::beginRename(const QString &id)
 
     m_editingId = id;
     m_deleteArmedId.clear();
-    m_formLabel->setText(QStringLiteral("修改账户名"));
+    m_formLabel->setText(QStringLiteral("编辑账户"));
+    m_accountType->setCurrentIndex(
+        selected->type == PlayerAccount::Type::External ? 1 : 0);
     m_usernameEdit->setText(selected->username);
+    m_serverUrlEdit->setText(selected->serverUrl);
+    m_accessTokenEdit->setText(selected->accessToken);
+    m_uuidEdit->setText(selected->uuid);
+    m_clientTokenEdit->setText(selected->clientToken);
     m_submitButton->setText(QStringLiteral("保存修改"));
     m_cancelButton->show();
+    updateEditorVisibility();
     setError(QString());
     m_usernameEdit->setFocus(Qt::OtherFocusReason);
     m_usernameEdit->selectAll();
@@ -386,11 +482,26 @@ void AccountDialog::beginRename(const QString &id)
 void AccountDialog::leaveFormEdit()
 {
     m_editingId.clear();
-    m_formLabel->setText(QStringLiteral("添加离线账户"));
+    m_formLabel->setText(QStringLiteral("添加账户"));
+    m_accountType->setCurrentIndex(0);
     m_usernameEdit->clear();
+    m_serverUrlEdit->clear();
+    m_accessTokenEdit->clear();
+    m_uuidEdit->clear();
+    m_clientTokenEdit->clear();
     m_submitButton->setText(QStringLiteral("添加账户"));
     m_cancelButton->hide();
+    updateEditorVisibility();
     setError(QString());
+}
+
+void AccountDialog::updateEditorVisibility()
+{
+    if (!m_externalFields || !m_accountType) {
+        return;
+    }
+    m_externalFields->setVisible(
+        m_accountType->currentData().toString() == QStringLiteral("external"));
 }
 
 void AccountDialog::submitForm()
@@ -398,8 +509,21 @@ void AccountDialog::submitForm()
     AccountManager &manager = AccountManager::instance();
     QString error;
 
+    PlayerAccount account;
+    account.username = m_usernameEdit->text();
+    account.type = m_accountType->currentData().toString()
+                           == QStringLiteral("external")
+                       ? PlayerAccount::Type::External
+                       : PlayerAccount::Type::Offline;
+    if (account.type == PlayerAccount::Type::External) {
+        account.serverUrl = m_serverUrlEdit->text().trimmed();
+        account.accessToken = m_accessTokenEdit->text().trimmed();
+        account.uuid = m_uuidEdit->text().trimmed();
+        account.clientToken = m_clientTokenEdit->text().trimmed();
+    }
+
     if (!m_editingId.isEmpty()) {
-        if (!manager.renameAccount(m_editingId, m_usernameEdit->text(), &error)) {
+        if (!manager.updateAccount(m_editingId, account, &error)) {
             setError(error);
             return;
         }
@@ -408,13 +532,12 @@ void AccountDialog::submitForm()
         return;
     }
 
-    if (!manager.addOfflineAccount(m_usernameEdit->text(), &error)) {
+    if (!manager.addAccount(account, &error)) {
         setError(error);
         return;
     }
 
-    m_usernameEdit->clear();
-    setError(QString());
+    leaveFormEdit();
     m_usernameEdit->setFocus(Qt::OtherFocusReason);
     rebuildList();
 }

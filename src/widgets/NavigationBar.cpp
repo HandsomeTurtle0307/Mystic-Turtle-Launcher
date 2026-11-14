@@ -14,9 +14,14 @@
 #include "Theme.h"
 
 #include <QAbstractAnimation>
+#include <QCursor>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QLinearGradient>
+#include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QRadialGradient>
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QTimer>
@@ -38,36 +43,39 @@ QRectF interpolateRect(const QRectF &from, const QRectF &to, qreal progress)
 NavigationBar::NavigationBar(QWidget *parent)
     : QWidget(parent)
     , m_indicatorAnimation(new QVariantAnimation(this))
+    , m_spotlightAnimation(new QVariantAnimation(this))
 {
     setFixedHeight(46);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setMouseTracking(true);
 
     auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
+    layout->setContentsMargins(3, 3, 3, 3);
+    layout->setSpacing(0);
 
     const struct {
         const char *text;
         Icons::Type icon;
     } items[] = {
         {"启动", Icons::Type::Play},
-        {"下载中心", Icons::Type::Download},
+        {"下载", Icons::Type::Download},
         {"设置", Icons::Type::Sliders},
-        {"关于", Icons::Type::Info},
+        {"联机", Icons::Type::External},
+        {"更多", Icons::Type::Boxes},
     };
 
     int index = 0;
     for (const auto &item : items) {
         auto *button = new NavButton(QString::fromUtf8(item.text), item.icon, this);
         button->setAccessibleName(QString::fromUtf8(item.text));
+        button->installEventFilter(this);
         layout->addWidget(button);
         m_buttons.append(button);
 
         connect(button, &QAbstractButton::clicked, this, [this, index]() {
-            if (m_currentIndex == index) {
-                return;
+            if (m_currentIndex != index) {
+                setCurrentIndex(index);
             }
-            setCurrentIndex(index);
             emit navigationRequested(index);
         });
         ++index;
@@ -80,6 +88,14 @@ NavigationBar::NavigationBar(QWidget *parent)
     connect(m_indicatorAnimation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant &value) {
                 m_indicatorRect = interpolateRect(m_indicatorFrom, m_indicatorTo, value.toReal());
+                update();
+            });
+
+    m_spotlightAnimation->setDuration(230);
+    m_spotlightAnimation->setEasingCurve(QEasingCurve::OutCubic);
+    connect(m_spotlightAnimation, &QVariantAnimation::valueChanged, this,
+            [this](const QVariant &value) {
+                m_spotlightProgress = qBound(0.0, value.toReal(), 1.0);
                 update();
             });
 
@@ -190,6 +206,54 @@ void NavigationBar::updateIndicator(bool animated)
     m_indicatorAnimation->start();
 }
 
+bool NavigationBar::eventFilter(QObject *watched, QEvent *event)
+{
+    auto *button = qobject_cast<NavButton *>(watched);
+    if (button) {
+        switch (event->type()) {
+        case QEvent::Enter:
+            updateSpotlightPosition(QCursor::pos());
+            if (Theme::buttonSpotlightEnabled()) {
+                animateSpotlight(1.0);
+            }
+            break;
+        case QEvent::MouseMove:
+            updateSpotlightPosition(
+                static_cast<QMouseEvent *>(event)->globalPosition().toPoint());
+            break;
+        case QEvent::Leave:
+            QTimer::singleShot(0, this, [this]() {
+                if (!rect().contains(mapFromGlobal(QCursor::pos()))) {
+                    animateSpotlight(0.0);
+                }
+            });
+            break;
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void NavigationBar::updateSpotlightPosition(const QPoint &globalPosition)
+{
+    m_spotlightPosition = mapFromGlobal(globalPosition);
+    update();
+}
+
+void NavigationBar::animateSpotlight(qreal target)
+{
+    m_spotlightAnimation->stop();
+    if (!m_animationsEnabled || !Theme::animationsEnabled()) {
+        m_spotlightProgress = target;
+        update();
+        return;
+    }
+    m_spotlightAnimation->setStartValue(m_spotlightProgress);
+    m_spotlightAnimation->setEndValue(target);
+    m_spotlightAnimation->start();
+}
+
 void NavigationBar::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
@@ -197,23 +261,75 @@ void NavigationBar::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    Q_UNUSED(bounds)
+    const qreal radius = height() / 2.0;
+    QPainterPath capsule;
+    capsule.addRoundedRect(bounds, radius, radius);
+
+    painter.save();
+    painter.setClipPath(capsule);
+
     painter.setPen(Qt::NoPen);
-    painter.setBrush(Qt::NoBrush);
+    painter.setBrush(QColor(255, 255, 255, Theme::isDarkMode() ? 9 : 34));
+    painter.drawRoundedRect(bounds, radius, radius);
+
+    if (Theme::liquidGlassEnabled()) {
+        QLinearGradient glass(bounds.topLeft(), bounds.bottomLeft());
+        glass.setColorAt(0.0, QColor(255, 255, 255,
+                                     Theme::isDarkMode() ? 20 : 54));
+        glass.setColorAt(0.44, QColor(255, 255, 255,
+                                      Theme::isDarkMode() ? 4 : 18));
+        glass.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                     Theme::Accent.blue(),
+                                     Theme::isDarkMode() ? 12 : 20));
+        painter.fillRect(bounds, glass);
+
+        QRadialGradient bloom(QPointF(width() * 0.26, -10.0),
+                              qMax(100.0, width() * 0.52));
+        bloom.setColorAt(0.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                     Theme::Accent.blue(), 26));
+        bloom.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                     Theme::Accent.blue(), 0));
+        painter.fillRect(bounds, bloom);
+
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(255, 255, 255,
+                                   Theme::isDarkMode() ? 34 : 82), 1.0));
+        painter.drawLine(QPointF(bounds.left() + radius, bounds.top() + 1.1),
+                         QPointF(bounds.right() - radius, bounds.top() + 1.1));
+    }
+
+    if (Theme::buttonSpotlightEnabled() && m_spotlightProgress > 0.001) {
+        const qreal lightRadius = qMax(100.0, width() * 0.78);
+        QRadialGradient light(m_spotlightPosition, lightRadius);
+        light.setColorAt(0.0, QColor(255, 255, 255,
+                                     static_cast<int>(38 * m_spotlightProgress)));
+        light.setColorAt(0.35, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                      Theme::Accent.blue(),
+                                      static_cast<int>(18 * m_spotlightProgress)));
+        light.setColorAt(0.7, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                     Theme::Accent.blue(),
+                                     static_cast<int>(5 * m_spotlightProgress)));
+        light.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                     Theme::Accent.blue(), 0));
+        painter.setPen(Qt::NoPen);
+        painter.fillRect(bounds, light);
+    }
+    painter.restore();
 
     if (m_indicatorInitialized && m_indicatorRect.isValid() && m_indicatorRect.width() > 0) {
-        const QRectF pill = m_indicatorRect.adjusted(0.5, 0.5, -0.5, -0.5);
-        if (Theme::isDarkMode()) {
-            painter.setBrush(QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                    Theme::Accent.blue(), 30));
-            painter.setPen(QPen(QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                       Theme::Accent.blue(), 80), 1.0));
-        } else {
-            painter.setBrush(QColor(255, 255, 255, 246));
-            painter.setPen(QPen(QColor(255, 255, 255, 180), 1.0));
-        }
-        painter.drawRoundedRect(pill, 10, 10);
+        const QRectF pill = m_indicatorRect.adjusted(1.0, 1.0, -1.0, -1.0);
+        QColor pillColor = Theme::Accent;
+        pillColor.setAlpha(224);
+        painter.setBrush(pillColor);
+        painter.setPen(QPen(QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                   Theme::Accent.blue(), 242), 1.0));
+        painter.drawRoundedRect(pill, height() / 2.0 - 2.0, height() / 2.0 - 2.0);
     }
+
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(QColor(255, 255, 255,
+                               Theme::isDarkMode() ? 28 : 78), 1.0));
+    painter.drawRoundedRect(bounds, radius, radius);
 }
 
 void NavigationBar::resizeEvent(QResizeEvent *event)

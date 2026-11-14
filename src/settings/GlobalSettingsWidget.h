@@ -40,10 +40,12 @@ public:
 signals:
     void notifyRequested(const QString &message);
     void versionIsolationChanged();
+    void homepageChanged();
 
 private:
     QWidget *buildLaunchCard(QWidget *parent);
     QWidget *buildNetworkCard(QWidget *parent);
+    QWidget *buildHomepageCard(QWidget *parent);
     QWidget *buildMemoryCard(QWidget *parent);
     QWidget *buildSkinCard(QWidget *parent);
     QWidget *buildAdvancedCard(QWidget *parent);
@@ -72,6 +74,13 @@ private:
     QLineEdit *m_proxyHost = nullptr;
     QSpinBox *m_proxyPort = nullptr;
     QSpinBox *m_downloadConcurrency = nullptr;
+
+    QButtonGroup *m_homepageGroup = nullptr;
+    QRadioButton *m_homepageBlank = nullptr;
+    QRadioButton *m_homepageNews = nullptr;
+    QRadioButton *m_homepageStatus = nullptr;
+    QCheckBox *m_blankHomepageAnimation = nullptr;
+    QComboBox *m_blankHomepageStyle = nullptr;
 
     QRadioButton *m_autoMemory = nullptr;
     QRadioButton *m_customMemory = nullptr;

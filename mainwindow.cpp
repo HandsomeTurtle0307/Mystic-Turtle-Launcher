@@ -9,22 +9,25 @@
 
 #include "mainwindow.h"
 
-#include "AnimatedStackedWidget.h"
 #include "DownloadGamePage.h"
 #include "DownloadModsPage.h"
 #include "DownloadCenterPage.h"
 #include "HeaderBar.h"
 #include "HomePage.h"
 #include "LogoMark.h"
+#include "MorePage.h"
+#include "MultiplayerPage.h"
 #include "ModsDrawer.h"
+#include "BackgroundStore.h"
 #include "NavigationBar.h"
 #include "SampleData.h"
 #include "SettingsPage.h"
-#include "AboutPage.h"
 #include "Theme.h"
 #include "LoadingIndicator.h"
 #include "account/AccountDialog.h"
 #include "account/AccountManager.h"
+#include "account/AuthlibInjector.h"
+#include "account/ExternalAuth.h"
 #include "minecraft/GameLauncher.h"
 #include "minecraft/JavaRuntimeInstaller.h"
 #include "platform/WindowEffects.h"
@@ -57,6 +60,7 @@
 #include <QPropertyAnimation>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QStackedWidget>
 #include <QSettings>
 #include <QShortcut>
 #include <QShowEvent>
@@ -378,7 +382,13 @@ MainWindow::MainWindow(QWidget *parent)
     const QSettings settings;
     m_acrylicEnabled = settings.value(QStringLiteral("ui/acrylic"), false).toBool();
     m_animationsEnabled = settings.value(QStringLiteral("ui/animations"), true).toBool();
+    m_liquidGlassEnabled =
+        settings.value(QStringLiteral("ui/liquidGlass"), true).toBool();
+    m_buttonSpotlightEnabled =
+        settings.value(QStringLiteral("ui/buttonSpotlight"), true).toBool();
     Theme::setAnimationsEnabled(m_animationsEnabled);
+    Theme::setLiquidGlassEnabled(m_liquidGlassEnabled);
+    Theme::setButtonSpotlightEnabled(m_buttonSpotlightEnabled);
     m_backgroundOpacity =
         qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
     const QString backgroundImage =
@@ -388,6 +398,7 @@ MainWindow::MainWindow(QWidget *parent)
         reader.setAutoTransform(true);
         m_backgroundImage = reader.read();
     }
+    BackgroundStore::instance().setBackground(m_backgroundImage, m_backgroundOpacity);
 
     if (QScreen *screen = QGuiApplication::primaryScreen()) {
         const QRect available = screen->availableGeometry();
@@ -419,44 +430,53 @@ void MainWindow::setupUi()
     m_header = new HeaderBar(this);
     root->addWidget(m_header);
 
-    m_pages = new AnimatedStackedWidget(this);
+    m_pages = new QStackedWidget(this);
+    m_pages->setAttribute(Qt::WA_NoSystemBackground);
+    m_pages->setAutoFillBackground(false);
+    m_pageOpacityEffect = new QGraphicsOpacityEffect(m_pages);
+    m_pageOpacityEffect->setOpacity(1.0);
+    m_pages->setGraphicsEffect(m_pageOpacityEffect);
     m_homePage = new HomePage(m_pages);
     m_downloadCenterPage = new DownloadCenterPage(m_pages);
     m_downloadGamePage = m_downloadCenterPage->gamePage();
     m_downloadModsPage = m_downloadCenterPage->modsPage();
     m_settingsPage = new SettingsPage(m_pages);
-    m_aboutPage = new AboutPage(m_pages);
-    m_pages->addPage(m_homePage);
-    m_pages->addPage(m_downloadCenterPage);
-    m_pages->addPage(m_settingsPage);
-    m_pages->addPage(m_aboutPage);
-    m_pages->setCurrentIndex(0, false);
-    m_pages->setAnimationsEnabled(m_animationsEnabled);
+    m_multiplayerPage = new MultiplayerPage(m_pages);
+    m_morePage = new MorePage(m_pages);
+    m_pages->addWidget(m_homePage);
+    m_pages->addWidget(m_downloadCenterPage);
+    m_pages->addWidget(m_settingsPage);
+    m_pages->addWidget(m_multiplayerPage);
+    m_pages->addWidget(m_morePage);
+    m_pages->setCurrentIndex(0);
+    m_homePage->setAnimationsEnabled(m_animationsEnabled);
+    m_morePage->setAnimationsEnabled(m_animationsEnabled);
     m_header->navigationBar()->setAnimationsEnabled(m_animationsEnabled);
     m_downloadCenterPage->setGameDirectory(m_homePage->gameDirectory());
     m_settingsPage->setGameDirectory(m_homePage->gameDirectory());
     root->addWidget(m_pages, 1);
 
-    connect(m_header, &HeaderBar::minimizeRequested, this, &QWidget::showMinimized);
-    connect(m_header, &HeaderBar::maximizeRestoreRequested, this, &MainWindow::toggleMaximize);
-    connect(m_header, &HeaderBar::closeRequested, this, &QWidget::close);
+    AccountManager &accountManager = AccountManager::instance();
+    const auto refreshHeaderAccount = [this]() {
+        const PlayerAccount account = AccountManager::instance().account();
+        m_header->setAccount(account.isValid() ? account.username
+                                               : QStringLiteral("未添加账户"),
+                             account.isValid() ? account.typeLabel() : QString());
+    };
+    refreshHeaderAccount();
+    connect(&accountManager, &AccountManager::accountChanged,
+            this, [refreshHeaderAccount]() { refreshHeaderAccount(); });
     connect(m_header, &HeaderBar::accountRequested,
             m_homePage, &HomePage::openAccountDialog);
 
-    AccountManager &accountManager = AccountManager::instance();
-    m_header->setAccountName(accountManager.account().username);
-    connect(&accountManager, &AccountManager::accountChanged, this, [this]() {
-        m_header->setAccountName(AccountManager::instance().account().username);
-    });
-
+    connect(m_header, &HeaderBar::minimizeRequested, this, &QWidget::showMinimized);
+    connect(m_header, &HeaderBar::maximizeRestoreRequested, this, &MainWindow::toggleMaximize);
+    connect(m_header, &HeaderBar::closeRequested, this, &QWidget::close);
     NavigationBar *navigation = m_header->navigationBar();
     connect(navigation, &NavigationBar::navigationRequested, this, &MainWindow::navigateTo);
-    for (int i = 1; i < 4; ++i) {
-        navigation->setItemEnabled(i, false);
+    for (int i = 0; i < 5; ++i) {
+        navigation->setItemEnabled(i, true);
     }
-    navigation->setItemEnabled(1, true);
-    navigation->setItemEnabled(2, true);
-    navigation->setItemEnabled(3, true);
 
     connect(m_homePage, &HomePage::detailsRequested,
             this, &MainWindow::openVersionDetails);
@@ -468,8 +488,14 @@ void MainWindow::setupUi()
                 m_downloadCenterPage->setGameDirectory(directory);
                 m_settingsPage->setGameDirectory(directory);
             });
+    connect(m_morePage, &MorePage::downloadModpacksRequested, this, [this]() {
+        m_downloadCenterPage->showModpacks();
+        navigateTo(1);
+    });
     connect(m_settingsPage, &SettingsPage::versionIsolationChanged,
             m_homePage, &HomePage::reloadLocalVersions);
+    connect(m_settingsPage, &SettingsPage::homepageChanged,
+            m_homePage, &HomePage::refreshHomepageContent);
     connect(m_downloadGamePage, &DownloadGamePage::installSucceeded, this,
             [this](const QString &) {
                 m_homePage->reloadLocalVersions();
@@ -493,7 +519,11 @@ void MainWindow::setupUi()
             this, [this](bool enabled) {
                 m_animationsEnabled = enabled;
                 Theme::setAnimationsEnabled(enabled);
-                m_pages->setAnimationsEnabled(enabled);
+                if (!enabled) {
+                    stopPageTransition();
+                }
+                m_homePage->setAnimationsEnabled(enabled);
+                m_morePage->setAnimationsEnabled(enabled);
                 m_header->navigationBar()->setAnimationsEnabled(enabled);
                 for (QWidget *widget : findChildren<QWidget *>()) {
                     if (auto *indicator = dynamic_cast<LoadingIndicator *>(widget)) {
@@ -505,6 +535,30 @@ void MainWindow::setupUi()
                 showToast(enabled ? QStringLiteral("已启用丝滑动画。")
                                   : QStringLiteral("已关闭丝滑动画。"));
             });
+    connect(m_settingsPage, &SettingsPage::liquidGlassChanged,
+            this, [this](bool enabled) {
+                m_liquidGlassEnabled = enabled;
+                Theme::setLiquidGlassEnabled(enabled);
+                for (QWidget *widget : findChildren<QWidget *>()) {
+                    widget->update();
+                }
+                QSettings settings;
+                settings.setValue(QStringLiteral("ui/liquidGlass"), enabled);
+                showToast(enabled ? QStringLiteral("已启用液态玻璃质感。")
+                                  : QStringLiteral("已关闭液态玻璃质感。"));
+            });
+    connect(m_settingsPage, &SettingsPage::buttonSpotlightChanged,
+            this, [this](bool enabled) {
+                m_buttonSpotlightEnabled = enabled;
+                Theme::setButtonSpotlightEnabled(enabled);
+                for (QWidget *widget : findChildren<QWidget *>()) {
+                    widget->update();
+                }
+                QSettings settings;
+                settings.setValue(QStringLiteral("ui/buttonSpotlight"), enabled);
+                showToast(enabled ? QStringLiteral("已启用按钮光标光效。")
+                                  : QStringLiteral("已关闭按钮光标光效。"));
+            });
     connect(m_settingsPage, &SettingsPage::gameDirectoryChanged, this,
             [this](const QString &directory) {
                 m_homePage->setGameDirectory(directory);
@@ -513,7 +567,7 @@ void MainWindow::setupUi()
                 showToast(QStringLiteral("游戏目录已更新。"));
             });
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         if (!navigation->isItemEnabled(i)) {
             continue;
         }
@@ -553,14 +607,88 @@ void MainWindow::setupUi()
 
 void MainWindow::navigateTo(int index)
 {
-    if (index < 0 || index >= m_pages->count()) {
+    if (index < 0 || index >= 5 || index >= m_pages->count()) {
         return;
     }
     if (!m_header->navigationBar()->isItemEnabled(index)) {
         return;
     }
-    m_pages->setCurrentIndex(index, true);
+    if (index == 4) {
+        m_morePage->showOverview();
+    }
+    animatePageTo(index);
     m_header->navigationBar()->setCurrentIndex(index, true);
+}
+
+void MainWindow::animatePageTo(int index)
+{
+    if (!m_pages || index < 0 || index >= m_pages->count()) {
+        return;
+    }
+
+    stopPageTransition();
+    if (index == m_pages->currentIndex()) {
+        return;
+    }
+    if (!m_animationsEnabled || !Theme::animationsEnabled()
+        || !m_pageOpacityEffect) {
+        m_pages->setCurrentIndex(index);
+        return;
+    }
+
+    m_pendingPageIndex = index;
+    auto *fadeOut = new QPropertyAnimation(m_pageOpacityEffect, "opacity", this);
+    fadeOut->setDuration(130);
+    fadeOut->setStartValue(1.0);
+    fadeOut->setEndValue(0.0);
+    fadeOut->setEasingCurve(QEasingCurve::InCubic);
+    m_pageFadeAnimation = fadeOut;
+    connect(fadeOut, &QPropertyAnimation::finished, this, [this, fadeOut]() {
+        if (m_pageFadeAnimation != fadeOut || !m_pages
+            || m_pendingPageIndex < 0) {
+            fadeOut->deleteLater();
+            return;
+        }
+
+        m_pages->setCurrentIndex(m_pendingPageIndex);
+        m_pendingPageIndex = -1;
+        fadeOut->deleteLater();
+
+        auto *fadeIn = new QPropertyAnimation(m_pageOpacityEffect, "opacity", this);
+        fadeIn->setDuration(220);
+        fadeIn->setStartValue(0.0);
+        fadeIn->setEndValue(1.0);
+        fadeIn->setEasingCurve(QEasingCurve::OutCubic);
+        m_pageFadeAnimation = fadeIn;
+        connect(fadeIn, &QPropertyAnimation::finished, this, [this, fadeIn]() {
+            if (m_pageFadeAnimation == fadeIn) {
+                m_pageFadeAnimation = nullptr;
+            }
+            if (m_pageOpacityEffect) {
+                m_pageOpacityEffect->setOpacity(1.0);
+            }
+            fadeIn->deleteLater();
+        });
+        fadeIn->start();
+    });
+    fadeOut->start();
+}
+
+void MainWindow::stopPageTransition()
+{
+    if (m_pageFadeAnimation) {
+        m_pageFadeAnimation->stop();
+        m_pageFadeAnimation->deleteLater();
+        m_pageFadeAnimation = nullptr;
+    }
+    if (m_pendingPageIndex >= 0 && m_pages
+        && m_pendingPageIndex < m_pages->count()) {
+        m_pages->setCurrentIndex(m_pendingPageIndex);
+    }
+    m_pendingPageIndex = -1;
+    if (m_pageOpacityEffect) {
+        m_pageOpacityEffect->setOpacity(1.0);
+    }
 }
 
 void MainWindow::toggleMaximize()
@@ -671,8 +799,14 @@ void MainWindow::launchSelectedVersion()
         int activeIndex = 0;
         const QVector<PlayerAccount> accounts = manager.accounts();
         for (int i = 0; i < accounts.size(); ++i) {
-            labels.append(QStringLiteral("%1 · %2")
-                              .arg(accounts.at(i).username, accounts.at(i).typeLabel()));
+            QString label = QStringLiteral("%1 · %2")
+                                .arg(accounts.at(i).username,
+                                     accounts.at(i).typeLabel());
+            if (accounts.at(i).type == PlayerAccount::Type::External
+                && !accounts.at(i).serverLabel().isEmpty()) {
+                label += QStringLiteral(" · ") + accounts.at(i).serverLabel();
+            }
+            labels.append(label);
             if (accounts.at(i).id == manager.activeAccountId()) {
                 activeIndex = i;
             }
@@ -721,7 +855,61 @@ void MainWindow::startSelectedVersion(const VersionInfo &version,
         versionSettings.applyTo(GlobalSettings::load());
     m_launchVisibility = globalSettings.launch.launcherVisibility;
 
-    updateLaunchProgress(8, QStringLiteral("正在检查 Java 运行时…"));
+    PlayerAccount launchAccount = account;
+    QString authlibInjectorJar;
+    if (launchAccount.type == PlayerAccount::Type::External) {
+        updateLaunchProgress(6, QStringLiteral("正在验证外置账户…"));
+        QString authError;
+        if (!ExternalAuth::authenticate(
+                &launchAccount, &authError,
+                [this]() { return m_launchCancelled; })) {
+            closeLaunchProgress();
+            if (m_launchCancelled) {
+                showToast(QStringLiteral("游戏启动已取消。"));
+            } else {
+                QMessageBox::warning(
+                    this, QStringLiteral("外置登录失败"),
+                    QStringLiteral("无法通过该账户的认证服务器登录：\n%1")
+                        .arg(authError));
+            }
+            return;
+        }
+        QString sessionError;
+        if (!AccountManager::instance().updateExternalSession(
+                launchAccount.id, launchAccount.accessToken,
+                launchAccount.clientToken, launchAccount.uuid,
+                launchAccount.username, &sessionError)) {
+            closeLaunchProgress();
+            QMessageBox::warning(this, QStringLiteral("保存账户失败"), sessionError);
+            return;
+        }
+        if (m_launchCancelled) {
+            closeLaunchProgress();
+            showToast(QStringLiteral("游戏启动已取消。"));
+            return;
+        }
+
+        updateLaunchProgress(10, QStringLiteral("正在准备 authlib-injector…"));
+        QString injectorError;
+        authlibInjectorJar = AuthlibInjector::ensureJar(
+            &injectorError, [this]() { return m_launchCancelled; });
+        if (authlibInjectorJar.isEmpty()) {
+            closeLaunchProgress();
+            if (m_launchCancelled) {
+                showToast(QStringLiteral("游戏启动已取消。"));
+            } else {
+                QMessageBox::warning(
+                    this, QStringLiteral("外置登录组件缺失"),
+                    QStringLiteral("无法准备 authlib-injector.jar：\n%1\n\n"
+                                   "也可以将 authlib-injector.jar 放到启动器目录下重试。")
+                        .arg(injectorError));
+            }
+            return;
+        }
+    }
+
+    updateLaunchProgress(authlibInjectorJar.isEmpty() ? 8 : 16,
+                         QStringLiteral("正在检查 Java 运行时…"));
     const int requiredJava =
         GameLauncher::requiredJavaMajor(gameDirectory, version.versionId);
     QString javaError;
@@ -877,14 +1065,15 @@ void MainWindow::startSelectedVersion(const VersionInfo &version,
     }
 
     const bool launched = GameLauncher::launch(
-        gameDirectory, version.versionId, account, javaPath,
+        gameDirectory, version.versionId, launchAccount, javaPath,
         [this](int percent, const QString &status) {
             updateLaunchProgress(30 + qRound(percent * 0.7), status);
         },
         &processId,
         &error,
         gameDataDirectory,
-        [this]() { return m_launchCancelled; });
+        [this]() { return m_launchCancelled; },
+        authlibInjectorJar);
 
     if (!launched) {
         closeLaunchProgress();
@@ -910,7 +1099,8 @@ void MainWindow::startSelectedVersion(const VersionInfo &version,
 
     updateLaunchProgress(100, QStringLiteral("等待窗口出现"));
     m_pendingLaunchToast = QStringLiteral("已使用%1「%2」启动 Minecraft %3。")
-                               .arg(account.typeLabel(), account.username, version.minecraft);
+                               .arg(launchAccount.typeLabel(),
+                                    launchAccount.username, version.minecraft);
     startGameWindowWait(processId);
 }
 
@@ -1297,6 +1487,7 @@ void MainWindow::applyBackground(const QString &imagePath, int opacity)
 
     m_backgroundImage = image;
     m_backgroundOpacity = qBound(0, opacity, 100);
+    BackgroundStore::instance().setBackground(m_backgroundImage, m_backgroundOpacity);
     if (m_drawer) {
         m_drawer->refreshBackground();
     }

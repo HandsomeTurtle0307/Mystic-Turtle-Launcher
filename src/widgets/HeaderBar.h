@@ -9,11 +9,12 @@
 
 #pragma once
 
-#include <QString>
 #include <QWidget>
 
+class AvatarWidget;
 class NavigationBar;
 class QLabel;
+class QPushButton;
 class WindowButton;
 class HeaderBar : public QWidget
 {
@@ -24,7 +25,8 @@ public:
 
     NavigationBar *navigationBar() const;
     void setMaximized(bool maximized);
-    void setAccountName(const QString &username);
+    void setAccount(const QString &name, const QString &typeText);
+    void setAccountName(const QString &name);
 
 signals:
     void minimizeRequested();
@@ -41,7 +43,10 @@ private:
     void startWindowMove();
 
     NavigationBar *m_navigationBar = nullptr;
-    QLabel *m_userNameLabel = nullptr;
+    AvatarWidget *m_accountAvatar = nullptr;
+    QPushButton *m_accountButton = nullptr;
+    QLabel *m_accountName = nullptr;
+    QLabel *m_accountType = nullptr;
     WindowButton *m_minimizeButton = nullptr;
     WindowButton *m_maximizeButton = nullptr;
     WindowButton *m_closeButton = nullptr;

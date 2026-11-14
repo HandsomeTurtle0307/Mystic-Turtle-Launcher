@@ -10,12 +10,14 @@
 #include "ModsDrawer.h"
 
 #include "AccentButton.h"
+#include "BackgroundStore.h"
 #include "IconFactory.h"
 #include "SearchField.h"
 #include "Theme.h"
 #include "ToggleSwitch.h"
 #include "settings/GlobalSettings.h"
 #include "settings/VersionSettings.h"
+#include "settings/VersionSettingsDialog.h"
 
 #include <QCheckBox>
 #include <QDialog>
@@ -152,6 +154,8 @@ ModsDrawer::ModsDrawer(const VersionInfo &version, QWidget *parent)
         parent->installEventFilter(this);
         setGeometry(parent->rect());
     }
+    connect(&BackgroundStore::instance(), &BackgroundStore::changed,
+            this, &ModsDrawer::refreshBackground);
 
     buildUi();
 
@@ -336,18 +340,9 @@ void ModsDrawer::buildUi()
 
 void ModsDrawer::showVersionSettings()
 {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("%1 - 版本独立设置")
-                              .arg(m_version.displayName.isEmpty()
-                                       ? m_version.versionId
-                                       : m_version.displayName));
-    dialog.setMinimumWidth(520);
-    auto *layout = new QVBoxLayout(&dialog);
-    layout->setContentsMargins(20, 18, 20, 18);
-    layout->setSpacing(12);
-    layout->addWidget(Theme::label(QStringLiteral("仅覆盖当前版本的全局设置"),
-                                   15, QFont::DemiBold, Theme::TextPrimary, &dialog));
-
+    const QString displayName = m_version.displayName.isEmpty()
+        ? m_version.versionId
+        : m_version.displayName;
     const GlobalSettings globalSettings = GlobalSettings::load();
     QString loadError;
     VersionSettings settings =
@@ -357,54 +352,11 @@ void ModsDrawer::showVersionSettings()
         return;
     }
 
-    auto *memoryOverride = new QCheckBox(
-        QStringLiteral("为此版本单独分配内存"), &dialog);
-    memoryOverride->setChecked(settings.overrideMemory);
-    auto *memoryMb = new QSpinBox(&dialog);
-    memoryMb->setRange(0, GlobalSettings::physicalMemoryMb());
-    memoryMb->setSingleStep(512);
-    memoryMb->setSuffix(QStringLiteral(" MB"));
-    memoryMb->setSpecialValueText(QStringLiteral("自动"));
-    memoryMb->setValue(settings.overrideMemory
-                           ? settings.memoryMb
-                           : globalSettings.effectiveMemoryMb());
-    memoryMb->setEnabled(settings.overrideMemory);
-    connect(memoryOverride, &QCheckBox::toggled, memoryMb, &QSpinBox::setEnabled);
-    layout->addWidget(memoryOverride);
-    layout->addWidget(memoryMb);
-
-    auto *jvmOverride = new QCheckBox(
-        QStringLiteral("为此版本单独设置 JVM 参数"), &dialog);
-    jvmOverride->setChecked(settings.overrideJvmArguments);
-    auto *jvmArguments = new QTextEdit(&dialog);
-    jvmArguments->setPlainText(settings.overrideJvmArguments
-                                   ? settings.jvmArguments
-                                   : globalSettings.advanced.jvmArgs);
-    jvmArguments->setMinimumHeight(120);
-    jvmArguments->setEnabled(settings.overrideJvmArguments);
-    connect(jvmOverride, &QCheckBox::toggled, jvmArguments, &QTextEdit::setEnabled);
-    layout->addWidget(jvmOverride);
-    layout->addWidget(jvmArguments);
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-    if (dialog.exec() != QDialog::Accepted) {
-        return;
+    VersionSettingsDialog dialog(settings, globalSettings, displayName,
+                                 m_version.versionDirectory, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        emit notifyRequested(QStringLiteral("已保存此版本的独立设置。"));
     }
-
-    settings.overrideMemory = memoryOverride->isChecked();
-    settings.memoryMb = memoryMb->value();
-    settings.overrideJvmArguments = jvmOverride->isChecked();
-    settings.jvmArguments = jvmArguments->toPlainText();
-    QString error;
-    if (!settings.save(m_version.versionDirectory, &error)) {
-        emit notifyRequested(error);
-        return;
-    }
-    emit notifyRequested(QStringLiteral("已保存此版本的独立设置。"));
 }
 
 void ModsDrawer::refreshBackground()
@@ -414,17 +366,8 @@ void ModsDrawer::refreshBackground()
 
 void ModsDrawer::reloadBackground()
 {
-    m_backgroundImage = QImage();
-    const QSettings settings;
-    m_backgroundOpacity =
-        qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
-    const QString backgroundPath =
-        settings.value(QStringLiteral("ui/backgroundImage")).toString();
-    if (!backgroundPath.isEmpty()) {
-        QImageReader reader(backgroundPath);
-        reader.setAutoTransform(true);
-        m_backgroundImage = reader.read();
-    }
+    m_backgroundImage = BackgroundStore::instance().image();
+    m_backgroundOpacity = BackgroundStore::instance().opacity();
     update();
 }
 

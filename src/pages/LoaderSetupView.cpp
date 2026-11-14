@@ -26,6 +26,7 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
@@ -187,7 +188,7 @@ LoaderSetupView::LoaderSetupView(const QString &gameVersion, const QString &game
 {
     buildUi();
     setGameDirectory(m_gameDirectory);
-    fetchCatalogs();
+    refreshCatalogs();
 }
 
 QString LoaderSetupView::gameVersion() const
@@ -198,6 +199,17 @@ QString LoaderSetupView::gameVersion() const
 QString LoaderSetupView::gameDirectory() const
 {
     return m_gameDirectory;
+}
+
+QString LoaderSetupView::versionName() const
+{
+    if (m_versionNameEdit) {
+        const QString name = m_versionNameEdit->text().trimmed();
+        if (!name.isEmpty()) {
+            return name;
+        }
+    }
+    return m_gameVersion;
 }
 
 void LoaderSetupView::setGameDirectory(const QString &directory)
@@ -237,6 +249,14 @@ void LoaderSetupView::buildUi()
     topRow->addWidget(Theme::label(QStringLiteral("安装加载器"), 17, QFont::DemiBold,
                                    Theme::TextPrimary, this));
     topRow->addStretch();
+    m_refreshButton = new AccentButton(QStringLiteral("刷新"),
+                                      Icons::Type::Refresh, this);
+    m_refreshButton->setVariant(AccentButton::Variant::Ghost);
+    m_refreshButton->setCompact(true);
+    m_refreshButton->setToolTip(QStringLiteral("重新获取加载器版本列表"));
+    connect(m_refreshButton, &QAbstractButton::clicked,
+            this, &LoaderSetupView::refreshCatalogs);
+    topRow->addWidget(m_refreshButton);
     root->addLayout(topRow);
     root->addSpacing(14);
 
@@ -262,11 +282,21 @@ void LoaderSetupView::buildUi()
     auto *versionText = new QVBoxLayout();
     versionText->setContentsMargins(0, 0, 0, 0);
     versionText->setSpacing(2);
-    versionText->addWidget(Theme::label(QStringLiteral("Minecraft %1").arg(m_gameVersion),
-                                        20, QFont::DemiBold, Theme::TextPrimary,
-                                        versionCard, true));
+    m_versionNameEdit = new QLineEdit(m_gameVersion, versionCard);
+    m_versionNameEdit->setMaxLength(64);
+    m_versionNameEdit->setPlaceholderText(QStringLiteral("输入版本显示名称"));
+    m_versionNameEdit->setFont(Theme::font(17, QFont::DemiBold));
+    m_versionNameEdit->setFixedHeight(34);
+    m_versionNameEdit->setStyleSheet(QStringLiteral(
+        "QLineEdit { background: rgba(255, 255, 255, 7);"
+        "border: 1px solid rgba(255, 255, 255, 22); border-radius: 8px;"
+        "padding: 4px 10px; color: #F3F8F4; }"
+        "QLineEdit:hover { border-color: rgba(255, 255, 255, 38); }"
+        "QLineEdit:focus { border-color: %1; background: rgba(110, 231, 183, 8); }")
+        .arg(Theme::Accent.name()));
+    versionText->addWidget(m_versionNameEdit);
     versionText->addWidget(Theme::label(QStringLiteral("选择加载器版本，开始下载时获取对应文件。"),
-                                        11, QFont::Normal, Theme::TextMuted, versionCard));
+                                        10, QFont::Normal, Theme::TextMuted, versionCard));
     versionLayout->addLayout(versionText, 1);
     root->addWidget(versionCard);
     root->addSpacing(8);
@@ -330,6 +360,41 @@ void LoaderSetupView::buildUi()
 
     updateRowStates();
     updateStartButton();
+}
+
+void LoaderSetupView::refreshCatalogs()
+{
+    if (m_refreshing) {
+        return;
+    }
+    m_refreshing = true;
+    if (m_refreshButton) {
+        m_refreshButton->setEnabled(false);
+    }
+
+    m_forgeLoaded = false;
+    m_neoForgeLoaded = false;
+    m_fabricLoaded = false;
+    m_optiFineLoaded = false;
+    m_fabricApiLoaded = false;
+    m_catalogErrorReported = false;
+    m_forgeError.clear();
+    m_neoForgeError.clear();
+    m_fabricError.clear();
+    m_optiFineError.clear();
+    m_fabricApiError.clear();
+    m_forgeOptions.clear();
+    m_neoForgeOptions.clear();
+    m_fabricOptions.clear();
+    m_optiFineOptions.clear();
+    m_fabricApiOptions.clear();
+    m_selectedLoader.clear();
+    m_selectedLoaderOption = LoaderOption();
+    m_selectedFabricApi = FabricApiOption();
+
+    updateRowStates();
+    updateStartButton();
+    fetchCatalogs();
 }
 
 void LoaderSetupView::fetchCatalogs()
@@ -552,6 +617,13 @@ void LoaderSetupView::requestJson(
 
 void LoaderSetupView::updateRowStates()
 {
+    if (m_refreshing && m_forgeLoaded && m_neoForgeLoaded && m_fabricLoaded
+        && m_optiFineLoaded && m_fabricApiLoaded) {
+        m_refreshing = false;
+        if (m_refreshButton) {
+            m_refreshButton->setEnabled(true);
+        }
+    }
     const auto setLoaderRow = [this](LoaderRow *row, const QString &loader,
                                      bool loaded, const QString &error,
                                      const QVector<LoaderOption> &options) {

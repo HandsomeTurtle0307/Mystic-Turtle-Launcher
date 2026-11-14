@@ -20,6 +20,7 @@ class AccentButton;
 class LoaderRow;
 class QJsonDocument;
 class QLabel;
+class QLineEdit;
 class LoadingIndicator;
 class QNetworkAccessManager;
 
@@ -33,6 +34,7 @@ public:
 
     QString gameVersion() const;
     QString gameDirectory() const;
+    QString versionName() const;
     void setGameDirectory(const QString &directory);
     LoaderSelection selection() const;
 
@@ -58,7 +60,8 @@ private:
     };
 
     void buildUi();
-    void fetchCatalogs();
+    void refreshCatalogs();
+     void fetchCatalogs();
     void requestJson(const QString &url,
                      const std::function<void(const QJsonDocument &, const QString &)> &handler);
     void updateRowStates();
@@ -84,6 +87,7 @@ private:
     bool m_optiFineLoaded = false;
     bool m_fabricApiLoaded = false;
     bool m_catalogErrorReported = false;
+    bool m_refreshing = false;
     QString m_forgeError;
     QString m_neoForgeError;
     QString m_fabricError;
@@ -100,6 +104,8 @@ private:
     LoaderRow *m_optiFineRow = nullptr;
     LoaderRow *m_fabricApiRow = nullptr;
     AccentButton *m_startButton = nullptr;
+    QLineEdit *m_versionNameEdit = nullptr;
+    AccentButton *m_refreshButton = nullptr;
     QLabel *m_hintLabel = nullptr;
     QLabel *m_pathLabel = nullptr;
 };

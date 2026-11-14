@@ -14,6 +14,7 @@
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPropertyAnimation>
+#include <QRadialGradient>
 
 namespace {
 
@@ -107,6 +108,17 @@ void ToggleSwitch::paintEvent(QPaintEvent *event)
     painter.setPen(QPen(on ? QColor(255, 255, 255, 80) : Theme::Border, 1.0));
     painter.drawRoundedRect(track, radius, radius);
 
+    if (on || underMouse()) {
+        QColor glow = on ? QColor(QStringLiteral("#4D97F2"))
+                         : QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                  Theme::Accent.blue(), 160);
+        glow.setAlphaF(on ? 0.20 : 0.12);
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(glow, 2.0));
+        painter.drawRoundedRect(track.adjusted(-1.8, -1.8, 1.8, 1.8),
+                                radius + 1.8, radius + 1.8);
+    }
+
     if (on) {
         QLinearGradient shine(track.topLeft(), track.topRight());
         shine.setColorAt(0.0, QColor(255, 255, 255, 55));
@@ -121,6 +133,18 @@ void ToggleSwitch::paintEvent(QPaintEvent *event)
     const qreal travel = track.width() - 6.0 - knobRadius * 2.0;
     const QPointF knobCenter(track.left() + 3.0 + knobRadius + travel * m_knobPosition,
                              track.center().y());
+
+    if (on) {
+        QRadialGradient knobGlow(knobCenter, knobRadius * 2.4);
+        QColor glowColor(QStringLiteral("#4D97F2"));
+        glowColor.setAlphaF(0.24);
+        knobGlow.setColorAt(0.0, glowColor);
+        knobGlow.setColorAt(0.55, QColor(77, 151, 242, 24));
+        knobGlow.setColorAt(1.0, QColor(77, 151, 242, 0));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(knobGlow);
+        painter.drawEllipse(knobCenter, knobRadius * 2.4, knobRadius * 2.4);
+    }
 
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(23, 36, 58, on ? 35 : 24));

@@ -32,7 +32,8 @@ public:
                        qint64 *processId = nullptr,
                        QString *errorMessage = nullptr,
                        const QString &gameDataDirectory = QString(),
-                       const CancelCallback &cancel = {});
+                       const CancelCallback &cancel = {},
+                       const QString &authlibInjectorJar = QString());
 
     static QString findJavaExecutable(const QString &gameDirectory);
     static QString findCompatibleJava(const QString &gameDirectory,

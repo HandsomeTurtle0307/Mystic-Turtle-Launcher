@@ -39,6 +39,18 @@ struct GlobalSettings
         int concurrent = 8;
     };
 
+    struct HomepageOptions
+    {
+        // blank / news / status
+        QString mode = QStringLiteral("news");
+        bool blankAnimation = true;
+        // turtle / live2d-<portrait>
+        QString blankAnimationStyle = QStringLiteral("turtle");
+        int live2dBreathAmplitude = 55;
+        int live2dSwayAmplitude = 55;
+        int live2dEyeAmplitude = 60;
+    };
+
     struct MemoryOptions
     {
         bool automatic = true;
@@ -73,6 +85,7 @@ struct GlobalSettings
     QString versionIsolation = QStringLiteral("isolate_all");
     LaunchOptions launch;
     NetworkOptions network;
+    HomepageOptions homepage;
     MemoryOptions memory;
     SkinOptions skin;
     AdvancedOptions advanced;

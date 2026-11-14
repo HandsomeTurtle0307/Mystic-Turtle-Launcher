@@ -44,7 +44,6 @@
 #include <QStackedWidget>
 #include <QShowEvent>
 #include <QStringList>
-#include <QInputDialog>
 #include <QVBoxLayout>
 
 namespace {
@@ -964,6 +963,10 @@ void DownloadGamePage::beginSelectedDownload()
     }
 
     m_loaderSelection = m_loaderView->selection();
+    m_customVersionName = m_loaderView->versionName();
+    if (m_customVersionName.trimmed().isEmpty()) {
+        m_customVersionName = m_baseVersion;
+    }
     m_views->setCurrentWidget(m_listPage);
 
     m_installing = true;
@@ -1121,23 +1124,7 @@ void DownloadGamePage::startInstall(const QString &version)
         return;
     }
 
-    QInputDialog nameDialog(this);
-    nameDialog.setWindowTitle(QStringLiteral("自定义版本名称"));
-    nameDialog.setLabelText(QStringLiteral("为 Minecraft %1 设置一个显示名称：").arg(version));
-    nameDialog.setInputMode(QInputDialog::TextInput);
-    nameDialog.setTextValue(version);
-    if (QLineEdit *input = nameDialog.findChild<QLineEdit *>()) {
-        input->setMaxLength(64);
-        input->selectAll();
-    }
-    if (nameDialog.exec() != QDialog::Accepted) {
-        return;
-    }
-    m_customVersionName = nameDialog.textValue().trimmed();
-    if (m_customVersionName.isEmpty()) {
-        m_customVersionName = version;
-    }
-
+    m_customVersionName = version;
     openLoaderSetup(version);
 }
 

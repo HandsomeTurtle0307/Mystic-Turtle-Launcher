@@ -10,10 +10,12 @@
 #pragma once
 
 #include <QList>
+#include <QPointF>
 #include <QRectF>
 #include <QWidget>
 
 class NavButton;
+class QMouseEvent;
 class QVariantAnimation;
 
 class NavigationBar : public QWidget
@@ -39,10 +41,13 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     QRectF targetIndicatorRect(int index) const;
     void updateIndicator(bool animated);
+    void updateSpotlightPosition(const QPoint &globalPosition);
+    void animateSpotlight(qreal target);
 
     QList<NavButton *> m_buttons;
     int m_currentIndex = 0;
@@ -51,5 +56,8 @@ private:
     QRectF m_indicatorTo;
     bool m_indicatorInitialized = false;
     bool m_animationsEnabled = true;
+    qreal m_spotlightProgress = 0.0;
+    QPointF m_spotlightPosition;
     QVariantAnimation *m_indicatorAnimation = nullptr;
+    QVariantAnimation *m_spotlightAnimation = nullptr;
 };

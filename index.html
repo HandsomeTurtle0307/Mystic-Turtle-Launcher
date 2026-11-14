@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080c10">
+<meta name="description" content="MysticTurtle Launcher —— 轻便易用的Minecraft Java版启动器。">
+<title>MysticTurtle Launcher · 轻便易用的Minecraft Java版启动器</title>
+<link rel="icon" type="image/jpeg" href="data:image/jpeg;base64,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">
+<style>
+  :root {
+    --bg: #070b0f;
+    --surface: rgba(255, 255, 255, 0.052);
+    --line: rgba(255, 255, 255, 0.11);
+    --line-soft: rgba(255, 255, 255, 0.065);
+    --text: #f2f7f4;
+    --muted: #9aa9a2;
+    --mint: #4ade80;
+    --mint-bright: #86efac;
+    --radius: 20px;
+    --mono: "Bahnschrift", "Cascadia Mono", "Consolas", "Arial Narrow", sans-serif;
+    --sans: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    color: var(--text);
+    background:
+      radial-gradient(840px 620px at 14% -12%, rgba(74, 222, 128, 0.13), transparent 64%),
+      radial-gradient(740px 520px at 92% 10%, rgba(45, 212, 191, 0.07), transparent 66%),
+      linear-gradient(180deg, #080c10 0%, #0a1014 58%, #070a0d 100%);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.24;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+    background-size: 54px 54px;
+    mask-image: radial-gradient(circle at 50% 12%, #000 0%, transparent 70%);
+    -webkit-mask-image: radial-gradient(circle at 50% 12%, #000 0%, transparent 70%);
+  }
+
+  ::selection { color: #06130c; background: var(--mint); }
+  a { color: inherit; text-decoration: none; }
+
+  .aurora {
+    position: fixed;
+    z-index: 0;
+    width: 460px;
+    height: 460px;
+    border-radius: 50%;
+    filter: blur(100px);
+    pointer-events: none;
+    opacity: 0.36;
+  }
+
+  .aurora-a {
+    left: -170px;
+    top: -190px;
+    background: rgba(74, 222, 128, 0.22);
+    animation: drift-a 18s ease-in-out infinite alternate;
+  }
+
+  .aurora-b {
+    right: -200px;
+    top: 34%;
+    background: rgba(45, 212, 191, 0.13);
+    animation: drift-b 22s ease-in-out infinite alternate;
+  }
+
+  @keyframes drift-a {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(52px, 32px, 0) scale(1.1); }
+  }
+
+  @keyframes drift-b {
+    from { transform: translate3d(0, 0, 0) scale(1.05); }
+    to { transform: translate3d(-44px, -28px, 0) scale(0.95); }
+  }
+
+  /* Fixed top bar */
+
+  .topbar {
+    position: fixed;
+    z-index: 20;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: min(1200px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 14px 0;
+    pointer-events: none;
+  }
+
+  .topbar > * { pointer-events: auto; }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13.5px;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+  }
+
+  .brand img {
+    width: 31px;
+    height: 31px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 9px;
+    box-shadow: 0 7px 20px rgba(34, 197, 94, 0.16);
+    object-fit: cover;
+  }
+
+  .brand .brand-launcher {
+    color: #7f9387;
+    font-weight: 500;
+  }
+
+  .top-nav {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .top-nav a {
+    padding: 7px 11px;
+    border-radius: 8px;
+    color: #9aa9a2;
+    font-size: 12px;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+
+  .top-nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.055); }
+
+  .top-nav .nav-icon {
+    display: grid;
+    place-items: center;
+    width: 31px;
+    height: 31px;
+    padding: 0;
+    border: 1px solid var(--line);
+    color: #c3d4c9;
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .top-nav .nav-icon svg { width: 16px; height: 16px; }
+
+  /* Page system */
+
+  .pages {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-snap-type: y proximity;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+
+  .pages::-webkit-scrollbar { display: none; }
+
+  .page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 80px 22px 30px;
+    scroll-snap-align: start;
+    position: relative;
+  }
+
+  .page-inner {
+    width: min(1200px, 100%);
+    opacity: 1;
+    transform: none;
+  }
+
+  .page.is-active .page-inner {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Page 1 — hero */
+
+  .page-one .page-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 14px;
+    padding: 5px 11px;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 999px;
+    color: var(--mint-bright);
+    background: rgba(74, 222, 128, 0.055);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+
+  .hero-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mint);
+    box-shadow: 0 0 10px var(--mint);
+  }
+
+  .hero-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(13px, 2vw, 23px);
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .hero-logo {
+    display: grid;
+    place-items: center;
+    width: clamp(64px, 7.5vw, 80px);
+    height: clamp(64px, 7.5vw, 80px);
+    padding: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 30%;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.035));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 16px 42px rgba(34, 197, 94, 0.16);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  }
+
+  .hero-logo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 25%;
+    object-fit: cover;
+  }
+
+  h1 {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.12em;
+    margin: 0;
+    font-size: clamp(38px, 6.5vw, 66px);
+    font-weight: 750;
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+  }
+
+  .title-main {
+    background: linear-gradient(180deg, #ffffff 18%, #d9efe1 70%, #b7d4c3 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .title-tech {
+    font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+    font-size: 0.68em;
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    color: #b9f4d2;
+    text-shadow: 0 0 26px rgba(74, 222, 128, 0.24);
+  }
+
+  .hero-sub {
+    max-width: 600px;
+    margin: 14px auto 0;
+    color: var(--muted);
+    font-size: clamp(14px, 1.7vw, 16px);
+    line-height: 1.6;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 9px;
+    margin-top: 18px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 19px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-size: 12.5px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+  }
+
+  .btn:focus-visible { outline: 2px solid var(--mint-bright); outline-offset: 3px; }
+
+  .btn-primary {
+    color: #06130c;
+    background: linear-gradient(135deg, #a7f3c7 0%, var(--mint) 48%, #34d399 100%);
+    box-shadow: 0 12px 30px rgba(74, 222, 128, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.56);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(74, 222, 128, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  }
+
+  .btn-ghost {
+    color: #e2eee6;
+    border-color: var(--line);
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .btn-ghost:hover {
+    border-color: rgba(74, 222, 128, 0.3);
+    background: rgba(74, 222, 128, 0.075);
+    transform: translateY(-2px);
+  }
+
+  .btn svg { width: 16px; height: 16px; }
+
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .meta-pill {
+    padding: 4px 8px;
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    color: #7f9188;
+    background: rgba(255, 255, 255, 0.022);
+    font-size: 10px;
+  }
+
+  .home-preview {
+    width: min(820px, 100%);
+    margin-top: 18px;
+  }
+
+  .home-preview-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    color: #82948a;
+    font-size: 10.5px;
+  }
+
+  .home-preview-frame {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(10, 16, 20, 0.82);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .home-preview-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: #6f8478;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .preview-dots { display: flex; gap: 4px; }
+  .preview-dots i {
+    display: block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.17);
+  }
+
+  .home-preview-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 118px;
+    aspect-ratio: 16 / 4.6;
+    background:
+      radial-gradient(500px 180px at 50% 22%, rgba(74, 222, 128, 0.07), transparent 72%),
+      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.017) 0 1px, transparent 1px 12px);
+    color: #6b8074;
+    text-align: center;
+  }
+
+  .home-preview-slot svg {
+    width: 23px;
+    height: 23px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .home-preview-slot strong {
+    color: #a3b8ab;
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .home-preview-slot span { font-size: 10px; }
+
+  /* Page 2 — features */
+
+  .page-two .page-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 17px;
+  }
+
+  .page-two {
+    align-items: flex-start;
+  }
+
+  .section-heading {
+    text-align: center;
+  }
+
+  .section-heading h2 {
+    margin: 0;
+    font-size: clamp(28px, 3.8vw, 38px);
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+    font-weight: 700;
+  }
+
+  .section-heading p {
+    margin: 6px auto 0;
+    color: #899a90;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .feature {
+    position: relative;
+    min-height: 158px;
+    padding: 15px;
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    background:
+      linear-gradient(155deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.022) 60%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .feature:hover {
+    transform: translateY(-3px);
+    border-color: rgba(74, 222, 128, 0.24);
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 60%);
+  }
+
+  .feature-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .feature-icon {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(74, 222, 128, 0.24);
+    border-radius: 8px;
+    color: var(--mint-bright);
+    background: rgba(74, 222, 128, 0.065);
+  }
+
+  .feature-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.65;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .feature-number {
+    color: #52675a;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+  }
+
+  .feature h3 {
+    margin: 14px 0 6px;
+    font-size: 14px;
+    font-weight: 650;
+  }
+
+  .feature p {
+    margin: 0;
+    color: #8d9c93;
+    font-size: 11.5px;
+    line-height: 1.65;
+  }
+
+  /* Built-in P2P multiplayer */
+
+  .p2p-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 22px;
+    margin-top: 1px;
+    padding: 20px 22px;
+    border: 1px solid rgba(96, 165, 250, 0.16);
+    border-radius: 18px;
+    background:
+      radial-gradient(520px 220px at 10% 0%, rgba(96, 165, 250, 0.1), transparent 72%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .p2p-kicker {
+    display: block;
+    margin-bottom: 6px;
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  .p2p-copy h3 {
+    margin: 0;
+    font-size: clamp(19px, 2.4vw, 24px);
+    letter-spacing: -0.03em;
+  }
+
+  .p2p-copy p {
+    max-width: 520px;
+    margin: 8px 0 0;
+    color: #8d9c93;
+    font-size: 11.5px;
+    line-height: 1.7;
+  }
+
+  .p2p-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .p2p-tags span {
+    padding: 3px 8px;
+    border: 1px solid rgba(96, 165, 250, 0.18);
+    border-radius: 999px;
+    color: #9db9de;
+    background: rgba(96, 165, 250, 0.06);
+    font-size: 9.5px;
+  }
+
+  .p2p-note {
+    margin: 10px 0 0;
+    color: #6f8177;
+    font-size: 9.5px;
+    line-height: 1.55;
+  }
+
+  .p2p-steps {
+    display: grid;
+    gap: 7px;
+    align-content: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .p2p-steps li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.022);
+  }
+
+  .p2p-steps li > span {
+    display: grid;
+    flex: 0 0 23px;
+    place-items: center;
+    width: 23px;
+    height: 23px;
+    border: 1px solid rgba(96, 165, 250, 0.24);
+    border-radius: 7px;
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 8.5px;
+  }
+
+  .p2p-steps strong {
+    display: block;
+    color: #d4e2d9;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+
+  .p2p-steps small {
+    display: block;
+    margin-top: 1px;
+    color: #75877d;
+    font-size: 9.5px;
+    line-height: 1.4;
+  }
+
+  /* Page 3 — download */
+
+  .page-three .page-inner {
+    display: flex;
+    justify-content: center;
+  }
+
+  .final-card {
+    position: relative;
+    width: min(610px, 100%);
+    padding: clamp(24px, 4vw, 38px) clamp(20px, 4vw, 44px);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 24px;
+    background:
+      radial-gradient(480px 260px at 50% -10%, rgba(74, 222, 128, 0.13), transparent 70%),
+      linear-gradient(150deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.025));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.13),
+      0 24px 76px rgba(0, 0, 0, 0.42);
+    text-align: center;
+  }
+
+  @keyframes float-card {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+  }
+
+  .page-three.is-active .final-card {
+    animation: float-card 7s ease-in-out infinite;
+  }
+
+  body.is-scrolling .aurora,
+  body.is-scrolling .page-three.is-active .final-card {
+    animation-play-state: paused;
+  }
+
+  .final-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 14px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(74, 222, 128, 0.25), rgba(255, 255, 255, 0.035));
+    box-shadow: 0 14px 32px rgba(34, 197, 94, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .final-icon img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 15px;
+    object-fit: cover;
+  }
+
+  .final-kicker {
+    color: var(--mint);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+  }
+
+  .final-card h2 {
+    margin: 7px 0 8px;
+    font-size: clamp(26px, 3.8vw, 34px);
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+  }
+
+  .final-card > p {
+    margin: 0 auto;
+    max-width: 440px;
+    color: #94a49a;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .final-actions {
+    display: flex;
+    justify-content: center;
+    gap: 9px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+  }
+
+  .stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 16px;
+    padding: 6px 10px;
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    color: #a9b9ae;
+    background: rgba(255, 255, 255, 0.025);
+    font-size: 11px;
+  }
+
+  .stars svg {
+    width: 14px;
+    height: 14px;
+    color: #f4d36a;
+    fill: currentColor;
+    stroke: currentColor;
+    stroke-width: 1.2;
+  }
+
+  .stars strong {
+    color: #f3f9f5;
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+
+  .stars-loading {
+    display: inline-block;
+    width: 28px;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(74, 222, 128, 0.35), rgba(255, 255, 255, 0.12));
+    background-size: 200% 100%;
+    animation: loading 1.2s linear infinite;
+  }
+
+  .stars-loading[hidden], #star-count[hidden] { display: none; }
+
+  @keyframes loading {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+
+  .final-footer {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    color: #71847a;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+
+  .final-footer a {
+    color: #a9bdb0;
+    border-bottom: 1px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .final-footer a:hover {
+    color: var(--mint-bright);
+    border-color: rgba(74, 222, 128, 0.3);
+  }
+
+  /* Page dots */
+
+  .page-dots {
+    position: fixed;
+    z-index: 30;
+    top: 50%;
+    right: 21px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    transform: translateY(-50%);
+  }
+
+  .page-dots a {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+  }
+
+  .page-dots a::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  }
+
+  .page-dots a:hover::before { background: rgba(255, 255, 255, 0.45); }
+
+  .page-dots a.is-active::before {
+    background: var(--mint);
+    box-shadow: 0 0 12px rgba(74, 222, 128, 0.75);
+    transform: scale(1.3);
+  }
+
+  /* Responsive */
+
+  @media (max-width: 860px) {
+    .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .p2p-panel { grid-template-columns: 1fr; gap: 14px; }
+    .page { padding: 78px 20px 30px; }
+    .page-one .page-inner { padding-bottom: 16px; }
+  }
+
+  @media (max-width: 620px) {
+    .topbar { width: calc(100% - 28px); padding: 12px 0; }
+    .brand { gap: 8px; }
+    .brand .brand-launcher { display: none; }
+    .brand img { width: 29px; height: 29px; }
+    .top-nav { gap: 0; }
+    .top-nav a { padding: 7px 7px; font-size: 11.5px; }
+    .top-nav .nav-icon { width: 29px; height: 29px; }
+
+    .page { padding: 70px 14px 26px; min-height: 100svh; }
+    .hero-title-row { gap: 11px; }
+    .hero-logo { width: 58px; height: 58px; }
+    h1 { font-size: clamp(33px, 9.6vw, 48px); }
+    .title-tech { font-size: 0.64em; }
+    .hero-sub { font-size: 13px; }
+    .hero-actions { width: 100%; flex-direction: column; margin-top: 15px; }
+    .btn { width: 100%; min-height: 44px; }
+    .home-preview { margin-top: 16px; }
+    .home-preview-slot { min-height: 100px; aspect-ratio: 16/6; }
+
+    .page-two .page-inner { gap: 15px; }
+    .feature-grid { grid-template-columns: 1fr; gap: 8px; }
+    .feature { min-height: auto; padding: 14px; }
+    .feature h3 { margin-top: 12px; }
+    .p2p-panel { padding: 15px; border-radius: 15px; }
+    .p2p-steps li { padding: 7px 8px; }
+    .page-two { align-items: flex-start; }
+    .page-two .page-inner { padding-top: 3px; }
+
+    .final-card { padding: 24px 18px; }
+    .final-actions { flex-direction: column; width: 100%; }
+    .page-dots { top: auto; right: auto; left: 50%; bottom: 12px; transform: translateX(-50%); flex-direction: row; gap: 3px; }
+    .page-dots a { width: 21px; height: 21px; }
+    .page { padding-bottom: 50px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora aurora-a" aria-hidden="true"></div>
+<div class="aurora aurora-b" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a class="brand" href="#page-1" data-page="1" aria-label="MysticTurtle Launcher 首页">
+    <img src="data:image/jpeg;base64,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" alt="MysticTurtle 图标">
+    <span>MysticTurtle</span>
+    <span class="brand-launcher">Launcher</span>
+  </a>
+  <nav class="top-nav" aria-label="主要导航">
+    <a href="#page-2" data-page="2">功能</a>
+    <a href="#page-3" data-page="3">下载</a>
+    <a class="nav-icon" href="https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.61.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.88 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.6 9.6 0 0 1 12 6.8a9.6 9.6 0 0 1 2.5.34c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"></path>
+      </svg>
+    </a>
+  </nav>
+</header>
+
+<div class="pages" id="pages">
+  <!-- Page 1 -->
+  <section class="page page-one is-active" id="page-1" aria-label="首页">
+    <div class="page-inner">
+      <div class="hero-badge">Qt 6 · C++17 · 开源</div>
+
+      <div class="hero-title-row">
+        <div class="hero-logo">
+          <img src="data:image/jpeg;base64,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" alt="MysticTurtle Launcher 图标">
+        </div>
+        <h1>
+          <span class="title-main">MysticTurtle</span>
+          <span class="title-tech">Launcher</span>
+        </h1>
+      </div>
+
+      <p class="hero-sub">轻便易用的Minecraft Java版启动器</p>
+
+      <div class="hero-actions">
+        <a class="btn btn-primary"
+           href="https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher/releases"
+           target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path>
+          </svg>
+          下载启动器
+        </a>
+        <a class="btn btn-ghost"
+           href="https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher"
+           target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.61.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.88 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.6 9.6 0 0 1 12 6.8a9.6 9.6 0 0 1 2.5.34c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"></path>
+          </svg>
+          GitHub 仓库
+        </a>
+      </div>
+
+      <div class="hero-meta">
+        <span class="meta-pill">Windows 10 / 11</span>
+        <span class="meta-pill">GPL-3.0 License</span>
+        <span class="meta-pill">免费开源</span>
+      </div>
+
+      <div class="home-preview">
+        <div class="home-preview-head">
+          <span>启动器主页</span>
+          <span>截图位置预留</span>
+        </div>
+        <div class="home-preview-frame">
+          <div class="home-preview-bar">
+            <span>MYSTICTURTLE</span>
+            <span class="preview-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          </div>
+          <!-- 替换这里：放入启动器主页截图 -->
+          <div class="home-preview-slot">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2.5"></rect>
+              <path d="m8 15 2.4-2.4 2.1 2.1L16 11"></path>
+            </svg>
+            <strong>启动器主页截图</strong>
+            <span>图片待补充</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page 2 -->
+  <section class="page page-two" id="page-2" aria-label="功能特性">
+    <div class="page-inner">
+      <div class="section-heading">
+        <h2>功能特性</h2>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5"></path><path d="M12 12v9"></path></svg>
+            </div>
+            <span class="feature-number">[ 01 ]</span>
+          </div>
+          <h3>版本隔离</h3>
+          <p>各版本独立保存模组、配置和存档。关闭隔离时会自动迁移版本文件，不用手动搬目录。</p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"></circle><path d="M5 20a7 7 0 0 1 14 0"></path><path d="M18.5 5.5v3M17 7h3"></path></svg>
+            </div>
+            <span class="feature-number">[ 02 ]</span>
+          </div>
+          <h3>账户管理</h3>
+          <p>支持多账号，每个账号可单独设置登录方式，互不影响。</p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"></rect><path d="M3 9h18M7 14h4M7 17h7"></path></svg>
+            </div>
+            <span class="feature-number">[ 03 ]</span>
+          </div>
+          <h3>界面与动效</h3>
+          <p>原生 Qt6 玻璃界面，页面切换和卡片动画统一、简洁。</p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+            </div>
+            <span class="feature-number">[ 04 ]</span>
+          </div>
+          <h3>Modrinth 下载</h3>
+          <p>在启动器内搜索并安装 Modrinth 的模组、整合包和资源包。</p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"></path><circle cx="8" cy="7" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="12" cy="17" r="1.6"></circle></svg>
+            </div>
+            <span class="feature-number">[ 05 ]</span>
+          </div>
+          <h3>完善的设置项</h3>
+          <p>Java、内存、JVM、下载源、代理和窗口参数都可按版本单独调整。</p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 4.6 3.2 8.4 8 10 4.8-1.6 8-5.4 8-10V6l-8-3Z"></path><path d="m8.5 12 2.3 2.3 4.7-4.6"></path></svg>
+            </div>
+            <span class="feature-number">[ 06 ]</span>
+          </div>
+          <h3>自动修复依赖</h3>
+          <p>启动前检查 Java、资源和依赖，能修的直接处理，不能修的说明原因。</p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3v3"></path><path d="m5.6 5.6 2.1 2.1"></path><path d="M3 12h3"></path><path d="m18.4 5.6-2.1 2.1"></path><path d="M18 12h3"></path><path d="M12 21a6 6 0 0 0 0-12 6 6 0 0 0 0 12Z"></path><path d="M9.5 11.5h.01M14.5 11.5h.01"></path></svg>
+            </div>
+            <span class="feature-number">[ 07 ]</span>
+          </div>
+          <h3>Live2D 看板娘</h3>
+          <p>空白主页可切换多张全身立绘，支持呼吸、风动和眼神跟随。</p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-top">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M13 3 5 13h5l-1 8 8-11h-5l1-7Z"></path></svg>
+            </div>
+            <span class="feature-number">[ 08 ]</span>
+          </div>
+          <h3>轻量原生</h3>
+          <p>Qt6 + C++17 构建，不依赖 Electron，启动器本身保持轻量。</p>
+        </article>
+      </div>
+
+      <div class="p2p-panel" aria-labelledby="p2p-title">
+        <div class="p2p-copy">
+          <span class="p2p-kicker">BUILT-IN MULTIPLAYER</span>
+          <h3 id="p2p-title">内置 P2P 联机</h3>
+          <p>启动器内置 EasyTier，不需要公网 IP 或手动端口转发。双方加入同一个虚拟房间后，用虚拟 IP 和游戏端口就能在 Minecraft 里直接连接。</p>
+          <div class="p2p-tags">
+            <span>EasyTier 组网</span>
+            <span>无需公网 IP</span>
+            <span>一键复制 IP:端口</span>
+          </div>
+          <p class="p2p-note">首次使用需允许 EasyTier 和 Java 通过防火墙；创建虚拟网卡需要管理员权限。</p>
+        </div>
+        <ol class="p2p-steps">
+          <li>
+            <span>01</span>
+            <div><strong>双方加入同一房间</strong><small>输入相同的房间名和密码。</small></div>
+          </li>
+          <li>
+            <span>02</span>
+            <div><strong>房主开放局域网</strong><small>进入游戏，点击“对局域网开放”。</small></div>
+          </li>
+          <li>
+            <span>03</span>
+            <div><strong>复制 IP 和端口</strong><small>把房主虚拟 IP 与游戏端口发给朋友。</small></div>
+          </li>
+          <li>
+            <span>04</span>
+            <div><strong>直接连接加入</strong><small>朋友在多人游戏中粘贴 IP:端口。</small></div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page 3 -->
+  <section class="page page-three" id="page-3" aria-label="下载">
+    <div class="page-inner">
+      <div class="final-card">
+        <div class="final-icon">
+          <img src="data:image/jpeg;base64,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" alt="MysticTurtle 图标">
+        </div>
+        <div class="final-kicker">// DOWNLOAD</div>
+        <h2>现在就开始</h2>
+        <p>下载最新版本，或者直接去 GitHub 查看源码、提交问题和关注后续更新。</p>
+
+        <div class="final-actions">
+          <a class="btn btn-primary"
+             href="https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher/releases"
+             target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path>
+            </svg>
+            立刻下载
+          </a>
+          <a class="btn btn-ghost"
+             href="https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher"
+             target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.61.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.88 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.6 9.6 0 0 1 12 6.8a9.6 9.6 0 0 1 2.5.34c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"></path>
+            </svg>
+            前往 GitHub
+          </a>
+        </div>
+
+        <a class="stars" id="stars-link"
+           href="https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher/stargazers"
+           target="_blank" rel="noopener noreferrer"
+           aria-label="查看 GitHub Star 数量">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"></path></svg>
+          <span class="stars-loading" id="stars-loading" aria-hidden="true"></span>
+          <span id="star-count" hidden>—</span>
+          <span>GitHub Stars</span>
+        </a>
+
+        <div class="final-footer">
+          GPL-3.0 开源协议 ·
+          <a href="https://github.com/HandsomeTurtle0307" target="_blank" rel="noopener noreferrer">HandsomeTurtle0307</a>
+          <br>
+          MysticTurtle · Built with Qt 6 &amp; C++
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="page-dots" aria-label="页面导航">
+  <a href="#page-1" data-page="1" class="is-active" aria-label="第一页：首页"></a>
+  <a href="#page-2" data-page="2" aria-label="第二页：功能特性"></a>
+  <a href="#page-3" data-page="3" aria-label="第三页：下载"></a>
+</div>
+
+<script>
+  (() => {
+    const pages = Array.from(document.querySelectorAll('.page'));
+    const dots = Array.from(document.querySelectorAll('.page-dots a'));
+    const scroller = document.getElementById('pages');
+
+    const setActive = (index) => {
+      pages.forEach((page, i) => page.classList.toggle('is-active', i === index));
+      dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+    };
+
+    const goTo = (index) => {
+      const page = pages[index];
+      if (!page) return;
+      scroller.scrollTo({ top: page.offsetTop, behavior: 'smooth' });
+    };
+
+    const updateActiveFromScroll = () => {
+      const midpoint = scroller.scrollTop + scroller.clientHeight * 0.5;
+      let active = 0;
+      pages.forEach((page, index) => {
+        if (page.offsetTop <= midpoint) active = index;
+      });
+      setActive(active);
+    };
+
+    let scrollIdleTimer = 0;
+    scroller.addEventListener('scroll', () => {
+      document.body.classList.add('is-scrolling');
+      window.clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = window.setTimeout(() => {
+        document.body.classList.remove('is-scrolling');
+      }, 140);
+      updateActiveFromScroll();
+    }, { passive: true });
+
+    const initialPage = (() => {
+      const match = location.hash.match(/^#page-(\d+)$/);
+      return match ? Math.min(pages.length - 1, Number(match[1]) - 1) : 0;
+    })();
+
+    if (initialPage > 0) {
+      requestAnimationFrame(() => {
+        scroller.scrollTop = pages[initialPage].offsetTop;
+        updateActiveFromScroll();
+      });
+    }
+    updateActiveFromScroll();
+
+    document.querySelectorAll('[data-page]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        goTo(Number(link.dataset.page) - 1);
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.target && /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+      if (event.key === 'ArrowDown' || event.key === 'PageDown') {
+        const current = pages.findIndex((page) => page.classList.contains('is-active'));
+        if (current < pages.length - 1) {
+          event.preventDefault();
+          goTo(current + 1);
+        }
+      } else if (event.key === 'ArrowUp' || event.key === 'PageUp') {
+        const current = pages.findIndex((page) => page.classList.contains('is-active'));
+        if (current > 0) {
+          event.preventDefault();
+          goTo(current - 1);
+        }
+      }
+    });
+
+    // On a desktop wheel, perform one clean page transition instead of letting
+    // the browser chain several snap animations together. If a page is taller
+    // than the viewport, keep native scrolling so its content remains reachable.
+    let wheelLockedUntil = 0;
+    scroller.addEventListener('wheel', (event) => {
+      if (event.ctrlKey || window.innerWidth <= 860) return;
+      if (Math.abs(event.deltaY) < 6) return;
+
+      const midpoint = scroller.scrollTop + scroller.clientHeight * 0.5;
+      let current = 0;
+      pages.forEach((page, index) => {
+        if (page.offsetTop <= midpoint) current = index;
+      });
+
+      const currentPage = pages[current];
+      if (!currentPage || currentPage.offsetHeight > scroller.clientHeight + 2) {
+        return;
+      }
+
+      event.preventDefault();
+      if (performance.now() < wheelLockedUntil) return;
+
+      const direction = event.deltaY > 0 ? 1 : -1;
+      const next = Math.max(0, Math.min(pages.length - 1, current + direction));
+      if (next === current) return;
+
+      wheelLockedUntil = performance.now() + 720;
+      goTo(next);
+    }, { passive: false });
+
+    // Live GitHub stars. Failure is non-blocking; the card remains usable.
+    const loading = document.getElementById('stars-loading');
+    const count = document.getElementById('star-count');
+    fetch('https://api.github.com/repos/HandsomeTurtle0307/Mystic-Turtle-Launcher', {
+      headers: { 'Accept': 'application/vnd.github+json' },
+      cache: 'no-store'
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('GitHub API ' + response.status);
+        return response.json();
+      })
+      .then((data) => {
+        loading.hidden = true;
+        count.hidden = false;
+        count.textContent = new Intl.NumberFormat('zh-CN').format(data.stargazers_count || 0);
+      })
+      .catch(() => {
+        loading.hidden = true;
+        count.hidden = false;
+        count.textContent = '—';
+      });
+  })();
+</script>
+
+</body>
+</html>

@@ -10,13 +10,10 @@
 #include "Theme.h"
 
 #include <QAbstractAnimation>
-#include <QAbstractButton>
 #include <QAbstractScrollArea>
 #include <QApplication>
 #include <QEvent>
 #include <QFrame>
-#include <QGraphicsOpacityEffect>
-#include <QKeyEvent>
 #include <QLabel>
 #include <QPalette>
 #include <QPointer>
@@ -34,6 +31,8 @@ namespace {
 // the main window is constructed.
 bool g_darkMode = true;
 bool g_animationsEnabled = true;
+bool g_liquidGlassEnabled = true;
+bool g_buttonSpotlightEnabled = true;
 QHash<QProgressBar *, QPointer<QPropertyAnimation>> g_progressAnimations;
 QPointer<QObject> g_smoothScrollFilter;
 
@@ -42,46 +41,9 @@ class SmoothScrollFilter final : public QObject
 public:
     using QObject::QObject;
 
-    void resetButtonEffects()
-    {
-        for (auto it = m_buttonEffects.cbegin(); it != m_buttonEffects.cend(); ++it) {
-            if (!it.key()) {
-                continue;
-            }
-            if (it.value()) {
-                it.value()->setOpacity(1.0);
-            }
-        }
-        m_buttonAnimations.clear();
-        m_buttonEffects.clear();
-    }
-
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        if (auto *button = qobject_cast<QAbstractButton *>(watched)) {
-            if (event->type() == QEvent::MouseButtonPress
-                || event->type() == QEvent::MouseButtonDblClick) {
-                animateButton(button, 0.78, 70);
-            } else if (event->type() == QEvent::MouseButtonRelease) {
-                animateButton(button, 1.0, 150);
-            } else if (event->type() == QEvent::KeyPress) {
-                const auto *key = static_cast<QKeyEvent *>(event);
-                if (!key->isAutoRepeat()
-                    && (key->key() == Qt::Key_Space || key->key() == Qt::Key_Return
-                        || key->key() == Qt::Key_Enter)) {
-                    animateButton(button, 0.78, 70);
-                }
-            } else if (event->type() == QEvent::KeyRelease) {
-                const auto *key = static_cast<QKeyEvent *>(event);
-                if (!key->isAutoRepeat()
-                    && (key->key() == Qt::Key_Space || key->key() == Qt::Key_Return
-                        || key->key() == Qt::Key_Enter)) {
-                    animateButton(button, 1.0, 150);
-                }
-            }
-        }
-
         if (event->type() != QEvent::Wheel) {
             return QObject::eventFilter(watched, event);
         }
@@ -155,58 +117,7 @@ protected:
     }
 
 private:
-    void animateButton(QAbstractButton *button, qreal opacity, int duration)
-    {
-        if (!button->isEnabled()) {
-            return;
-        }
-
-        auto *effect = qobject_cast<QGraphicsOpacityEffect *>(button->graphicsEffect());
-        if (!effect) {
-            if (button->graphicsEffect()) {
-                return;
-            }
-            effect = new QGraphicsOpacityEffect(button);
-            effect->setOpacity(1.0);
-            effect->setProperty("uiPressAnimationEffect", true);
-            button->setGraphicsEffect(effect);
-            m_buttonEffects.insert(button, effect);
-            QObject::connect(button, &QObject::destroyed, this,
-                             [this, button]() {
-                m_buttonAnimations.remove(button);
-                m_buttonEffects.remove(button);
-            });
-        } else if (!effect->property("uiPressAnimationEffect").toBool()) {
-            return;
-        }
-
-        QPointer<QPropertyAnimation> &current = m_buttonAnimations[button];
-        if (current) {
-            current->stop();
-            current->deleteLater();
-        }
-
-        auto *animation = new QPropertyAnimation(effect, "opacity", this);
-        current = animation;
-        animation->setDuration(duration);
-        animation->setEasingCurve(opacity < effect->opacity()
-                                      ? QEasingCurve::InCubic
-                                      : QEasingCurve::OutCubic);
-        animation->setStartValue(effect->opacity());
-        animation->setEndValue(opacity);
-        QObject::connect(animation, &QPropertyAnimation::finished, this,
-                         [this, button, animation]() {
-            if (m_buttonAnimations.value(button) == animation) {
-                m_buttonAnimations.remove(button);
-            }
-            animation->deleteLater();
-        });
-        animation->start();
-    }
-
     QHash<QScrollBar *, QPointer<QPropertyAnimation>> m_animations;
-    QHash<QAbstractButton *, QPointer<QPropertyAnimation>> m_buttonAnimations;
-    QHash<QAbstractButton *, QPointer<QGraphicsOpacityEffect>> m_buttonEffects;
 };
 
 QString rgba(const QColor &color)
@@ -476,6 +387,26 @@ bool animationsEnabled()
     return g_animationsEnabled;
 }
 
+bool liquidGlassEnabled()
+{
+    return g_liquidGlassEnabled;
+}
+
+void setLiquidGlassEnabled(bool enabled)
+{
+    g_liquidGlassEnabled = enabled;
+}
+
+bool buttonSpotlightEnabled()
+{
+    return g_buttonSpotlightEnabled;
+}
+
+void setButtonSpotlightEnabled(bool enabled)
+{
+    g_buttonSpotlightEnabled = enabled;
+}
+
 void setAnimationsEnabled(bool enabled)
 {
     g_animationsEnabled = enabled;
@@ -506,7 +437,6 @@ void setAnimationsEnabled(bool enabled)
         }
     }
     if (filter) {
-        filter->resetButtonEffects();
         filter->deleteLater();
     }
 }

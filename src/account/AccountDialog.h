@@ -14,11 +14,13 @@
 #include <QString>
 
 class AccentButton;
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QScrollArea;
 class QShowEvent;
 class QVBoxLayout;
+class QWidget;
 
 class AccountDialog : public QDialog
 {
@@ -33,16 +35,23 @@ protected:
 
 private:
     void rebuildList();
-    void beginRename(const QString &id);
+    void beginEdit(const QString &id);
     void leaveFormEdit();
     void submitForm();
     void handleDelete(const QString &id);
     void setError(const QString &message);
     void reloadBackground();
+    void updateEditorVisibility();
 
     QScrollArea *m_scroll = nullptr;
     QVBoxLayout *m_listLayout = nullptr;
     QLineEdit *m_usernameEdit = nullptr;
+    QComboBox *m_accountType = nullptr;
+    QWidget *m_externalFields = nullptr;
+    QLineEdit *m_serverUrlEdit = nullptr;
+    QLineEdit *m_accessTokenEdit = nullptr;
+    QLineEdit *m_uuidEdit = nullptr;
+    QLineEdit *m_clientTokenEdit = nullptr;
     QLabel *m_formLabel = nullptr;
     QLabel *m_errorLabel = nullptr;
     AccentButton *m_submitButton = nullptr;

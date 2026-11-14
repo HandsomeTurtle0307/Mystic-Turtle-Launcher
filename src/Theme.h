@@ -63,6 +63,10 @@ inline bool isDarkMode()
 void apply(QApplication &app);
 bool animationsEnabled();
 void setAnimationsEnabled(bool enabled);
+bool liquidGlassEnabled();
+void setLiquidGlassEnabled(bool enabled);
+bool buttonSpotlightEnabled();
+void setButtonSpotlightEnabled(bool enabled);
 void setProgressValue(QProgressBar *progressBar, int value);
 
 } // namespace Theme

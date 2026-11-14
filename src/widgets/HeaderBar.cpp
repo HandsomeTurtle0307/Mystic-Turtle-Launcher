@@ -17,85 +17,16 @@
 #include "WindowButton.h"
 
 #include <QAbstractButton>
-#include <QEnterEvent>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLinearGradient>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
+#include <QPushButton>
+#include <QRadialGradient>
 #include <QVBoxLayout>
 #include <QWindow>
-
-namespace {
-
-class UserChip : public QAbstractButton
-{
-public:
-    explicit UserChip(QWidget *parent = nullptr)
-        : QAbstractButton(parent)
-    {
-        setFixedHeight(40);
-        setCursor(Qt::PointingHandCursor);
-        setFocusPolicy(Qt::NoFocus);
-        setAttribute(Qt::WA_Hover, true);
-        setToolTip(QStringLiteral("管理本地账户"));
-        setAccessibleName(QStringLiteral("管理本地账户"));
-        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-
-        auto *layout = new QHBoxLayout(this);
-        layout->setContentsMargins(6, 5, 12, 5);
-        layout->setSpacing(8);
-
-        auto *avatar = new AvatarWidget(30, this);
-        avatar->setOnline(false);
-        layout->addWidget(avatar);
-
-        m_name = Theme::label(QStringLiteral("MysticTurtle"), 12, QFont::DemiBold,
-                              QColor(QStringLiteral("#FFFFFF")), this);
-        layout->addWidget(m_name);
-    }
-
-    QLabel *nameLabel() const
-    {
-        return m_name;
-    }
-
-    QSize sizeHint() const override
-    {
-        return layout() ? layout()->sizeHint() : QSize(120, 40);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override
-    {
-        Q_UNUSED(event)
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-        const int alpha = isDown() ? 34 : (underMouse() ? 26 : 16);
-        const int borderAlpha = isDown() ? 110 : (underMouse() ? 90 : 62);
-        painter.setPen(QPen(QColor(255, 255, 255, borderAlpha), 1.0));
-        painter.setBrush(QColor(255, 255, 255, alpha));
-        painter.drawRoundedRect(bounds, 13, 13);
-    }
-
-    void enterEvent(QEnterEvent *event) override
-    {
-        QAbstractButton::enterEvent(event);
-        update();
-    }
-
-    void leaveEvent(QEvent *event) override
-    {
-        QAbstractButton::leaveEvent(event);
-        update();
-    }
-
-private:
-    QLabel *m_name = nullptr;
-};
-
-} // namespace
 
 HeaderBar::HeaderBar(QWidget *parent)
     : QWidget(parent)
@@ -128,13 +59,44 @@ HeaderBar::HeaderBar(QWidget *parent)
     m_navigationBar = new NavigationBar(this);
 
     auto *right = new QWidget(this);
-    right->setMinimumWidth(230);
+    right->setMinimumWidth(350);
     right->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     auto *rightLayout = new QHBoxLayout(right);
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(10);
     rightLayout->addStretch();
     rightLayout->addSpacing(4);
+
+    m_accountButton = new QPushButton(right);
+    m_accountButton->setCursor(Qt::PointingHandCursor);
+    m_accountButton->setFlat(true);
+    m_accountButton->setAccessibleName(QStringLiteral("切换账户"));
+    m_accountButton->setStyleSheet(QStringLiteral(
+        "QPushButton { background: transparent; border: 1px solid transparent;"
+        "border-radius: 10px; text-align: left; padding: 3px 7px; }"
+        "QPushButton:hover { background: rgba(255,255,255,10);"
+        "border-color: rgba(255,255,255,20); }"));
+    auto *accountLayout = new QHBoxLayout(m_accountButton);
+    accountLayout->setContentsMargins(0, 0, 0, 0);
+    accountLayout->setSpacing(7);
+    m_accountAvatar = new AvatarWidget(28, m_accountButton);
+    m_accountAvatar->setOnline(false);
+    accountLayout->addWidget(m_accountAvatar, 0, Qt::AlignVCenter);
+    auto *accountText = new QVBoxLayout();
+    accountText->setContentsMargins(0, 0, 0, 0);
+    accountText->setSpacing(0);
+    m_accountName = Theme::label(QStringLiteral("未添加账户"), 10, QFont::DemiBold,
+                                 Theme::TextPrimary, m_accountButton);
+    m_accountName->setMaximumWidth(104);
+    m_accountType = Theme::label(QString(), 8, QFont::Normal,
+                                 Theme::TextMuted, m_accountButton);
+    accountText->addWidget(m_accountName);
+    accountText->addWidget(m_accountType);
+    accountLayout->addLayout(accountText, 1);
+    connect(m_accountButton, &QAbstractButton::clicked,
+            this, &HeaderBar::accountRequested);
+    rightLayout->addWidget(m_accountButton, 0, Qt::AlignVCenter);
+    rightLayout->addSpacing(6);
 
     auto *windowControls = new QWidget(right);
     auto *controlsLayout = new QHBoxLayout(windowControls);
@@ -172,21 +134,31 @@ NavigationBar *HeaderBar::navigationBar() const
     return m_navigationBar;
 }
 
+void HeaderBar::setAccount(const QString &name, const QString &typeText)
+{
+    if (!m_accountName || !m_accountType) {
+        return;
+    }
+    const QString displayName = name.trimmed().isEmpty()
+        ? QStringLiteral("未添加账户")
+        : name.trimmed();
+    const QFontMetrics metrics(m_accountName->font());
+    m_accountName->setText(metrics.elidedText(displayName, Qt::ElideRight, 104));
+    m_accountName->setToolTip(displayName);
+    m_accountType->setText(typeText);
+    m_accountType->setVisible(!typeText.trimmed().isEmpty());
+}
+
+void HeaderBar::setAccountName(const QString &name)
+{
+    setAccount(name, m_accountType ? m_accountType->text() : QString());
+}
+
 void HeaderBar::setMaximized(bool maximized)
 {
     m_maximizeButton->setIconType(maximized ? Icons::Type::Restore : Icons::Type::Maximize);
     m_maximizeButton->setToolTip(maximized ? QStringLiteral("还原") : QStringLiteral("最大化"));
     m_maximizeButton->setAccessibleName(maximized ? QStringLiteral("还原") : QStringLiteral("最大化"));
-}
-
-void HeaderBar::setAccountName(const QString &username)
-{
-    if (!m_userNameLabel) {
-        return;
-    }
-    const QString displayName = username.trimmed();
-    m_userNameLabel->setText(displayName.isEmpty() ? QStringLiteral("未添加账户")
-                                                   : displayName);
 }
 
 void HeaderBar::startWindowMove()
@@ -220,6 +192,21 @@ void HeaderBar::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     QPainter painter(this);
+    if (Theme::liquidGlassEnabled()) {
+        QLinearGradient glass(0, 0, 0, height());
+        glass.setColorAt(0.0, QColor(255, 255, 255,
+                                     Theme::isDarkMode() ? 13 : 46));
+        glass.setColorAt(0.72, QColor(255, 255, 255,
+                                      Theme::isDarkMode() ? 2 : 12));
+        glass.setColorAt(1.0, QColor(255, 255, 255, 0));
+        painter.fillRect(rect(), glass);
+        QRadialGradient bloom(QPointF(width() * 0.24, -16), qMax(180.0, width() * 0.5));
+        bloom.setColorAt(0.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                     Theme::Accent.blue(), 20));
+        bloom.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
+                                     Theme::Accent.blue(), 0));
+        painter.fillRect(rect(), bloom);
+    }
     painter.setPen(QPen(QColor(255, 255, 255, Theme::isDarkMode() ? 16 : 26), 1.0));
     painter.drawLine(QPointF(0, height() - 0.5), QPointF(width(), height() - 0.5));
 }

@@ -14,6 +14,7 @@
 
 class DownloadGamePage;
 class DownloadModsPage;
+class QButtonGroup;
 class QStackedWidget;
 
 class DownloadCenterPage : public QWidget
@@ -26,6 +27,7 @@ public:
     DownloadGamePage *gamePage() const;
     DownloadModsPage *modsPage() const;
     void setGameDirectory(const QString &directory);
+    void showModpacks();
 
 signals:
     void notifyRequested(const QString &message);
@@ -37,5 +39,6 @@ private:
     DownloadGamePage *m_gamePage = nullptr;
     DownloadModsPage *m_modsPage = nullptr;
     QList<DownloadModsPage *> m_projectPages;
+    QButtonGroup *m_categoryGroup = nullptr;
     QStackedWidget *m_content = nullptr;
 };

@@ -1,0 +1,13 @@
+{
+  "portrait-maid.png": {"eyes": false},
+  "portrait-white-hoodie.png": {"eyes": true, "left": [0.455, 0.135], "right": [0.545, 0.135], "radius": [0.05, 0.025]},
+  "portrait-red.png": {"eyes": true, "left": [0.455, 0.17], "right": [0.545, 0.17], "radius": [0.05, 0.025]},
+  "portrait-pink.png": {"eyes": true, "left": [0.455, 0.138], "right": [0.545, 0.138], "radius": [0.05, 0.025]},
+  "portrait-blue-hat.png": {"eyes": true, "left": [0.45, 0.148], "right": [0.55, 0.148], "radius": [0.05, 0.025]},
+  "portrait-pink-teddy.png": {"eyes": true, "left": [0.455, 0.13], "right": [0.545, 0.13], "radius": [0.05, 0.025]},
+  "portrait-black-ponytail.png": {"eyes": true, "left": [0.465, 0.145], "right": [0.535, 0.145], "radius": [0.05, 0.025]},
+  "portrait-twintails.png": {"eyes": true, "left": [0.455, 0.165], "right": [0.545, 0.165], "radius": [0.05, 0.025]},
+  "portrait-black-dress.png": {"eyes": true, "left": [0.445, 0.135], "right": [0.555, 0.135], "radius": [0.05, 0.025]},
+  "portrait-white-hoodie-2.png": {"eyes": true, "left": [0.455, 0.135], "right": [0.545, 0.135], "radius": [0.05, 0.025]},
+  "portrait-pink-tee.png": {"eyes": true, "left": [0.455, 0.13], "right": [0.545, 0.13], "radius": [0.05, 0.025]}
+}

@@ -147,6 +147,18 @@ QJsonObject GlobalSettings::toJson() const
     networkObject.insert(QStringLiteral("proxyPort"), network.proxyPort);
     networkObject.insert(QStringLiteral("concurrent"), network.concurrent);
 
+    QJsonObject homepageObject;
+    homepageObject.insert(QStringLiteral("mode"), homepage.mode);
+    homepageObject.insert(QStringLiteral("blankAnimation"), homepage.blankAnimation);
+    homepageObject.insert(QStringLiteral("blankAnimationStyle"),
+                          homepage.blankAnimationStyle);
+    homepageObject.insert(QStringLiteral("live2dBreathAmplitude"),
+                          homepage.live2dBreathAmplitude);
+    homepageObject.insert(QStringLiteral("live2dSwayAmplitude"),
+                          homepage.live2dSwayAmplitude);
+    homepageObject.insert(QStringLiteral("live2dEyeAmplitude"),
+                          homepage.live2dEyeAmplitude);
+
     QJsonObject memoryObject;
     memoryObject.insert(QStringLiteral("automatic"), memory.automatic);
     memoryObject.insert(QStringLiteral("customMb"), memory.customMb);
@@ -179,6 +191,7 @@ QJsonObject GlobalSettings::toJson() const
     root.insert(QStringLiteral("versionIsolation"), versionIsolation);
     root.insert(QStringLiteral("launch"), launchObject);
     root.insert(QStringLiteral("network"), networkObject);
+    root.insert(QStringLiteral("homepage"), homepageObject);
     root.insert(QStringLiteral("memory"), memoryObject);
     root.insert(QStringLiteral("skin"), skinObject);
     root.insert(QStringLiteral("advanced"), advancedObject);
@@ -236,6 +249,43 @@ GlobalSettings GlobalSettings::fromJson(const QJsonObject &object)
     settings.network.concurrent =
         qBound(1, readInt(networkObject, QStringLiteral("concurrent"),
                           settings.network.concurrent), 8);
+
+    const QJsonObject homepageObject =
+        object.value(QStringLiteral("homepage")).toObject();
+    QString homepageMode =
+        readString(homepageObject, QStringLiteral("mode"),
+                   settings.homepage.mode);
+    if (homepageMode == QStringLiteral("preset")
+        || homepageMode == QStringLiteral("custom")) {
+        homepageMode = QStringLiteral("news");
+    }
+    if (homepageMode == QStringLiteral("blank")
+        || homepageMode == QStringLiteral("news")
+        || homepageMode == QStringLiteral("status")) {
+        settings.homepage.mode = homepageMode;
+    }
+    settings.homepage.blankAnimation =
+        readBool(homepageObject, QStringLiteral("blankAnimation"), true);
+    QString blankAnimationStyle =
+        readString(homepageObject, QStringLiteral("blankAnimationStyle"),
+                   settings.homepage.blankAnimationStyle);
+    if (blankAnimationStyle == QStringLiteral("live2d")) {
+        blankAnimationStyle = QStringLiteral("live2d-maid");
+    }
+    if (blankAnimationStyle != QStringLiteral("turtle")
+        && !blankAnimationStyle.startsWith(QStringLiteral("live2d-"))) {
+        blankAnimationStyle = QStringLiteral("turtle");
+    }
+    settings.homepage.blankAnimationStyle = blankAnimationStyle;
+    settings.homepage.live2dBreathAmplitude = qBound(
+        0, readInt(homepageObject, QStringLiteral("live2dBreathAmplitude"),
+                   settings.homepage.live2dBreathAmplitude), 100);
+    settings.homepage.live2dSwayAmplitude = qBound(
+        0, readInt(homepageObject, QStringLiteral("live2dSwayAmplitude"),
+                   settings.homepage.live2dSwayAmplitude), 100);
+    settings.homepage.live2dEyeAmplitude = qBound(
+        0, readInt(homepageObject, QStringLiteral("live2dEyeAmplitude"),
+                   settings.homepage.live2dEyeAmplitude), 100);
 
     const QJsonObject memoryObject = object.value(QStringLiteral("memory")).toObject();
     settings.memory.automatic =

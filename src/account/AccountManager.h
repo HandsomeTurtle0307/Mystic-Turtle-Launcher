@@ -17,15 +17,22 @@ struct PlayerAccount
 {
     enum class Type {
         Offline,
-        Premium
+        External
     };
 
     QString id;
     QString username;
     Type type = Type::Offline;
 
+    // Only used by external (authlib-injector / Yggdrasil) accounts.
+    QString serverUrl;
+    QString accessToken;
+    QString uuid;
+    QString clientToken;
+
     bool isValid() const;
     QString typeLabel() const;
+    QString serverLabel() const;
 };
 
 class AccountManager : public QObject
@@ -41,6 +48,15 @@ public:
     QString activeAccountId() const;
     bool hasAccount() const;
 
+    bool addAccount(const PlayerAccount &account,
+                    QString *errorMessage = nullptr,
+                    QString *newAccountId = nullptr);
+    bool updateAccount(const QString &id, const PlayerAccount &account,
+                       QString *errorMessage = nullptr);
+    bool updateExternalSession(const QString &id, const QString &accessToken,
+                               const QString &clientToken, const QString &uuid,
+                               const QString &username = QString(),
+                               QString *errorMessage = nullptr);
     bool addOfflineAccount(const QString &username,
                            QString *errorMessage = nullptr,
                            QString *newAccountId = nullptr);

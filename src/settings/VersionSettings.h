@@ -16,9 +16,24 @@
 struct VersionSettings
 {
     bool overrideMemory = false;
+    bool automaticMemory = false;
     int memoryMb = 0;
+
     bool overrideJvmArguments = false;
     QString jvmArguments;
+    QString jvmPreset = QStringLiteral("g1gc");
+
+    bool overrideJavaPath = false;
+    QString javaPath;
+
+    bool overrideWindowSize = false;
+    // default / fullscreen / borderless
+    QString windowSize = QStringLiteral("default");
+
+    bool overrideGameArgs = false;
+    QString gameArgs;
+
+    bool hasOverrides() const;
 
     static QString settingsFilePath(const QString &versionDirectory);
     static VersionSettings load(const QString &versionDirectory,
