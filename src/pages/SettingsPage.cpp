@@ -11,12 +11,14 @@
 
 #include "AccentButton.h"
 #include "CardWidget.h"
+#include "GlobalSettings.h"
 #include "GlobalSettingsWidget.h"
 #include "IconFactory.h"
 #include "MinecraftPaths.h"
 #include "Theme.h"
 #include "ToggleSwitch.h"
 #include "ModernInputs.h"
+#include "network/MojangMirror.h"
 
 #include <QComboBox>
 #include <QDir>
@@ -333,6 +335,34 @@ SettingsPage::SettingsPage(QWidget *parent)
     gameLayout->addWidget(pathBlock(Icons::Type::Folder, QStringLiteral("游戏目录"),
                                     QStringLiteral("本地版本、模组与存档所在的根目录。"),
                                     m_gameDirEdit, gameDirBrowse, game));
+    gameLayout->addSpacing(12);
+
+    m_downloadSource = new ModernComboBox(game);
+    m_downloadSource->setMinimumWidth(250);
+    m_downloadSource->addItem(QStringLiteral("国内镜像（BMCLAPI / Java TUNA）"),
+                              QStringLiteral("bmclapi"));
+    m_downloadSource->addItem(QStringLiteral("Mojang / Adoptium 官方源"),
+                              QStringLiteral("official"));
+    const GlobalSettings savedSettings = GlobalSettings::load();
+    const int savedSourceIndex =
+        m_downloadSource->findData(savedSettings.network.downloadSource);
+    if (savedSourceIndex >= 0) {
+        m_downloadSource->setCurrentIndex(savedSourceIndex);
+    }
+    connect(m_downloadSource, &QComboBox::currentIndexChanged, this, [this](int) {
+        const QString source = m_downloadSource->currentData().toString();
+        MojangMirror::setDownloadSource(
+            source == QStringLiteral("official")
+                ? MojangMirror::DownloadSource::Official
+                : MojangMirror::DownloadSource::Bmclapi);
+        if (m_globalSettings) {
+            m_globalSettings->setDownloadSource(source);
+        }
+    });
+    gameLayout->addWidget(settingRow(
+        Icons::Type::Download, QStringLiteral("下载源"),
+        QStringLiteral("影响游戏文件、加载器和 Java 运行时；国内源会优先使用 BMCLAPI 与清华 TUNA。"),
+        m_downloadSource, game));
     gameLayout->addSpacing(12);
 
     gameLayout->addStretch();

@@ -281,6 +281,12 @@ GlobalSettingsWidget::~GlobalSettingsWidget()
     }
 }
 
+void GlobalSettingsWidget::setDownloadSource(const QString &source)
+{
+    m_settings.network.downloadSource = source;
+    scheduleSave();
+}
+
 void GlobalSettingsWidget::flush()
 {
     if (m_saveTimer && m_saveTimer->isActive()) {
@@ -306,30 +312,9 @@ QWidget *GlobalSettingsWidget::buildNetworkCard(QWidget *parent)
     layout->setSpacing(0);
     layout->addWidget(Theme::label(QStringLiteral("网络与下载"), 17, QFont::DemiBold,
                                    Theme::TextPrimary, card));
-    layout->addWidget(sectionHint(QStringLiteral("下载源、代理与并发策略。"), card));
+    layout->addWidget(sectionHint(QStringLiteral("代理与并发策略。"), card));
     layout->addSpacing(12);
     layout->addWidget(Theme::divider(card));
-    layout->addSpacing(12);
-
-    m_downloadSource = makeCombo(card);
-    m_downloadSource->addItem(QStringLiteral("国内镜像（BMCLAPI / Java TUNA）"),
-                              QStringLiteral("bmclapi"));
-    m_downloadSource->addItem(QStringLiteral("Mojang / Adoptium 官方源"),
-                              QStringLiteral("official"));
-    selectComboData(m_downloadSource, m_settings.network.downloadSource);
-    connect(m_downloadSource, &QComboBox::currentIndexChanged, this, [this](int) {
-        m_settings.network.downloadSource = m_downloadSource->currentData().toString();
-        const bool official =
-            m_settings.network.downloadSource == QStringLiteral("official");
-        MojangMirror::setDownloadSource(
-            official ? MojangMirror::DownloadSource::Official
-                     : MojangMirror::DownloadSource::Bmclapi);
-        scheduleSave();
-    });
-    layout->addWidget(settingRow(
-        Icons::Type::Download, QStringLiteral("下载源"),
-        QStringLiteral("影响版本清单、客户端、依赖库、资源文件和 Java 运行时。"),
-        m_downloadSource, card));
     layout->addSpacing(12);
 
     auto *proxyControl = new QWidget(card);

@@ -35,6 +35,7 @@ public:
     ~GlobalSettingsWidget() override;
     void setJavaPath(const QString &path);
     void setGameDirectory(const QString &directory);
+    void setDownloadSource(const QString &source);
     void flush();
 
 signals:
@@ -69,7 +70,6 @@ private:
     QComboBox *m_crashBehavior = nullptr;
     QComboBox *m_versionIsolation = nullptr;
 
-    QComboBox *m_downloadSource = nullptr;
     QComboBox *m_proxyType = nullptr;
     QLineEdit *m_proxyHost = nullptr;
     QSpinBox *m_proxyPort = nullptr;

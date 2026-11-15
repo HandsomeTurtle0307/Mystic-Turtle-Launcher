@@ -12,6 +12,7 @@
 #include <QString>
 #include <QWidget>
 
+class QComboBox;
 class QLineEdit;
 class GlobalSettingsWidget;
 
@@ -39,6 +40,7 @@ private:
 
     QLineEdit *m_gameDirEdit = nullptr;
     QLineEdit *m_backgroundPathEdit = nullptr;
+    QComboBox *m_downloadSource = nullptr;
     GlobalSettingsWidget *m_globalSettings = nullptr;
     int m_backgroundOpacity = 35;
 };
