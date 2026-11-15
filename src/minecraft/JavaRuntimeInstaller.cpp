@@ -12,6 +12,7 @@
 #include "DownloadTask.h"
 #include "GameLauncher.h"
 #include "Theme.h"
+#include "network/MojangMirror.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -19,15 +20,20 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QProcess>
 #include <QProgressBar>
 #include <QProgressDialog>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QSysInfo>
 #include <QUrl>
 #include <QUuid>
+#include <QVersionNumber>
 #include <QWidget>
 
 namespace {
@@ -44,6 +50,71 @@ QString adoptiumArchitecture()
         return QStringLiteral("x64");
     }
     return QStringLiteral("x86");
+}
+
+QString resolveTunaJavaArchive(int majorVersion, const QString &architecture)
+{
+    if (architecture != QStringLiteral("x64")
+        && architecture != QStringLiteral("aarch64")) {
+        return QString();
+    }
+
+    const QString listingUrl =
+        QStringLiteral("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%1/jdk/%2/windows/")
+            .arg(majorVersion)
+            .arg(architecture);
+    QNetworkAccessManager manager;
+    QNetworkRequest request{QUrl(listingUrl)};
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("MysticTurtle/3.0"));
+    request.setTransferTimeout(15000);
+    QNetworkReply *reply = manager.get(request);
+    if (!reply) {
+        return QString();
+    }
+
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+    const int status =
+        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QByteArray html = reply->readAll();
+    const auto networkError = reply->error();
+    reply->deleteLater();
+    if (networkError != QNetworkReply::NoError || status != 200) {
+        return QString();
+    }
+
+    const QString page = QString::fromUtf8(html);
+    const QRegularExpression hrefRegex(
+        QStringLiteral("href=\"([^\"]+\\.zip)\""),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpression versionRegex(
+        QStringLiteral("_(\\d+(?:\\.\\d+)+)_(\\d+)\\.zip$"));
+    QString bestFile;
+    QVersionNumber bestVersion;
+    QRegularExpressionMatchIterator matches = hrefRegex.globalMatch(page);
+    while (matches.hasNext()) {
+        const QString file = QFileInfo(matches.next().captured(1)).fileName();
+        const QRegularExpressionMatch versionMatch = versionRegex.match(file);
+        if (!versionMatch.hasMatch()) {
+            if (bestFile.isEmpty()) {
+                bestFile = file;
+            }
+            continue;
+        }
+        const QVersionNumber version =
+            QVersionNumber::fromString(versionMatch.captured(1));
+        if (bestFile.isEmpty() || bestVersion.isNull()
+            || QVersionNumber::compare(version, bestVersion) > 0) {
+            bestFile = file;
+            bestVersion = version;
+        }
+    }
+    if (bestFile.isEmpty()) {
+        return QString();
+    }
+    return QUrl(listingUrl).resolved(QUrl(bestFile)).toString();
 }
 
 bool extractArchive(const QString &archive, const QString &destination,
@@ -169,13 +240,27 @@ bool JavaRuntimeInstaller::download(const QString &gameDirectory, int majorVersi
                                     .filePath(QStringLiteral("java-%1.zip").arg(effectiveMajor));
     QFile::remove(archivePath);
 
-    const QString url =
-        QStringLiteral("https://api.adoptium.net/v3/binary/latest/%1/ga/windows/%2/jdk/hotspot/normal/eclipse?project=jdk")
-            .arg(effectiveMajor)
-            .arg(adoptiumArchitecture());
+    const QString architecture = adoptiumArchitecture();
+    QString url;
+    QString sourceLabel;
+    if (MojangMirror::downloadSource() == MojangMirror::DownloadSource::Bmclapi) {
+        const QString mirrorUrl = resolveTunaJavaArchive(effectiveMajor, architecture);
+        if (!mirrorUrl.isEmpty()) {
+            url = mirrorUrl;
+            sourceLabel = QStringLiteral("清华 TUNA 镜像");
+        }
+    }
+    if (url.isEmpty()) {
+        url = QStringLiteral("https://api.adoptium.net/v3/binary/latest/%1/ga/windows/%2/jdk/hotspot/normal/eclipse?project=jdk")
+                  .arg(effectiveMajor)
+                  .arg(architecture);
+        sourceLabel = QStringLiteral("Adoptium 官方源");
+    }
 
     QProgressDialog progress(
-        QStringLiteral("正在下载 Java %1，请稍候…").arg(effectiveMajor),
+        QStringLiteral("正在从 %1 下载 Java %2，请稍候…")
+            .arg(sourceLabel)
+            .arg(effectiveMajor),
         QStringLiteral("取消"), 0, 100, parent);
     progress.setWindowTitle(QStringLiteral("下载 Java"));
     progress.setWindowModality(Qt::WindowModal);

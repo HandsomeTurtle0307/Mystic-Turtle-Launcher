@@ -335,7 +335,7 @@ SettingsPage::SettingsPage(QWidget *parent)
     gameLayout->setSpacing(0);
     gameLayout->addWidget(Theme::label(QStringLiteral("下载与本地文件"), 17, QFont::DemiBold,
                                        Theme::TextPrimary, game));
-    gameLayout->addWidget(Theme::label(QStringLiteral("游戏目录与文件下载源。"),
+    gameLayout->addWidget(Theme::label(QStringLiteral("游戏目录与文件下载源（Java 运行时同样使用此下载源）。"),
                                        10, QFont::Normal, Theme::TextMuted, game));
     gameLayout->addSpacing(12);
     gameLayout->addWidget(Theme::divider(game));

@@ -322,9 +322,9 @@ QWidget *GlobalSettingsWidget::buildNetworkCard(QWidget *parent)
     layout->addSpacing(12);
 
     m_downloadSource = makeCombo(card);
-    m_downloadSource->addItem(QStringLiteral("BMCLAPI 镜像（国内推荐）"),
+    m_downloadSource->addItem(QStringLiteral("国内镜像（BMCLAPI / Java TUNA）"),
                               QStringLiteral("bmclapi"));
-    m_downloadSource->addItem(QStringLiteral("Mojang 官方源"),
+    m_downloadSource->addItem(QStringLiteral("Mojang / Adoptium 官方源"),
                               QStringLiteral("official"));
     selectComboData(m_downloadSource, m_settings.network.downloadSource);
     connect(m_downloadSource, &QComboBox::currentIndexChanged, this, [this](int) {
@@ -338,7 +338,7 @@ QWidget *GlobalSettingsWidget::buildNetworkCard(QWidget *parent)
     });
     layout->addWidget(settingRow(
         Icons::Type::Download, QStringLiteral("下载源"),
-        QStringLiteral("影响版本清单、客户端、依赖库和资源文件。"),
+        QStringLiteral("影响版本清单、客户端、依赖库、资源文件和 Java 运行时。"),
         m_downloadSource, card));
     layout->addSpacing(12);
 
