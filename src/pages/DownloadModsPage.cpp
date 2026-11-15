@@ -759,28 +759,31 @@ void requestProjectVersions(const QString &projectId,
                 }
 
                 const int startHeight = items->isVisible() ? items->height() : 0;
-                // sizeHint must be measured without the temporary height limit,
-                // otherwise a rapid re-expand would collapse to the old height.
+                // Measure the full content height while unconstrained. Set the
+                // height limit *before* showing the widget so it cannot flash at
+                // full height for one frame.
                 items->setMaximumHeight(QWIDGETSIZE_MAX);
                 const int targetHeight = expanded ? items->sizeHint().height() : 0;
                 if (expanded) {
-                    items->setVisible(true);
                     items->setMaximumHeight(startHeight);
+                    items->setVisible(true);
                 }
                 auto *animation = new QPropertyAnimation(items, "maximumHeight", items);
                 animation->setObjectName(QStringLiteral("versionListAnimation"));
-                animation->setDuration(180);
+                animation->setDuration(220);
                 animation->setStartValue(startHeight);
                 animation->setEndValue(targetHeight);
-                animation->setEasingCurve(QEasingCurve::OutCubic);
+                animation->setEasingCurve(QEasingCurve::InOutCubic);
                 QObject::connect(animation, &QPropertyAnimation::finished, items,
                                  [items, expanded, animation]() {
                     if (expanded) {
-                        items->setMaximumHeight(QWIDGETSIZE_MAX);
-                    } else {
-                        items->setVisible(false);
-                        items->setMaximumHeight(QWIDGETSIZE_MAX);
+                        // Keep the measured value instead of immediately setting
+                        // QWIDGETSIZE_MAX, which can cause a final-frame jump.
+                        animation->deleteLater();
+                        return;
                     }
+                    items->setVisible(false);
+                    items->setMaximumHeight(QWIDGETSIZE_MAX);
                     animation->deleteLater();
                 });
                 animation->start();
