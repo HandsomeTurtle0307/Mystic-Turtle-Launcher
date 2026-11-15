@@ -33,6 +33,9 @@
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
+#include <QPainterPath>
+#include <QEvent>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPair>
@@ -60,6 +63,46 @@
 #include <utility>
 
 namespace {
+
+class DisabledCardOverlay : public QWidget
+{
+public:
+    explicit DisabledCardOverlay(QWidget *parent)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_NoSystemBackground);
+        setAutoFillBackground(false);
+        setCursor(Qt::ForbiddenCursor);
+        parent->installEventFilter(this);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        Q_UNUSED(event)
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QPainterPath path;
+        path.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5),
+                            16.0, 16.0);
+        painter.fillPath(path, QColor(12, 17, 24, 125));
+    }
+
+    void showEvent(QShowEvent *event) override
+    {
+        QWidget::showEvent(event);
+        raise();
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == parentWidget() && event->type() == QEvent::Resize) {
+            setGeometry(parentWidget()->rect());
+            raise();
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+};
 
 QLabel *iconTile(Icons::Type type, const QColor &accent, QWidget *parent)
 {
@@ -1041,6 +1084,10 @@ QWidget *GlobalSettingsWidget::buildSkinCard(QWidget *parent)
         customControl, card));
     layout->addStretch();
     updateSkinControls();
+
+    auto *disabledOverlay = new DisabledCardOverlay(card);
+    disabledOverlay->setGeometry(card->rect());
+    disabledOverlay->raise();
     return card;
 }
 
