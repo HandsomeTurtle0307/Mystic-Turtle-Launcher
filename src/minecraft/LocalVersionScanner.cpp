@@ -190,6 +190,46 @@ QString gameDataDirectory(const QDir &versionDirectory,
     return isolateVersions ? versionDirectory.absolutePath() : defaultDirectory;
 }
 
+QStringList versionRootsFor(const QString &gameDirectory,
+                            const GlobalSettings &settings)
+{
+    QStringList roots;
+    const auto addRoot = [&roots](const QString &path) {
+        const QDir directory(path);
+        if (!directory.exists()) {
+            return;
+        }
+        const QString absolute = directory.absolutePath();
+        for (const QString &existing : roots) {
+            if (QFileInfo(existing).canonicalFilePath()
+                == QFileInfo(absolute).canonicalFilePath()) {
+                return;
+            }
+        }
+        roots.append(absolute);
+    };
+
+    const QDir gameDir(gameDirectory);
+    addRoot(gameDir.filePath(QStringLiteral("versions")));
+    // Support a launcher root that contains .minecraft/versions.
+    addRoot(gameDir.filePath(QStringLiteral(".minecraft/versions")));
+
+    // With isolation enabled, a version's own data directory may contain a
+    // nested .minecraft/versions tree (some imported installs use this layout).
+    if (settings.versionIsolation != QStringLiteral("none")) {
+        const QStringList baseRoots = roots;
+        for (const QString &root : baseRoots) {
+            const QFileInfoList entries = QDir(root).entryInfoList(
+                QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            for (const QFileInfo &entry : entries) {
+                addRoot(QDir(entry.absoluteFilePath())
+                            .filePath(QStringLiteral(".minecraft/versions")));
+            }
+        }
+    }
+    return roots;
+}
+
 struct VersionFileCandidate {
     QFileInfo jsonFile;
 };
@@ -207,30 +247,54 @@ Result scan(const QString &gameDirectory)
     const QVector<ModInfo> globalMods =
         scanMods(QDir(result.gameDirectory).filePath(QStringLiteral("mods")));
 
-    const QDir versionsDir(QDir(result.gameDirectory).filePath(QStringLiteral("versions")));
-    if (!versionsDir.exists()) {
+    const QStringList versionRoots =
+        versionRootsFor(result.gameDirectory, globalSettings);
+    if (versionRoots.isEmpty()) {
         result.mods = globalMods;
-        result.error = QStringLiteral("当前目录下没有 versions 文件夹。");
+        result.error = QStringLiteral(
+            "没有找到版本目录。请检查游戏目录和版本隔离设置。");
         return result;
     }
 
     QVector<VersionFileCandidate> candidates;
-    const QFileInfoList versionFolders = versionsDir.entryInfoList(
-        QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QFileInfo &folder : versionFolders) {
-        QFileInfo jsonFile(QDir(folder.absoluteFilePath())
-                               .filePath(folder.fileName() + QStringLiteral(".json")));
-        if (!jsonFile.isFile()) {
-            const QFileInfoList jsonFiles = QDir(folder.absoluteFilePath())
-                .entryInfoList(QStringList{QStringLiteral("*.json")},
-                               QDir::Files, QDir::Name | QDir::IgnoreCase);
-            if (jsonFiles.isEmpty()) {
+    QSet<QString> candidateJsonPaths;
+    for (const QString &root : versionRoots) {
+        const QDir versionsDir(root);
+        const QFileInfoList versionFolders = versionsDir.entryInfoList(
+            QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const QFileInfo &folder : versionFolders) {
+            QFileInfo jsonFile(QDir(folder.absoluteFilePath())
+                                   .filePath(folder.fileName() + QStringLiteral(".json")));
+            if (!jsonFile.isFile()) {
+                const QFileInfoList jsonFiles = QDir(folder.absoluteFilePath())
+                    .entryInfoList(QStringList{QStringLiteral("*.json")},
+                                   QDir::Files, QDir::Name | QDir::IgnoreCase);
+                if (jsonFiles.isEmpty()) {
+                    continue;
+                }
+                jsonFile = jsonFiles.first();
+            }
+            const QString canonical = jsonFile.canonicalFilePath();
+            if (!canonical.isEmpty() && candidateJsonPaths.contains(canonical)) {
                 continue;
             }
-            jsonFile = jsonFiles.first();
+            if (!canonical.isEmpty()) {
+                candidateJsonPaths.insert(canonical);
+            }
+            candidates.append(VersionFileCandidate{jsonFile});
         }
-        candidates.append(VersionFileCandidate{jsonFile});
     }
+
+    const auto launcherMetadataFor = [&versionRoots](const QString &versionId) {
+        for (const QString &root : versionRoots) {
+            const QString path = QDir(root).filePath(
+                QStringLiteral("%1/launcher.json").arg(versionId));
+            if (QFileInfo::exists(path)) {
+                return path;
+            }
+        }
+        return QString();
+    };
 
     QHash<QString, QString> legacyInheritedDisplayNames;
     QSet<QString> loaderBaseVersions;
@@ -273,9 +337,7 @@ Result scan(const QString &gameDirectory)
             }
         }
 
-        QFile baseMetadata(QDir(result.gameDirectory)
-                               .filePath(QStringLiteral("versions/%1/launcher.json")
-                                             .arg(inheritsFrom)));
+        QFile baseMetadata(launcherMetadataFor(inheritsFrom));
         if (!baseMetadata.open(QIODevice::ReadOnly)) {
             continue;
         }

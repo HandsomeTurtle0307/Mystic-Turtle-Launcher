@@ -23,8 +23,12 @@ struct Result {
     QString error;
 };
 
-// Reads <gameDirectory>/versions/*/*.json and resolves mods according to the
-// version-isolation setting. Each version records its launch game-data directory.
+// Scans version roots according to the version-isolation setting:
+// - <gameDirectory>/versions
+// - <gameDirectory>/.minecraft/versions when the selected folder is a
+//   launcher root rather than the .minecraft folder
+// - isolated versions may also contain nested .minecraft/versions trees
+// Each version records its launch game-data directory.
 Result scan(const QString &gameDirectory);
 
 } // namespace LocalVersionScanner
