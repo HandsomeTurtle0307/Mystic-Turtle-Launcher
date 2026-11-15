@@ -15,6 +15,7 @@
 #include "CardWidget.h"
 #include "Theme.h"
 #include "WindowButton.h"
+#include "ModernInputs.h"
 
 #include <QAbstractButton>
 #include <QComboBox>
@@ -170,7 +171,7 @@ AccountDialog::AccountDialog(QWidget *parent)
     typeRow->setSpacing(9);
     typeRow->addWidget(Theme::label(QStringLiteral("账号类型"), 10, QFont::Normal,
                                     Theme::TextMuted, panel));
-    m_accountType = new QComboBox(panel);
+    m_accountType = new ModernComboBox(panel);
     m_accountType->addItem(QStringLiteral("离线账户"), QStringLiteral("offline"));
     m_accountType->addItem(QStringLiteral("第三方外置登录"),
                            QStringLiteral("external"));
@@ -185,7 +186,7 @@ AccountDialog::AccountDialog(QWidget *parent)
     usernameRow->setSpacing(9);
     usernameRow->addWidget(Theme::label(QStringLiteral("用户名"), 10, QFont::Normal,
                                         Theme::TextMuted, panel));
-    m_usernameEdit = new QLineEdit(panel);
+    m_usernameEdit = new ModernLineEdit(panel);
     m_usernameEdit->setPlaceholderText(QStringLiteral("输入用户名"));
     m_usernameEdit->setMaxLength(16);
     m_usernameEdit->setMinimumHeight(38);
@@ -200,7 +201,7 @@ AccountDialog::AccountDialog(QWidget *parent)
     externalLayout->setVerticalSpacing(6);
     externalLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
-    m_serverUrlEdit = new QLineEdit(m_externalFields);
+    m_serverUrlEdit = new ModernLineEdit(m_externalFields);
     m_serverUrlEdit->setPlaceholderText(
         QStringLiteral("https://littleskin.cn/api/yggdrasil"));
     m_serverUrlEdit->setMinimumHeight(36);
@@ -209,7 +210,7 @@ AccountDialog::AccountDialog(QWidget *parent)
                                         m_externalFields),
                            m_serverUrlEdit);
 
-    m_accessTokenEdit = new QLineEdit(m_externalFields);
+    m_accessTokenEdit = new ModernLineEdit(m_externalFields);
     m_accessTokenEdit->setPlaceholderText(QStringLiteral("accessToken"));
     m_accessTokenEdit->setEchoMode(QLineEdit::Password);
     m_accessTokenEdit->setMinimumHeight(36);
@@ -218,14 +219,14 @@ AccountDialog::AccountDialog(QWidget *parent)
                                         m_externalFields),
                            m_accessTokenEdit);
 
-    m_uuidEdit = new QLineEdit(m_externalFields);
+    m_uuidEdit = new ModernLineEdit(m_externalFields);
     m_uuidEdit->setPlaceholderText(QStringLiteral("玩家 UUID，可留空等待登录返回"));
     m_uuidEdit->setMinimumHeight(36);
     externalLayout->addRow(Theme::label(QStringLiteral("UUID"), 10, QFont::Normal,
                                         Theme::TextMuted, m_externalFields),
                            m_uuidEdit);
 
-    m_clientTokenEdit = new QLineEdit(m_externalFields);
+    m_clientTokenEdit = new ModernLineEdit(m_externalFields);
     m_clientTokenEdit->setPlaceholderText(QStringLiteral("clientToken"));
     m_clientTokenEdit->setEchoMode(QLineEdit::Password);
     m_clientTokenEdit->setMinimumHeight(36);

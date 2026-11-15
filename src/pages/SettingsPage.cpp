@@ -16,6 +16,7 @@
 #include "MinecraftPaths.h"
 #include "Theme.h"
 #include "ToggleSwitch.h"
+#include "ModernInputs.h"
 
 #include <QComboBox>
 #include <QDir>
@@ -239,7 +240,7 @@ SettingsPage::SettingsPage(QWidget *parent)
         spotlightSwitch, appearance));
     appearanceLayout->addSpacing(11);
 
-    m_backgroundPathEdit = new QLineEdit(appearance);
+    m_backgroundPathEdit = new ModernLineEdit(appearance);
     m_backgroundPathEdit->setReadOnly(true);
     m_backgroundPathEdit->setPlaceholderText(QStringLiteral("未设置背景图片"));
     if (!backgroundImage.isEmpty()) {
@@ -341,7 +342,7 @@ SettingsPage::SettingsPage(QWidget *parent)
     gameLayout->addWidget(Theme::divider(game));
     gameLayout->addSpacing(12);
 
-    m_gameDirEdit = new QLineEdit(
+    m_gameDirEdit = new ModernLineEdit(
         QDir::toNativeSeparators(MinecraftPaths::savedGameDirectory()), game);
     m_gameDirEdit->setReadOnly(true);
     auto *gameDirBrowse = new AccentButton(QStringLiteral("浏览"), Icons::Type::Folder, game);

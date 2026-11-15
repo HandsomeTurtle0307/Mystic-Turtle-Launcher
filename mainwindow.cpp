@@ -578,7 +578,9 @@ void MainWindow::setTrayConnectedIcon(bool connected)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (m_quitRequested || !m_trayIcon || !m_trayIcon->isVisible()) {
+    const bool trayReady = m_trayIcon && m_trayIcon->isVisible()
+        && QSystemTrayIcon::isSystemTrayAvailable();
+    if (m_quitRequested || !trayReady) {
         qApp->setQuitOnLastWindowClosed(true);
         event->accept();
         return;
@@ -1571,7 +1573,6 @@ void MainWindow::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    const bool maximized = isMaximized() || isFullScreen();
     const int margin = 0;
     const qreal radius = 0.0;
     const QRectF surface = QRectF(rect()).adjusted(margin, margin, -margin, -margin);
@@ -1582,27 +1583,15 @@ void MainWindow::paintEvent(QPaintEvent *event)
     painter.save();
     painter.setClipPath(surfacePath);
 
-    QLinearGradient background(surface.topLeft(), surface.bottomRight());
+    QColor backgroundColor;
     if (Theme::isDarkMode()) {
-        if (m_acrylicEnabled) {
-            background.setColorAt(0.0, QColor(17, 22, 29, 215));
-            background.setColorAt(0.52, QColor(13, 17, 23, 225));
-            background.setColorAt(1.0, QColor(8, 11, 16, 238));
-        } else {
-            background.setColorAt(0.0, QColor(17, 23, 31, 255));
-            background.setColorAt(0.48, QColor(13, 17, 23, 255));
-            background.setColorAt(1.0, QColor(8, 11, 16, 255));
-        }
-    } else if (m_acrylicEnabled) {
-        background.setColorAt(0.0, QColor(244, 249, 255, 210));
-        background.setColorAt(0.52, QColor(235, 244, 255, 220));
-        background.setColorAt(1.0, QColor(222, 236, 253, 232));
+        backgroundColor = m_acrylicEnabled ? QColor(13, 17, 23, 238)
+                                           : QColor(10, 14, 19, 255);
     } else {
-        background.setColorAt(0.0, QColor(250, 253, 255, 255));
-        background.setColorAt(0.48, QColor(242, 248, 255, 255));
-        background.setColorAt(1.0, QColor(226, 239, 253, 255));
+        backgroundColor = m_acrylicEnabled ? QColor(246, 250, 255, 236)
+                                           : QColor(248, 251, 255, 255);
     }
-    painter.fillPath(surfacePath, background);
+    painter.fillPath(surfacePath, backgroundColor);
 
     if (!m_backgroundImage.isNull() && m_backgroundOpacity > 0) {
         const qreal targetAspect = surface.width() / surface.height();
@@ -1632,18 +1621,6 @@ void MainWindow::paintEvent(QPaintEvent *event)
                                            : QColor(23, 36, 58, 26),
                         1.0));
     painter.drawPath(surfacePath);
-
-    if (!maximized) {
-        QLinearGradient edge(surface.left() + radius, surface.top(),
-                             surface.right() - radius, surface.top());
-        edge.setColorAt(0.0, QColor(255, 255, 255, 0));
-        edge.setColorAt(0.25, QColor(255, 255, 255, Theme::isDarkMode() ? 44 : 235));
-        edge.setColorAt(0.72, QColor(255, 255, 255, Theme::isDarkMode() ? 22 : 160));
-        edge.setColorAt(1.0, QColor(255, 255, 255, 0));
-        painter.setPen(QPen(QBrush(edge), 1.0));
-        painter.drawLine(QPointF(surface.left() + radius, surface.top() + 1.0),
-                         QPointF(surface.right() - radius, surface.top() + 1.0));
-    }
 }
 
 void MainWindow::applyBackground(const QString &imagePath, int opacity)

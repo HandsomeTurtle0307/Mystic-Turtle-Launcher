@@ -153,25 +153,6 @@ void WindowButton::paintEvent(QPaintEvent *event)
         painter.drawRoundedRect(bounds, 7, 7);
     }
 
-    if (Theme::buttonSpotlightEnabled() && m_spotlightProgress > 0.001) {
-        painter.save();
-        QPainterPath clip;
-        clip.addRoundedRect(bounds, 7, 7);
-        painter.setClipPath(clip);
-        const QColor tint = m_danger ? Theme::Danger : Theme::Accent;
-        QRadialGradient light(m_spotlightPosition, qMax(46.0, width() * 1.1));
-        light.setColorAt(0.0, QColor(255, 255, 255,
-                                     static_cast<int>(50 * m_spotlightProgress)));
-        light.setColorAt(0.35, QColor(tint.red(), tint.green(), tint.blue(),
-                                      static_cast<int>(22 * m_spotlightProgress)));
-        light.setColorAt(0.7, QColor(tint.red(), tint.green(), tint.blue(),
-                                     static_cast<int>(5 * m_spotlightProgress)));
-        light.setColorAt(1.0, QColor(tint.red(), tint.green(), tint.blue(), 0));
-        painter.setPen(Qt::NoPen);
-        painter.fillRect(bounds, light);
-        painter.restore();
-    }
-
     QColor iconColor = m_danger && m_hoverProgress > 0.4
         ? QColor(QStringLiteral("#FFFFFF"))
         : QColor(255, 255, 255, static_cast<int>(220 + 35 * m_hoverProgress));

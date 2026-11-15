@@ -17,6 +17,7 @@
 #include "minecraft/GameLauncher.h"
 #include "minecraft/LocalVersionScanner.h"
 #include "network/MojangMirror.h"
+#include "ModernInputs.h"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -105,20 +106,9 @@ QWidget *settingRow(Icons::Type icon, const QString &title,
 
 QComboBox *makeCombo(QWidget *parent)
 {
-    auto *combo = new QComboBox(parent);
+    auto *combo = new ModernComboBox(parent);
     combo->setFixedHeight(38);
     combo->setMinimumWidth(210);
-    combo->setStyleSheet(QStringLiteral(
-        "QComboBox { background: rgba(255,255,255,7); border: 1px solid %1;"
-        "border-radius: 8px; padding: 5px 10px; color: %2; }"
-        "QComboBox:hover { border-color: %3; }"
-        "QComboBox QAbstractItemView { background: %4; color: %2;"
-        "border: 1px solid %1; selection-background-color: %5; }")
-        .arg(Theme::Border.name(), Theme::TextPrimary.name(),
-             QColor(255, 255, 255, 60).name(QColor::HexArgb),
-             Theme::SurfaceRaised.name(),
-             QColor(Theme::Accent.red(), Theme::Accent.green(),
-                    Theme::Accent.blue(), 56).name(QColor::HexArgb)));
     return combo;
 }
 
@@ -352,7 +342,7 @@ QWidget *GlobalSettingsWidget::buildNetworkCard(QWidget *parent)
     m_proxyType->addItem(QStringLiteral("HTTP"), QStringLiteral("http"));
     m_proxyType->addItem(QStringLiteral("SOCKS5"), QStringLiteral("socks5"));
     selectComboData(m_proxyType, m_settings.network.proxyType);
-    m_proxyHost = new QLineEdit(proxyControl);
+    m_proxyHost = new ModernLineEdit(proxyControl);
     m_proxyHost->setPlaceholderText(QStringLiteral("127.0.0.1"));
     m_proxyHost->setText(m_settings.network.proxyHost);
     m_proxyHost->setFixedHeight(38);
@@ -467,7 +457,7 @@ QWidget *GlobalSettingsWidget::buildHomepageCard(QWidget *parent)
     styleRow->setSpacing(9);
     styleRow->addWidget(Theme::label(QStringLiteral("空白主页样式"), 10,
                                      QFont::Normal, Theme::TextMuted, card));
-    m_blankHomepageStyle = new QComboBox(card);
+    m_blankHomepageStyle = new ModernComboBox(card);
     m_blankHomepageStyle->addItem(QStringLiteral("几何乌龟"),
                                   QStringLiteral("turtle"));
     m_blankHomepageStyle->addItem(QStringLiteral("蓝发女仆"),
@@ -747,7 +737,7 @@ QWidget *GlobalSettingsWidget::buildLaunchCard(QWidget *parent)
     layout->addWidget(Theme::divider(card));
     layout->addSpacing(12);
 
-    m_windowTitle = new QLineEdit(card);
+    m_windowTitle = new ModernLineEdit(card);
     m_windowTitle->setPlaceholderText(QStringLiteral("默认"));
     m_windowTitle->setText(m_settings.launch.windowTitle);
     m_windowTitle->setFixedHeight(38);
@@ -760,7 +750,7 @@ QWidget *GlobalSettingsWidget::buildLaunchCard(QWidget *parent)
         QStringLiteral("留空使用 Minecraft 默认标题。"), m_windowTitle, card));
     layout->addSpacing(12);
 
-    m_customInfo = new QLineEdit(card);
+    m_customInfo = new ModernLineEdit(card);
     m_customInfo->setPlaceholderText(QStringLiteral("例如：PCL"));
     m_customInfo->setText(m_settings.launch.customInfo);
     m_customInfo->setFixedHeight(38);
@@ -1019,7 +1009,7 @@ QWidget *GlobalSettingsWidget::buildSkinCard(QWidget *parent)
         skinControl, card));
     layout->addSpacing(12);
 
-    m_premiumName = new QLineEdit(card);
+    m_premiumName = new ModernLineEdit(card);
     m_premiumName->setEnabled(false);
     m_premiumName->setPlaceholderText(QStringLiteral("输入正版玩家名"));
     m_premiumName->setText(m_settings.skin.premiumName);
@@ -1039,7 +1029,7 @@ QWidget *GlobalSettingsWidget::buildSkinCard(QWidget *parent)
     auto *customLayout = new QHBoxLayout(customControl);
     customLayout->setContentsMargins(0, 0, 0, 0);
     customLayout->setSpacing(7);
-    m_customSkinPath = new QLineEdit(customControl);
+    m_customSkinPath = new ModernLineEdit(customControl);
     m_customSkinPath->setReadOnly(true);
     m_customSkinPath->setPlaceholderText(QStringLiteral("选择皮肤 PNG 文件"));
     m_customSkinPath->setText(m_settings.skin.customPath);
@@ -1149,7 +1139,7 @@ QWidget *GlobalSettingsWidget::buildAdvancedCard(QWidget *parent)
     layout->addWidget(m_jvmArgs);
     layout->addSpacing(12);
 
-    m_gameArgs = new QLineEdit(card);
+    m_gameArgs = new ModernLineEdit(card);
     m_gameArgs->setPlaceholderText(QStringLiteral("附加游戏参数，例如 --width 1280 --height 720"));
     m_gameArgs->setText(m_settings.advanced.gameArgs);
     m_gameArgs->setFixedHeight(38);
@@ -1163,7 +1153,7 @@ QWidget *GlobalSettingsWidget::buildAdvancedCard(QWidget *parent)
         QStringLiteral("追加到 Minecraft 启动参数末尾。"), m_gameArgs, card));
     layout->addSpacing(12);
 
-    m_preLaunchCommand = new QLineEdit(card);
+    m_preLaunchCommand = new ModernLineEdit(card);
     m_preLaunchCommand->setPlaceholderText(QStringLiteral("启动前执行的命令，可留空"));
     m_preLaunchCommand->setText(m_settings.advanced.preLaunchCommand);
     m_preLaunchCommand->setFixedHeight(38);

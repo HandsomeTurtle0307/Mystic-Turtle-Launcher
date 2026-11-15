@@ -12,6 +12,7 @@
 #include "AccentButton.h"
 #include "IconFactory.h"
 #include "Theme.h"
+#include "ModernInputs.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -220,7 +221,7 @@ QWidget *VersionSettingsDialog::buildContent()
     m_jvmOverride->setChecked(m_settings.overrideJvmArguments);
     jvmLayout->addWidget(m_jvmOverride);
 
-    m_jvmPreset = new QComboBox(jvmCard);
+    m_jvmPreset = new ModernComboBox(jvmCard);
     m_jvmPreset->addItem(QStringLiteral("G1GC"), QStringLiteral("g1gc"));
     m_jvmPreset->addItem(QStringLiteral("ZGC"), QStringLiteral("zgc"));
     m_jvmPreset->addItem(QStringLiteral("自定义"), QStringLiteral("custom"));
@@ -267,7 +268,7 @@ QWidget *VersionSettingsDialog::buildContent()
     auto *javaControlLayout = new QHBoxLayout(javaControl);
     javaControlLayout->setContentsMargins(0, 0, 0, 0);
     javaControlLayout->setSpacing(8);
-    m_javaPath = new QLineEdit(javaControl);
+    m_javaPath = new ModernLineEdit(javaControl);
     m_javaPath->setPlaceholderText(QStringLiteral("自动使用全局 Java 路径"));
     m_javaPath->setText(m_settings.overrideJavaPath
                             ? m_settings.javaPath
@@ -301,7 +302,7 @@ QWidget *VersionSettingsDialog::buildContent()
         QStringLiteral("仅在此版本中启用窗口设置"), windowCard);
     m_windowOverride->setChecked(m_settings.overrideWindowSize);
     windowLayout->addWidget(m_windowOverride);
-    m_windowSize = new QComboBox(windowCard);
+    m_windowSize = new ModernComboBox(windowCard);
     m_windowSize->addItem(QStringLiteral("默认"), QStringLiteral("default"));
     m_windowSize->addItem(QStringLiteral("全屏"), QStringLiteral("fullscreen"));
     m_windowSize->addItem(QStringLiteral("无边框"), QStringLiteral("borderless"));
@@ -332,7 +333,7 @@ QWidget *VersionSettingsDialog::buildContent()
         QStringLiteral("为此版本追加自定义游戏参数"), argsCard);
     m_gameArgsOverride->setChecked(m_settings.overrideGameArgs);
     argsLayout->addWidget(m_gameArgsOverride);
-    m_gameArgs = new QLineEdit(argsCard);
+    m_gameArgs = new ModernLineEdit(argsCard);
     m_gameArgs->setPlaceholderText(QStringLiteral("--width 1920 --height 1080"));
     m_gameArgs->setText(m_settings.overrideGameArgs
                             ? m_settings.gameArgs

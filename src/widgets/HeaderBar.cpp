@@ -192,21 +192,11 @@ void HeaderBar::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     QPainter painter(this);
-    if (Theme::liquidGlassEnabled()) {
-        QLinearGradient glass(0, 0, 0, height());
-        glass.setColorAt(0.0, QColor(255, 255, 255,
-                                     Theme::isDarkMode() ? 13 : 46));
-        glass.setColorAt(0.72, QColor(255, 255, 255,
-                                      Theme::isDarkMode() ? 2 : 12));
-        glass.setColorAt(1.0, QColor(255, 255, 255, 0));
-        painter.fillRect(rect(), glass);
-        QRadialGradient bloom(QPointF(width() * 0.24, -16), qMax(180.0, width() * 0.5));
-        bloom.setColorAt(0.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                     Theme::Accent.blue(), 20));
-        bloom.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                     Theme::Accent.blue(), 0));
-        painter.fillRect(rect(), bloom);
-    }
-    painter.setPen(QPen(QColor(255, 255, 255, Theme::isDarkMode() ? 16 : 26), 1.0));
+    painter.fillRect(rect(), Theme::isDarkMode()
+                                ? QColor(255, 255, 255,
+                                         Theme::liquidGlassEnabled() ? 3 : 2)
+                                : QColor(255, 255, 255, 150));
+    painter.setPen(QPen(Theme::isDarkMode() ? QColor(255, 255, 255, 14)
+                                           : QColor(23, 36, 58, 26), 1.0));
     painter.drawLine(QPointF(0, height() - 0.5), QPointF(width(), height() - 0.5));
 }

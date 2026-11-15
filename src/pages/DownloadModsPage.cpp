@@ -22,6 +22,8 @@
 #include "minecraft/VersionManifest.h"
 #include "network/DownloadTask.h"
 #include "settings/GlobalSettings.h"
+#include "ModernInputs.h"
+#include "ModernSelectionDialog.h"
 
 #include <QComboBox>
 #include <QDateTime>
@@ -34,7 +36,6 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QImageReader>
-#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -636,10 +637,10 @@ void requestProjectVersions(const QString &projectId,
                             int selectedIndex = 0;
                             if (choices.size() > 1) {
                                 bool accepted = false;
-                                const QString selected = QInputDialog::getItem(
+                                const QString selected = ModernSelectionDialog::getItem(
                                     dialog, QStringLiteral("选择安装版本"),
                                     QStringLiteral("请选择资源安装到的本地版本："),
-                                    choices, 0, false, &accepted);
+                                    choices, 0, &accepted);
                                 if (!accepted) {
                                     return;
                                 }
@@ -900,19 +901,11 @@ DownloadModsPage::DownloadModsPage(const QString &projectType,
                                          14, QFont::DemiBold,
                                          Theme::TextPrimary, filterCard));
 
-    m_nameEdit = new QLineEdit(filterCard);
+    m_nameEdit = new ModernLineEdit(filterCard);
     m_nameEdit->setPlaceholderText(QStringLiteral("输入%1名称或关键词")
                                         .arg(m_categoryName));
     m_nameEdit->setClearButtonEnabled(true);
     m_nameEdit->setFixedHeight(40);
-    m_nameEdit->setStyleSheet(QStringLiteral(
-        "QLineEdit { background: transparent; border: 1px solid %1; border-radius: 9px;"
-        "padding: 6px 10px; color: %2; }"
-        "QLineEdit:hover { background: rgba(255,255,255,8); border-color: %3; }"
-        "QLineEdit:focus { background: transparent; border-color: %4; }")
-        .arg(Theme::Border.name(), Theme::TextPrimary.name(),
-             QColor(255, 255, 255, 64).name(QColor::HexArgb),
-             Theme::Accent.name()));
 
     m_gameVersionCombo = new AnimatedComboBox(filterCard);
     m_gameVersionCombo->setEditable(true);
@@ -929,22 +922,13 @@ DownloadModsPage::DownloadModsPage(const QString &projectType,
     m_loaderCombo->addItem(QStringLiteral("LiteLoader"), QStringLiteral("liteloader"));
     m_loaderCombo->setFixedHeight(40);
 
-    const QString comboStyle = QStringLiteral(
-        "QComboBox { background: transparent; border: 1px solid %1; border-radius: 9px;"
-        "padding: 6px 10px; color: %2; }"
-        "QComboBox:hover { background: rgba(255,255,255,8); border-color: %3; }"
-        "QComboBox:focus { background: transparent; border-color: %4; }"
-        "QComboBox QAbstractItemView { background: %5; color: %2; border: 1px solid %1;"
-        "selection-background-color: %6; selection-color: %2; outline: 0; }")
-        .arg(Theme::Border.name(), Theme::TextPrimary.name(),
-             QColor(255, 255, 255, 64).name(QColor::HexArgb),
-             Theme::Accent.name(), Theme::SurfaceRaised.name(),
-             QColor(Theme::Accent.red(), Theme::Accent.green(), Theme::Accent.blue(), 56)
-                 .name(QColor::HexArgb));
-    m_gameVersionCombo->setStyleSheet(comboStyle);
-    m_gameVersionCombo->lineEdit()->setStyleSheet(
-        QStringLiteral("QLineEdit { background: transparent; border: none; padding: 0; }"));
-    m_loaderCombo->setStyleSheet(comboStyle);
+    // The editable combo owns an internal line edit; keep it transparent so the
+    // modern combo background and animated border remain visible.
+    if (m_gameVersionCombo->lineEdit()) {
+        m_gameVersionCombo->lineEdit()->setStyleSheet(
+            QStringLiteral("QLineEdit { background: transparent; border: none;"
+                           "padding: 0 0 0 10px; }"));
+    }
 
     auto *firstRow = new QHBoxLayout();
     firstRow->setContentsMargins(0, 0, 0, 0);

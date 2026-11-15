@@ -175,6 +175,30 @@ QString controlStyleSheet()
                 border: 1px solid rgba(255, 255, 255, 28);
                 selection-background-color: #24364D;
             }
+            QSpinBox {
+                color: #EAF1F7;
+                background-color: rgba(255, 255, 255, 9);
+                border: 1px solid rgba(255, 255, 255, 24);
+                border-radius: 9px;
+                padding: 6px 10px;
+            }
+            QSpinBox:hover { border-color: rgba(255, 255, 255, 42); }
+            QSpinBox:focus { border-color: #6EE7B7; background-color: rgba(255, 255, 255, 14); }
+            QSpinBox::up-button, QSpinBox::down-button {
+                width: 17px; border: none; background: transparent;
+            }
+            QSpinBox::up-arrow {
+                width: 0; height: 0;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-bottom: 5px solid #A4B1B9;
+            }
+            QSpinBox::down-arrow {
+                width: 0; height: 0;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid #A4B1B9;
+            }
             QScrollArea { border: none; background: transparent; }
             QScrollArea > QWidget > QWidget { background: transparent; }
             QScrollBar:vertical {
@@ -267,6 +291,31 @@ QString controlStyleSheet()
             border: 1px solid #D7E3F2;
             selection-background-color: #E8F2FF;
             selection-color: #1E6FE0;
+        }
+
+        QSpinBox {
+            color: #17243A;
+            background-color: #FFFFFF;
+            border: 1px solid #D7E3F2;
+            border-radius: 9px;
+            padding: 6px 10px;
+        }
+        QSpinBox:hover { border-color: #B9CCE3; }
+        QSpinBox:focus { border-color: #2F80ED; }
+        QSpinBox::up-button, QSpinBox::down-button {
+            width: 17px; border: none; background: transparent;
+        }
+        QSpinBox::up-arrow {
+            width: 0; height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 5px solid #6B7C8F;
+        }
+        QSpinBox::down-arrow {
+            width: 0; height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid #6B7C8F;
         }
 
         QScrollArea {

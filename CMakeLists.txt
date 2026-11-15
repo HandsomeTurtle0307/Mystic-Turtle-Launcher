@@ -87,6 +87,10 @@ set(MYSTIC_TURTLE_SOURCES
     src/widgets/HeaderBar.h
     src/widgets/LogoMark.cpp
     src/widgets/LogoMark.h
+    src/widgets/ModernInputs.cpp
+    src/widgets/ModernInputs.h
+    src/widgets/ModernSelectionDialog.cpp
+    src/widgets/ModernSelectionDialog.h
     src/widgets/LoadingIndicator.cpp
     src/widgets/LoadingIndicator.h
     src/widgets/ModsDrawer.cpp

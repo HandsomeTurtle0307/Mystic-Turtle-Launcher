@@ -14,12 +14,13 @@
 #include "IconFactory.h"
 #include "LoadingIndicator.h"
 #include "Theme.h"
+#include "ModernInputs.h"
+#include "ModernSelectionDialog.h"
 
 #include <QFileInfo>
 #include <QFrame>
 #include <QDir>
 #include <QHBoxLayout>
-#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -282,18 +283,11 @@ void LoaderSetupView::buildUi()
     auto *versionText = new QVBoxLayout();
     versionText->setContentsMargins(0, 0, 0, 0);
     versionText->setSpacing(2);
-    m_versionNameEdit = new QLineEdit(m_gameVersion, versionCard);
+    m_versionNameEdit = new ModernLineEdit(m_gameVersion, versionCard);
     m_versionNameEdit->setMaxLength(64);
     m_versionNameEdit->setPlaceholderText(QStringLiteral("输入版本显示名称"));
-    m_versionNameEdit->setFont(Theme::font(17, QFont::DemiBold));
-    m_versionNameEdit->setFixedHeight(34);
-    m_versionNameEdit->setStyleSheet(QStringLiteral(
-        "QLineEdit { background: rgba(255, 255, 255, 7);"
-        "border: 1px solid rgba(255, 255, 255, 22); border-radius: 8px;"
-        "padding: 4px 10px; color: #F3F8F4; }"
-        "QLineEdit:hover { border-color: rgba(255, 255, 255, 38); }"
-        "QLineEdit:focus { border-color: %1; background: rgba(110, 231, 183, 8); }")
-        .arg(Theme::Accent.name()));
+    m_versionNameEdit->setFont(Theme::font(15, QFont::DemiBold));
+    m_versionNameEdit->setFixedHeight(36);
     versionText->addWidget(m_versionNameEdit);
     versionText->addWidget(Theme::label(QStringLiteral("选择加载器版本，开始下载时获取对应文件。"),
                                         10, QFont::Normal, Theme::TextMuted, versionCard));
@@ -805,9 +799,9 @@ void LoaderSetupView::chooseLoader(const QString &loader)
     }
 
     bool ok = false;
-    const QString selected = QInputDialog::getItem(
+    const QString selected = ModernSelectionDialog::getItem(
         this, QStringLiteral("选择 %1 版本").arg(loader),
-        QStringLiteral("版本"), labels, currentIndex, false, &ok);
+        QStringLiteral("版本"), labels, currentIndex, &ok);
     if (!ok || selected.isEmpty()) {
         return;
     }
@@ -846,9 +840,9 @@ void LoaderSetupView::chooseFabricApi()
     }
 
     bool ok = false;
-    const QString selected = QInputDialog::getItem(
+    const QString selected = ModernSelectionDialog::getItem(
         this, QStringLiteral("选择 Fabric API 版本"), QStringLiteral("Fabric API"),
-        labels, currentIndex, false, &ok);
+        labels, currentIndex, &ok);
     if (!ok || selected.isEmpty()) {
         return;
     }

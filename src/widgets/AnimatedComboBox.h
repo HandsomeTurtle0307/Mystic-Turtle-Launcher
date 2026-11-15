@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <QComboBox>
+#include "ModernInputs.h"
+
 #include <QPointer>
 
 class QPropertyAnimation;
 
-class AnimatedComboBox : public QComboBox
+class AnimatedComboBox : public ModernComboBox
 {
 public:
     explicit AnimatedComboBox(QWidget *parent = nullptr);

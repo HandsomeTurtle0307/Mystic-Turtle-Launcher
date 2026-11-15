@@ -92,15 +92,16 @@ QString resolveTunaJavaArchive(int majorVersion, const QString &architecture)
     const QRegularExpression versionRegex(
         QStringLiteral("_(\\d+(?:\\.\\d+)+)_(\\d+)\\.zip$"));
     QString bestFile;
+    QString lastZipFile;
     QVersionNumber bestVersion;
     QRegularExpressionMatchIterator matches = hrefRegex.globalMatch(page);
     while (matches.hasNext()) {
         const QString file = QFileInfo(matches.next().captured(1)).fileName();
+        if (file.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive)) {
+            lastZipFile = file;
+        }
         const QRegularExpressionMatch versionMatch = versionRegex.match(file);
         if (!versionMatch.hasMatch()) {
-            if (bestFile.isEmpty()) {
-                bestFile = file;
-            }
             continue;
         }
         const QVersionNumber version =
@@ -110,6 +111,9 @@ QString resolveTunaJavaArchive(int majorVersion, const QString &architecture)
             bestFile = file;
             bestVersion = version;
         }
+    }
+    if (bestVersion.isNull()) {
+        bestFile = lastZipFile;
     }
     if (bestFile.isEmpty()) {
         return QString();

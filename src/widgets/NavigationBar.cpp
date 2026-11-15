@@ -261,75 +261,30 @@ void NavigationBar::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const QRectF bounds = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    const qreal radius = height() / 2.0;
-    QPainterPath capsule;
-    capsule.addRoundedRect(bounds, radius, radius);
+    const qreal radius = qMin(12.0, height() / 2.0);
 
-    painter.save();
-    painter.setClipPath(capsule);
-
+    // Single flat surface with a quiet border; no glass or spotlight layers.
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(255, 255, 255, Theme::isDarkMode() ? 9 : 34));
+    painter.setBrush(Theme::isDarkMode()
+                         ? QColor(255, 255, 255,
+                                  Theme::liquidGlassEnabled() ? 6 : 4)
+                         : QColor(255, 255, 255, 224));
     painter.drawRoundedRect(bounds, radius, radius);
-
-    if (Theme::liquidGlassEnabled()) {
-        QLinearGradient glass(bounds.topLeft(), bounds.bottomLeft());
-        glass.setColorAt(0.0, QColor(255, 255, 255,
-                                     Theme::isDarkMode() ? 20 : 54));
-        glass.setColorAt(0.44, QColor(255, 255, 255,
-                                      Theme::isDarkMode() ? 4 : 18));
-        glass.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                     Theme::Accent.blue(),
-                                     Theme::isDarkMode() ? 12 : 20));
-        painter.fillRect(bounds, glass);
-
-        QRadialGradient bloom(QPointF(width() * 0.26, -10.0),
-                              qMax(100.0, width() * 0.52));
-        bloom.setColorAt(0.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                     Theme::Accent.blue(), 26));
-        bloom.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                     Theme::Accent.blue(), 0));
-        painter.fillRect(bounds, bloom);
-
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255,
-                                   Theme::isDarkMode() ? 34 : 82), 1.0));
-        painter.drawLine(QPointF(bounds.left() + radius, bounds.top() + 1.1),
-                         QPointF(bounds.right() - radius, bounds.top() + 1.1));
-    }
-
-    if (Theme::buttonSpotlightEnabled() && m_spotlightProgress > 0.001) {
-        const qreal lightRadius = qMax(100.0, width() * 0.78);
-        QRadialGradient light(m_spotlightPosition, lightRadius);
-        light.setColorAt(0.0, QColor(255, 255, 255,
-                                     static_cast<int>(38 * m_spotlightProgress)));
-        light.setColorAt(0.35, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                      Theme::Accent.blue(),
-                                      static_cast<int>(18 * m_spotlightProgress)));
-        light.setColorAt(0.7, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                     Theme::Accent.blue(),
-                                     static_cast<int>(5 * m_spotlightProgress)));
-        light.setColorAt(1.0, QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                     Theme::Accent.blue(), 0));
-        painter.setPen(Qt::NoPen);
-        painter.fillRect(bounds, light);
-    }
-    painter.restore();
-
-    if (m_indicatorInitialized && m_indicatorRect.isValid() && m_indicatorRect.width() > 0) {
-        const QRectF pill = m_indicatorRect.adjusted(1.0, 1.0, -1.0, -1.0);
-        QColor pillColor = Theme::Accent;
-        pillColor.setAlpha(224);
-        painter.setBrush(pillColor);
-        painter.setPen(QPen(QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                   Theme::Accent.blue(), 242), 1.0));
-        painter.drawRoundedRect(pill, height() / 2.0 - 2.0, height() / 2.0 - 2.0);
-    }
 
     painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(QColor(255, 255, 255,
-                               Theme::isDarkMode() ? 28 : 78), 1.0));
+    painter.setPen(QPen(Theme::isDarkMode() ? QColor(255, 255, 255, 18)
+                                           : QColor(23, 36, 58, 34), 1.0));
     painter.drawRoundedRect(bounds, radius, radius);
+
+    if (m_indicatorInitialized && m_indicatorRect.isValid()
+        && m_indicatorRect.width() > 0) {
+        const QRectF pill = m_indicatorRect.adjusted(1.0, 1.0, -1.0, -1.0);
+        QColor pillColor = Theme::Accent;
+        pillColor.setAlpha(230);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(pillColor);
+        painter.drawRoundedRect(pill, 8.0, 8.0);
+    }
 }
 
 void NavigationBar::resizeEvent(QResizeEvent *event)

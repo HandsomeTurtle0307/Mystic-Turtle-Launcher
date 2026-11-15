@@ -199,7 +199,7 @@ void DonationPage::paintEvent(QPaintEvent *event)
         const qreal radius = qMax(width(), height()) * (0.38 + pulse * 0.12);
         QRadialGradient gradient(center, radius);
         QColor core = color;
-        core.setAlphaF(m_animationsEnabled ? 0.14 + pulse * 0.10 : 0.17);
+        core.setAlphaF(m_animationsEnabled ? 0.045 + pulse * 0.035 : 0.06);
         gradient.setColorAt(0.0, core);
         QColor edge = color;
         edge.setAlpha(0);
@@ -220,11 +220,11 @@ void DonationPage::paintEvent(QPaintEvent *event)
         const qreal x = width() * (0.5 + 0.47 * qCos(orbit));
         const qreal y = height() * (0.5 + 0.43 * qSin(orbit));
         const qreal twinkle = 0.5 + 0.5 * qSin(orbit * 2.0 + index);
-        const qreal radius = 1.4 + twinkle * 2.2;
+        const qreal radius = 1.0 + twinkle * 1.2;
         QColor particle = index % 2 == 0 ? Theme::Blue : Theme::Accent;
         particle.setAlpha(m_animationsEnabled
-                              ? qRound(45 + twinkle * 110)
-                              : 72);
+                              ? qRound(18 + twinkle * 38)
+                              : 30);
         painter.setBrush(particle);
         painter.drawEllipse(QPointF(x, y), radius, radius);
     }

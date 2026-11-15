@@ -15,6 +15,7 @@
 #include "CardWidget.h"
 #include "IconFactory.h"
 #include "Theme.h"
+#include "ModernInputs.h"
 
 #include <QClipboard>
 #include <QCoreApplication>
@@ -100,23 +101,6 @@ MultiplayerPage::MultiplayerPage(QWidget *parent)
     setAttribute(Qt::WA_NoSystemBackground);
     setAutoFillBackground(false);
     setStyleSheet(QStringLiteral(
-        "QLineEdit#p2pInput {"
-        "  background: rgba(255, 255, 255, 5);"
-        "  border: none;"
-        "  border-bottom: 1px solid rgba(255, 255, 255, 28);"
-        "  border-radius: 0;"
-        "  padding: 8px 4px;"
-        "  color: #F4F8F6;"
-        "  selection-background-color: rgba(96, 165, 250, 120);"
-        "}"
-        "QLineEdit#p2pInput:hover {"
-        "  border-bottom-color: rgba(255, 255, 255, 48);"
-        "  background: rgba(255, 255, 255, 8);"
-        "}"
-        "QLineEdit#p2pInput:focus {"
-        "  border-bottom-color: #60A5FA;"
-        "  background: rgba(96, 165, 250, 10);"
-        "}"
         "QPlainTextEdit#p2pLog {"
         "  background: transparent;"
         "  border: none;"
@@ -242,7 +226,7 @@ QLineEdit *MultiplayerPage::makeInput(const QString &placeholder,
                                       const QString &text,
                                       QWidget *parent)
 {
-    auto *input = new QLineEdit(text, parent);
+    auto *input = new ModernLineEdit(text, parent);
     input->setObjectName(QStringLiteral("p2pInput"));
     input->setPlaceholderText(placeholder);
     input->setFixedHeight(34);

@@ -255,58 +255,58 @@ void AccentButton::paintEvent(QPaintEvent *event)
     Q_UNUSED(event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    const qreal scale = 1.0 - 0.045 * m_pressProgress;
+    const qreal scale = 1.0 - 0.02 * m_pressProgress;
     painter.translate(width() / 2.0, height() / 2.0);
     painter.scale(scale, scale);
     painter.translate(-width() / 2.0, -height() / 2.0);
 
-    const qreal radius = m_compact ? height() / 2.0 : 10.0;
+    const qreal radius = m_compact ? height() / 2.0 : 9.0;
     const QRectF buttonRect = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
     const bool checked = isChecked();
     const bool enabled = isEnabled();
-    const qreal hover = enabled ? m_hoverProgress : 0.0;
+    const qreal hover = enabled ? qBound(0.0, m_hoverProgress, 1.0) : 0.0;
 
-    QColor background;
-    QColor border;
-    QColor foreground;
+    QColor background = Qt::transparent;
+    QColor border = Qt::transparent;
+    QColor foreground = Theme::TextPrimary;
 
     switch (m_variant) {
     case Variant::Primary:
-        background = mix(m_accent, Theme::AccentStrong, 0.22 + 0.15 * hover);
-        border = QColor(0, 0, 0, 0);
-        foreground = Theme::isDarkMode() ? QColor(QStringLiteral("#06120E"))
+        background = mix(m_accent, Qt::white, 0.06 * hover);
+        foreground = Theme::isDarkMode() ? QColor(QStringLiteral("#07110C"))
                                          : QColor(QStringLiteral("#FFFFFF"));
         break;
     case Variant::Secondary:
         background = checked
-            ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 24)
-            : QColor(0, 0, 0, 0);
-        if (!checked && hover > 0.0) {
-            background = QColor(m_accent.red(), m_accent.green(), m_accent.blue(),
-                                static_cast<int>(18 * hover));
-        }
+            ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 20)
+            : (hover > 0.0
+                   ? QColor(255, 255, 255, Theme::isDarkMode()
+                                                    ? int(8 * hover)
+                                                    : int(28 * hover))
+                   : Qt::transparent);
         border = checked
-            ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 120)
-            : Theme::Border;
-        foreground = checked ? m_accent
-                             : mix(Theme::TextSecondary, Theme::TextPrimary, 0.45 + 0.55 * hover);
+            ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 110)
+            : QColor(255, 255, 255, Theme::isDarkMode() ? 26 : 70);
+        foreground = checked
+            ? m_accent
+            : mix(Theme::TextSecondary, Theme::TextPrimary, 0.42 + 0.58 * hover);
         break;
     case Variant::Ghost:
         background = checked
-            ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 22)
-            : QColor(m_accent.red(), m_accent.green(), m_accent.blue(),
-                     static_cast<int>(12 * hover));
-        border = checked
-            ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 80)
-            : QColor(0, 0, 0, 0);
-        foreground = checked ? m_accent
-                             : mix(Theme::TextSecondary, Theme::TextPrimary, 0.38 + 0.62 * hover);
+            ? QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 18)
+            : QColor(255, 255, 255, Theme::isDarkMode()
+                                            ? int(7 * hover)
+                                            : int(24 * hover));
+        border = Qt::transparent;
+        foreground = checked
+            ? m_accent
+            : mix(Theme::TextSecondary, Theme::TextPrimary, 0.36 + 0.64 * hover);
         break;
     case Variant::Danger:
-        background = QColor(Theme::Danger.red(), Theme::Danger.green(), Theme::Danger.blue(),
-                            static_cast<int>(14 + 20 * hover));
-        border = QColor(Theme::Danger.red(), Theme::Danger.green(), Theme::Danger.blue(),
-                        static_cast<int>(55 + 55 * hover));
+        background = QColor(Theme::Danger.red(), Theme::Danger.green(),
+                            Theme::Danger.blue(), int(12 + 18 * hover));
+        border = QColor(Theme::Danger.red(), Theme::Danger.green(),
+                        Theme::Danger.blue(), int(48 + 42 * hover));
         foreground = Theme::Danger;
         break;
     }
@@ -317,70 +317,21 @@ void AccentButton::paintEvent(QPaintEvent *event)
         foreground = Theme::TextMuted;
     }
 
-    if (m_variant == Variant::Primary && enabled) {
-        QLinearGradient fill(buttonRect.topLeft(), buttonRect.bottomLeft());
-        fill.setColorAt(0.0, mix(background, Qt::white, 0.08));
-        fill.setColorAt(1.0, mix(background, Theme::AccentStrong, 0.16));
-        painter.setBrush(fill);
-    } else {
-        painter.setBrush(background);
-    }
-
+    painter.setBrush(background);
     painter.setPen(QPen(border, 1.0));
     painter.drawRoundedRect(buttonRect, radius, radius);
-
-    if (enabled && hover > 0.01) {
-        QLinearGradient sheen(buttonRect.topLeft(), buttonRect.bottomLeft());
-        sheen.setColorAt(0.0, QColor(255, 255, 255, static_cast<int>(32 * hover)));
-        sheen.setColorAt(0.55, QColor(255, 255, 255, 0));
-        sheen.setColorAt(1.0, QColor(255, 255, 255, 0));
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(sheen);
-        painter.drawRoundedRect(buttonRect.adjusted(1.0, 1.0, -1.0, -1.0),
-                                qMax(1.0, radius - 1.0), qMax(1.0, radius - 1.0));
-
-        QColor glow = m_variant == Variant::Danger ? Theme::Danger : m_accent;
-        glow.setAlphaF(0.22 * hover);
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(glow, 1.0 + 0.8 * hover));
-        painter.drawRoundedRect(buttonRect.adjusted(1.2, 1.2, -1.2, -1.2),
-                                qMax(1.0, radius - 1.2), qMax(1.0, radius - 1.2));
-    }
-
-    if (enabled && Theme::liquidGlassEnabled()) {
-        QLinearGradient glassEdge(buttonRect.topLeft(), buttonRect.bottomLeft());
-        glassEdge.setColorAt(0.0, QColor(255, 255, 255, 22));
-        glassEdge.setColorAt(0.42, QColor(255, 255, 255, 4));
-        glassEdge.setColorAt(1.0, QColor(m_accent.red(), m_accent.green(),
-                                         m_accent.blue(), 12));
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(glassEdge);
-        painter.drawRoundedRect(buttonRect.adjusted(0.8, 0.8, -0.8, -0.8),
-                                qMax(1.0, radius - 0.8), qMax(1.0, radius - 0.8));
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, 24), 0.9));
-        painter.drawLine(QPointF(buttonRect.left() + radius,
-                                 buttonRect.top() + 1.1),
-                         QPointF(buttonRect.right() - radius,
-                                 buttonRect.top() + 1.1));
-    }
 
     if (enabled && Theme::buttonSpotlightEnabled()
         && m_spotlightProgress > 0.001) {
         painter.save();
-        QPainterPath spotlightClip;
-        spotlightClip.addRoundedRect(buttonRect, radius, radius);
-        painter.setClipPath(spotlightClip);
-        const QColor tint = m_variant == Variant::Danger ? Theme::Danger : m_accent;
-        const qreal lightRadius = qMax(64.0, qMax(width(), height()) * 1.15);
-        QRadialGradient light(m_spotlightPosition, lightRadius);
+        QPainterPath clip;
+        clip.addRoundedRect(buttonRect, radius, radius);
+        painter.setClipPath(clip);
+        QRadialGradient light(m_spotlightPosition,
+                              qMax(52.0, qMax(width(), height()) * 0.9));
         light.setColorAt(0.0, QColor(255, 255, 255,
-                                     static_cast<int>(46 * m_spotlightProgress)));
-        light.setColorAt(0.28, QColor(tint.red(), tint.green(), tint.blue(),
-                                      static_cast<int>(22 * m_spotlightProgress)));
-        light.setColorAt(0.62, QColor(tint.red(), tint.green(), tint.blue(),
-                                      static_cast<int>(6 * m_spotlightProgress)));
-        light.setColorAt(1.0, QColor(tint.red(), tint.green(), tint.blue(), 0));
+                                     static_cast<int>(12 * m_spotlightProgress)));
+        light.setColorAt(1.0, QColor(255, 255, 255, 0));
         painter.setPen(Qt::NoPen);
         painter.fillRect(buttonRect, light);
         painter.restore();
@@ -388,9 +339,11 @@ void AccentButton::paintEvent(QPaintEvent *event)
 
     if (hasFocus() && focusPolicy() != Qt::NoFocus) {
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(m_accent.red(), m_accent.green(), m_accent.blue(), 130), 1.2));
-        painter.drawRoundedRect(buttonRect.adjusted(1.8, 1.8, -1.8, -1.8),
-                                qMax(1.0, radius - 1.8), qMax(1.0, radius - 1.8));
+        painter.setPen(QPen(QColor(m_accent.red(), m_accent.green(),
+                                   m_accent.blue(), 150), 1.5));
+        painter.drawRoundedRect(buttonRect.adjusted(2.0, 2.0, -2.0, -2.0),
+                                qMax(1.0, radius - 2.0),
+                                qMax(1.0, radius - 2.0));
     }
 
     const int iconSize = m_compact ? 15 : 16;

@@ -15,13 +15,13 @@
 #include <QPropertyAnimation>
 
 AnimatedComboBox::AnimatedComboBox(QWidget *parent)
-    : QComboBox(parent)
+    : ModernComboBox(parent)
 {
 }
 
 void AnimatedComboBox::showPopup()
 {
-    QComboBox::showPopup();
+    ModernComboBox::showPopup();
     if (!Theme::animationsEnabled() || !view()) {
         return;
     }
@@ -29,12 +29,6 @@ void AnimatedComboBox::showPopup()
     QWidget *popup = view()->window();
     if (!popup || popup == this) {
         return;
-    }
-
-    auto *effect = qobject_cast<QGraphicsOpacityEffect *>(popup->graphicsEffect());
-    if (!effect) {
-        effect = new QGraphicsOpacityEffect(popup);
-        popup->setGraphicsEffect(effect);
     }
 
     if (m_expandAnimation) {
@@ -46,7 +40,7 @@ void AnimatedComboBox::showPopup()
     view()->setMaximumHeight(0);
     auto *expandAnimation = new QPropertyAnimation(view(), "maximumHeight", popup);
     m_expandAnimation = expandAnimation;
-    expandAnimation->setDuration(220);
+    expandAnimation->setDuration(180);
     expandAnimation->setStartValue(0);
     expandAnimation->setEndValue(targetHeight);
     expandAnimation->setEasingCurve(QEasingCurve::OutCubic);
@@ -57,13 +51,6 @@ void AnimatedComboBox::showPopup()
         expandAnimation->deleteLater();
     });
     expandAnimation->start();
-
-    auto *animation = new QPropertyAnimation(effect, "opacity", popup);
-    animation->setDuration(190);
-    animation->setStartValue(0.0);
-    animation->setEndValue(1.0);
-    animation->setEasingCurve(QEasingCurve::OutCubic);
-    animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void AnimatedComboBox::hidePopup()
