@@ -69,9 +69,16 @@ QWidget *settingRow(Icons::Type icon,
     auto *text = new QVBoxLayout();
     text->setContentsMargins(0, 1, 0, 0);
     text->setSpacing(1);
-    text->addWidget(Theme::label(title, 12, QFont::DemiBold, Theme::TextPrimary, row));
+    auto *titleLabel = Theme::label(title, 12, QFont::DemiBold,
+                                    Theme::TextPrimary, row);
+    titleLabel->setWordWrap(true);
+    text->addWidget(titleLabel);
     if (!description.isEmpty()) {
-        text->addWidget(Theme::label(description, 10, QFont::Normal, Theme::TextMuted, row));
+        auto *descriptionLabel = Theme::label(description, 10, QFont::Normal,
+                                              Theme::TextMuted, row);
+        descriptionLabel->setWordWrap(true);
+        descriptionLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        text->addWidget(descriptionLabel);
     }
     layout->addLayout(text, 1);
 
@@ -338,7 +345,8 @@ SettingsPage::SettingsPage(QWidget *parent)
     gameLayout->addSpacing(12);
 
     m_downloadSource = new ModernComboBox(game);
-    m_downloadSource->setMinimumWidth(250);
+    m_downloadSource->setMinimumWidth(210);
+    m_downloadSource->setMaximumWidth(270);
     m_downloadSource->addItem(QStringLiteral("国内镜像（BMCLAPI / Java TUNA）"),
                               QStringLiteral("bmclapi"));
     m_downloadSource->addItem(QStringLiteral("Mojang / Adoptium 官方源"),
