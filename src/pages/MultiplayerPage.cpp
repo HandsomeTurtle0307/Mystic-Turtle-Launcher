@@ -18,9 +18,11 @@
 
 #include <QClipboard>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
 #include <QGuiApplication>
@@ -31,12 +33,14 @@
 #include <QJsonParseError>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QRandomGenerator>
+#include <QSaveFile>
 #include <QScrollArea>
 #include <QStandardPaths>
 #include <QTime>
@@ -45,6 +49,7 @@
 #include <QVBoxLayout>
 
 #include <memory>
+#include <exception>
 
 namespace {
 
@@ -186,6 +191,11 @@ MultiplayerPage::MultiplayerPage(QWidget *parent)
     titleBlock->addWidget(Theme::label(
         QStringLiteral("通过 EasyTier 组建虚拟局域网；创建虚拟网卡需要管理员权限。"),
         9, QFont::Normal, Theme::TextMuted, this));
+    m_easyTierPathLabel = Theme::label(QString(), 8, QFont::Normal,
+                                       Theme::TextMuted, this);
+    m_easyTierPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_easyTierPathLabel->setWordWrap(true);
+    titleBlock->addWidget(m_easyTierPathLabel);
     header->addLayout(titleBlock, 1);
 
     m_connectionState = Theme::label(QStringLiteral("未连接"), 9,
@@ -199,18 +209,7 @@ MultiplayerPage::MultiplayerPage(QWidget *parent)
         .arg(Theme::TextMuted.name()));
     header->addWidget(m_connectionState, 0, Qt::AlignVCenter);
     root->addLayout(header);
-
-    auto *steps = Theme::label(
-        QStringLiteral("① 双方输入相同房间名和密码加入联机   ② 房主进游戏开放局域网   "
-                       "③ 房主复制 IP 和端口发给朋友   ④ 朋友在游戏内“直接连接”粘贴加入"),
-        8, QFont::Normal, Theme::TextMuted, content);
-    steps->setWordWrap(true);
-    steps->setStyleSheet(QStringLiteral(
-        "background: rgba(255, 255, 255, 3);"
-        "border: 1px solid rgba(255, 255, 255, 12);"
-        "border-radius: 9px; padding: 7px 10px; color: %1;")
-        .arg(Theme::TextMuted.name()));
-    root->addWidget(steps);
+    root->addWidget(buildStepGuide());
 
     auto *body = new QHBoxLayout();
     body->setContentsMargins(0, 0, 0, 0);
@@ -220,11 +219,19 @@ MultiplayerPage::MultiplayerPage(QWidget *parent)
     root->addLayout(body, 1);
 
     root->addWidget(buildConsole());
+    updateEasyTierPathLabel();
     appendLog(QStringLiteral("P2P 页面已就绪，等待启动 EasyTier。"));
     appendLog(QStringLiteral("提示：EasyTier 需要管理员权限；首次运行请允许 EasyTier 和 Java 通过防火墙。"));
 }
 
 MultiplayerPage::~MultiplayerPage()
+{
+    if (m_easyTier) {
+        m_easyTier->stop();
+    }
+}
+
+void MultiplayerPage::shutdown()
 {
     if (m_easyTier) {
         m_easyTier->stop();
@@ -501,6 +508,85 @@ QWidget *MultiplayerPage::buildJoinCard()
     return card;
 }
 
+QWidget *MultiplayerPage::buildStepGuide()
+{
+    auto *panel = new QFrame(this);
+    panel->setObjectName(QStringLiteral("p2pStepGuide"));
+    panel->setStyleSheet(QStringLiteral(
+        "QFrame#p2pStepGuide {"
+        "  background: rgba(96, 165, 250, 9);"
+        "  border: 1px solid rgba(96, 165, 250, 52);"
+        "  border-radius: 12px;"
+        "}"));
+    auto *layout = new QHBoxLayout(panel);
+    layout->setContentsMargins(13, 9, 13, 9);
+    layout->setSpacing(8);
+
+    auto *lead = new QVBoxLayout();
+    lead->setContentsMargins(0, 0, 0, 0);
+    lead->setSpacing(1);
+    lead->addWidget(Theme::label(QStringLiteral("P2P 联机四步走"), 10,
+                                 QFont::DemiBold, Theme::Blue, panel));
+    lead->addWidget(Theme::label(QStringLiteral("按顺序操作"), 8,
+                                 QFont::Normal, Theme::TextMuted, panel));
+    layout->addLayout(lead);
+
+    const struct {
+        const char *number;
+        const char *title;
+        const char *description;
+    } steps[] = {
+        {"1", "加入同一房间", "双方输入相同房间名和密码"},
+        {"2", "开放局域网", "房主进入游戏并开放"},
+        {"3", "复制 IP:端口", "房主把连接地址发给朋友"},
+        {"4", "直接连接", "朋友在多人游戏中粘贴加入"}
+    };
+
+    bool first = true;
+    for (const auto &step : steps) {
+        if (!first) {
+            auto *arrow = Theme::label(QStringLiteral("→"), 11, QFont::DemiBold,
+                                       Theme::TextMuted, panel);
+            arrow->setAlignment(Qt::AlignCenter);
+            arrow->setFixedWidth(14);
+            layout->addWidget(arrow);
+        }
+        first = false;
+
+        auto *stepWidget = new QWidget(panel);
+        auto *stepLayout = new QHBoxLayout(stepWidget);
+        stepLayout->setContentsMargins(0, 0, 0, 0);
+        stepLayout->setSpacing(7);
+
+        auto *number = Theme::label(QString::fromLatin1(step.number), 9,
+                                    QFont::DemiBold, Theme::Blue, stepWidget);
+        number->setAlignment(Qt::AlignCenter);
+        number->setFixedSize(22, 22);
+        number->setStyleSheet(QStringLiteral(
+            "background: rgba(96, 165, 250, 20);"
+            "border: 1px solid rgba(96, 165, 250, 66);"
+            "border-radius: 11px; color: %1;")
+            .arg(Theme::Blue.name()));
+        stepLayout->addWidget(number, 0, Qt::AlignTop);
+
+        auto *textLayout = new QVBoxLayout();
+        textLayout->setContentsMargins(0, 0, 0, 0);
+        textLayout->setSpacing(1);
+        textLayout->addWidget(Theme::label(QString::fromUtf8(step.title), 9,
+                                           QFont::DemiBold, Theme::TextPrimary,
+                                           stepWidget));
+        auto *description = Theme::label(QString::fromUtf8(step.description), 8,
+                                         QFont::Normal, Theme::TextMuted,
+                                         stepWidget);
+        description->setWordWrap(true);
+        textLayout->addWidget(description);
+        stepLayout->addLayout(textLayout, 1);
+        layout->addWidget(stepWidget, 1);
+    }
+
+    return panel;
+}
+
 QWidget *MultiplayerPage::buildConsole()
 {
     auto *card = new CardWidget(this);
@@ -522,6 +608,74 @@ QWidget *MultiplayerPage::buildConsole()
                                           Theme::Accent.blue(), 18),
                                    card));
     header->addStretch();
+    auto *checkEasyTier = new AccentButton(QStringLiteral("检查 EasyTier 状态"),
+                                            Icons::Type::Info, card);
+    checkEasyTier->setVariant(AccentButton::Variant::Ghost);
+    checkEasyTier->setCompact(true);
+    checkEasyTier->setToolTip(QStringLiteral("检查 EasyTier 是否已安装并可运行"));
+    connect(checkEasyTier, &QAbstractButton::clicked, this, [this, checkEasyTier]() {
+        const QString directory = QDir(QCoreApplication::applicationDirPath())
+                                      .filePath(QStringLiteral("tools/easytier"));
+        const QString binary = QDir(directory).filePath(
+            QStringLiteral("easytier-core.exe"));
+        if (QFileInfo::exists(binary)) {
+            m_easytierBinaryPath = binary;
+            m_easyTier->setBinaryPath(binary);
+            updateEasyTierPathLabel();
+            setCreateStatus(QStringLiteral("EasyTier 已安装，P2P 联机可用。"));
+            setJoinStatus(QStringLiteral("EasyTier 已安装，P2P 联机可用。"));
+            QMessageBox::information(
+                this, QStringLiteral("EasyTier 状态"),
+                QStringLiteral("EasyTier 已安装，P2P 联机功能可用。\n\n路径：%1\n进程状态：%2")
+                    .arg(QDir::toNativeSeparators(binary),
+                         m_easyTier->isRunning() ? QStringLiteral("运行中")
+                                                  : QStringLiteral("未运行")));
+            return;
+        }
+
+        if (m_ensureInProgress) {
+            appendLog(QStringLiteral("EasyTier 正在自动安装中，请稍候。"));
+            QMessageBox::information(
+                this, QStringLiteral("EasyTier 正在安装"),
+                QStringLiteral("EasyTier 正在自动下载或解压，请稍候。"));
+            return;
+        }
+
+        const auto choice = QMessageBox::question(
+            this, QStringLiteral("未检测到 EasyTier"),
+            QStringLiteral("当前电脑还没有安装 EasyTier。\n\n"
+                           "P2P 联机需要 EasyTier 提供虚拟局域网能力。\n"
+                           "是否现在自动下载并安装 EasyTier？"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+        if (choice != QMessageBox::Yes) {
+            return;
+        }
+
+        checkEasyTier->setEnabled(false);
+        appendLog(QStringLiteral("开始自动安装 EasyTier..."));
+        setCreateStatus(QStringLiteral("正在自动安装 EasyTier，请稍候..."));
+        setJoinStatus(QStringLiteral("正在自动安装 EasyTier，请稍候..."));
+        ensureEasyTier([this, checkEasyTier](bool success) {
+            checkEasyTier->setEnabled(true);
+            if (success) {
+                setCreateStatus(QStringLiteral("EasyTier 安装完成，P2P 联机可用。"));
+                setJoinStatus(QStringLiteral("EasyTier 安装完成，P2P 联机可用。"));
+                QMessageBox::information(
+                    this, QStringLiteral("EasyTier 安装完成"),
+                    QStringLiteral("EasyTier 已自动安装完成，现在可以创建或加入联机房间了。"));
+                return;
+            }
+
+            setConnectionState(QStringLiteral("P2P 不可用"));
+            setCreateStatus(QStringLiteral("EasyTier 安装失败，P2P 联机无法使用。请查看日志。"));
+            setJoinStatus(QStringLiteral("EasyTier 安装失败，P2P 联机无法使用。请查看日志。"));
+            QMessageBox::warning(
+                this, QStringLiteral("EasyTier 安装失败"),
+                QStringLiteral("EasyTier 自动下载或解压失败，P2P 联机功能暂时无法使用。\n"
+                               "请检查网络后重试，或查看底部运行日志。"));
+        });
+    });
+    header->addWidget(checkEasyTier);
     auto *copyInfo = new AccentButton(QStringLiteral("复制联机信息"),
                                       Icons::Type::Info, card);
     copyInfo->setVariant(AccentButton::Variant::Ghost);
@@ -537,6 +691,44 @@ QWidget *MultiplayerPage::buildConsole()
         appendLog(QStringLiteral("已复制联机信息到剪贴板。"));
     });
     header->addWidget(copyInfo);
+    auto *exportLog = new AccentButton(QStringLiteral("导出日志"),
+                                        Icons::Type::Download, card);
+    exportLog->setVariant(AccentButton::Variant::Ghost);
+    exportLog->setCompact(true);
+    exportLog->setToolTip(QStringLiteral("把 EasyTier 运行日志保存到本地文件"));
+    connect(exportLog, &QAbstractButton::clicked, this, [this]() {
+        if (!m_log) {
+            return;
+        }
+        QString directory =
+            QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+        if (directory.isEmpty()) {
+            directory = QDir::homePath();
+        }
+        const QString suggested = QDir(directory).filePath(
+            QStringLiteral("MysticTurtle-P2P-%1.log")
+                .arg(QDateTime::currentDateTime().toString(
+                    QStringLiteral("yyyyMMdd-HHmmss"))));
+        const QString path = QFileDialog::getSaveFileName(
+            this, QStringLiteral("导出 EasyTier 日志"), suggested,
+            QStringLiteral("日志文件 (*.log);;文本文件 (*.txt);;所有文件 (*)"));
+        if (path.isEmpty()) {
+            return;
+        }
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly)) {
+            appendLog(QStringLiteral("导出日志失败：%1").arg(file.errorString()));
+            return;
+        }
+        const QByteArray data = m_log->toPlainText().toUtf8();
+        if (file.write(data) != data.size() || !file.commit()) {
+            appendLog(QStringLiteral("导出日志失败：无法完整写入文件。"));
+            return;
+        }
+        appendLog(QStringLiteral("日志已导出：%1")
+                      .arg(QDir::toNativeSeparators(path)));
+    });
+    header->addWidget(exportLog);
     auto *clear = new AccentButton(QStringLiteral("清空"), Icons::Type::Close, card);
     clear->setVariant(AccentButton::Variant::Ghost);
     clear->setCompact(true);
@@ -567,6 +759,31 @@ void MultiplayerPage::refreshRoomCode()
     }
 }
 
+void MultiplayerPage::updateEasyTierPathLabel()
+{
+    if (!m_easyTierPathLabel) {
+        return;
+    }
+    const QString directory = QDir(QCoreApplication::applicationDirPath())
+                                  .filePath(QStringLiteral("tools/easytier"));
+    const QString binary = QDir(directory).filePath(
+        QStringLiteral("easytier-core.exe"));
+    const QString nativePath = QDir::toNativeSeparators(directory);
+    QString displayPath = nativePath;
+    if (displayPath.size() > 86) {
+        displayPath = displayPath.left(30) + QStringLiteral("…")
+            + displayPath.right(52);
+    }
+    m_easyTierPathLabel->setText(
+        QStringLiteral("EasyTier 安装位置：%1%2")
+            .arg(displayPath,
+                 QFileInfo::exists(binary)
+                     ? QStringLiteral("（已安装）")
+                     : QStringLiteral("（未安装，首次使用自动下载）")));
+    m_easyTierPathLabel->setToolTip(
+        QStringLiteral("EasyTier 安装目录：%1").arg(nativePath));
+}
+
 void MultiplayerPage::setAnimationsEnabled(bool enabled)
 {
     m_animationsEnabled = enabled;
@@ -580,6 +797,7 @@ void MultiplayerPage::setConnectionState(const QString &state)
     const QString text = state.trimmed().isEmpty()
         ? QStringLiteral("未连接") : state.trimmed();
     m_connectionState->setText(text);
+    emit connectionStateChanged(text);
 
     QColor color = Theme::TextMuted;
     QColor background(255, 255, 255, 6);
@@ -765,8 +983,21 @@ void MultiplayerPage::startCreateRoom(const QString &roomName,
                                       const QString &password,
                                       const QString &virtualIp)
 {
-    m_easyTier->setBinaryPath(m_easytierBinaryPath);
-    m_easyTier->startCreate(roomName, password, virtualIp);
+    try {
+        m_easyTier->setBinaryPath(m_easytierBinaryPath);
+        m_easyTier->startCreate(roomName, password, virtualIp);
+    } catch (const std::exception &exception) {
+        const QString message = QStringLiteral("启动 EasyTier 失败：%1")
+                                    .arg(QString::fromLocal8Bit(exception.what()));
+        appendLog(message);
+        resetConnectionUi(QStringLiteral("连接失败"), message,
+                          QStringLiteral("等待操作"));
+    } catch (...) {
+        const QString message = QStringLiteral("启动 EasyTier 失败：未知错误。");
+        appendLog(message);
+        resetConnectionUi(QStringLiteral("连接失败"), message,
+                          QStringLiteral("等待操作"));
+    }
 }
 
 void MultiplayerPage::startJoinRoom(const QString &target)
@@ -779,8 +1010,21 @@ void MultiplayerPage::startJoinRoom(const QString &target)
         password = target.mid(separator + 1).trimmed();
     }
     appendLog(QStringLiteral("加入网络：%1").arg(networkName));
-    m_easyTier->setBinaryPath(m_easytierBinaryPath);
-    m_easyTier->startJoin(networkName, password);
+    try {
+        m_easyTier->setBinaryPath(m_easytierBinaryPath);
+        m_easyTier->startJoin(networkName, password);
+    } catch (const std::exception &exception) {
+        const QString message = QStringLiteral("启动 EasyTier 失败：%1")
+                                    .arg(QString::fromLocal8Bit(exception.what()));
+        appendLog(message);
+        resetConnectionUi(QStringLiteral("连接失败"), QStringLiteral("等待操作"),
+                          message);
+    } catch (...) {
+        const QString message = QStringLiteral("启动 EasyTier 失败：未知错误。");
+        appendLog(message);
+        resetConnectionUi(QStringLiteral("连接失败"), QStringLiteral("等待操作"),
+                          message);
+    }
 }
 
 void MultiplayerPage::ensureEasyTier(std::function<void(bool)> callback)
@@ -792,6 +1036,7 @@ void MultiplayerPage::ensureEasyTier(std::function<void(bool)> callback)
     if (QFileInfo::exists(binary)) {
         m_easytierBinaryPath = binary;
         m_easyTier->setBinaryPath(binary);
+        updateEasyTierPathLabel();
         callback(true);
         return;
     }
@@ -1058,6 +1303,7 @@ void MultiplayerPage::finishEasyTierArchive()
 
     m_easytierBinaryPath = binary;
     m_easyTier->setBinaryPath(binary);
+    updateEasyTierPathLabel();
     QFile::remove(m_easyTierZipPath);
     appendLog(QStringLiteral("EasyTier 已就绪：%1")
                   .arg(QDir::toNativeSeparators(binary)));

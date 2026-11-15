@@ -40,6 +40,7 @@ signals:
 
 private:
     void startWithArguments(const QStringList &arguments);
+    void cleanupOldProcesses();
     void readOutput();
     void handleLine(const QString &line);
     void setState(const QString &state);

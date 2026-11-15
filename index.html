@@ -562,6 +562,37 @@
     line-height: 1.65;
   }
 
+  .feature-wide {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    min-height: 0;
+    padding: 13px 15px;
+  }
+
+  .feature-wide .feature-icon {
+    flex: 0 0 30px;
+  }
+
+  .feature-wide-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .feature-wide h3 {
+    margin: 0 0 3px;
+  }
+
+  .feature-wide p {
+    max-width: 760px;
+  }
+
+  .feature-wide .feature-number {
+    flex: 0 0 auto;
+    align-self: flex-start;
+  }
+
   /* Built-in P2P multiplayer */
 
   .p2p-panel {
@@ -1101,6 +1132,17 @@
           </div>
           <h3>轻量原生</h3>
           <p>Qt6 + C++17 构建，不依赖 Electron，启动器本身保持轻量。</p>
+        </article>
+
+        <article class="feature feature-wide">
+          <div class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8"></path><path d="M12 17v4"></path><path d="M15.5 9.5h.01"></path></svg>
+          </div>
+          <div class="feature-wide-copy">
+            <h3>后台常驻</h3>
+            <p>关闭主界面后隐藏到系统托盘继续运行，P2P 联机不会中断；连接状态变化会弹出托盘气泡，双击图标即可回到启动器。</p>
+          </div>
+          <span class="feature-number">[ 09 ]</span>
         </article>
       </div>
 

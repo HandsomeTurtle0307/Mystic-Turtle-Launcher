@@ -1,4 +1,4 @@
-﻿/*
+/*
  * SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (C) 2026 HandsomeTurtle0307
  *
@@ -33,12 +33,14 @@ public:
     ~MultiplayerPage() override;
 
     void setAnimationsEnabled(bool enabled);
+    void shutdown();
 
 signals:
     void createRoomRequested(const QString &roomName,
                              const QString &password,
                              const QString &virtualIp);
     void joinRoomRequested(const QString &roomCodeOrIp);
+    void connectionStateChanged(const QString &state);
 
 public slots:
     void setConnectionState(const QString &state);
@@ -49,6 +51,7 @@ public slots:
 
 private:
     void refreshRoomCode();
+    void updateEasyTierPathLabel();
     void ensureEasyTier(std::function<void(bool)> callback);
     void startEasyTierDownload();
     void finishEasyTierArchive();
@@ -64,6 +67,7 @@ private:
                          QWidget *parent);
     QWidget *buildCreateCard();
     QWidget *buildJoinCard();
+    QWidget *buildStepGuide();
     QWidget *buildConsole();
 
     QLabel *m_connectionState = nullptr;
@@ -76,6 +80,7 @@ private:
     QLabel *m_createStatus = nullptr;
     QLabel *m_joinStatus = nullptr;
     QLabel *m_createHint = nullptr;
+    QLabel *m_easyTierPathLabel = nullptr;
     QPlainTextEdit *m_log = nullptr;
     QTimer *m_connectTimeout = nullptr;
     AccentButton *m_createButton = nullptr;

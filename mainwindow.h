@@ -11,6 +11,7 @@
 
 #include <QPointer>
 #include <QImage>
+#include <QIcon>
 #include <QRect>
 #include <QString>
 #include <QWidget>
@@ -23,6 +24,10 @@ class HomePage;
 class MorePage;
 class ModsDrawer;
 class MultiplayerPage;
+class QAction;
+class QCloseEvent;
+class QMenu;
+class QSystemTrayIcon;
 class QDialog;
 class QGraphicsOpacityEffect;
 class QLabel;
@@ -46,10 +51,16 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
 
 private:
     void setupUi();
+    void setupSystemTray();
+    void showMainWindow();
+    void quitApplication();
+    void updateTrayP2PState(const QString &state);
+    void setTrayConnectedIcon(bool connected);
     void navigateTo(int index);
     void animatePageTo(int index);
     void stopPageTransition();
@@ -83,6 +94,14 @@ private:
 
     QPointer<ModsDrawer> m_drawer;
     QPointer<QDialog> m_launchProgress;
+    QSystemTrayIcon *m_trayIcon = nullptr;
+    QMenu *m_trayMenu = nullptr;
+    QAction *m_trayStatusAction = nullptr;
+    QIcon m_trayBaseIcon;
+    bool m_quitRequested = false;
+    bool m_trayHintShown = false;
+    bool m_trayConnected = false;
+    int m_traySetupAttempts = 0;
     QTimer *m_gameWindowTimer = nullptr;
     QTimer *m_gameExitTimer = nullptr;
     qint64 m_launchPid = 0;

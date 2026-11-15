@@ -12,9 +12,14 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QOverload>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QStandardPaths>
 #include <QTimer>
+#include <QByteArray>
+
+#include <exception>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -34,6 +39,23 @@ QString normalizedVirtualIp(const QString &value)
         ip += QStringLiteral("/24");
     }
     return ip;
+}
+
+QString encodedNetworkName(const QString &name)
+{
+    bool hasNonAscii = false;
+    for (const QChar character : name) {
+        if (character.unicode() > 0x7F) {
+            hasNonAscii = true;
+            break;
+        }
+    }
+    if (!hasNonAscii) {
+        return name;
+    }
+    const QByteArray bytes = name.toUtf8().toBase64(
+        QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+    return QStringLiteral("mt-") + QString::fromLatin1(bytes);
 }
 
 } // namespace
@@ -160,8 +182,13 @@ void EasyTierProcess::startCreate(const QString &roomName,
                                   const QString &virtualIp)
 {
     m_localVirtualIp = normalizedVirtualIp(virtualIp).section(QLatin1Char('/'), 0, 0);
+    const QString networkName = encodedNetworkName(roomName);
+    if (networkName != roomName) {
+        emit logLine(QStringLiteral(
+            "房间名包含非 ASCII 字符，已使用 Base64 URL-safe 编码传给 EasyTier。"));
+    }
     QStringList arguments;
-    arguments << QStringLiteral("--network-name") << roomName
+    arguments << QStringLiteral("--network-name") << networkName
               << QStringLiteral("--network-secret") << password
               << QStringLiteral("-i") << normalizedVirtualIp(virtualIp)
               << QStringLiteral("-p") << QString::fromLatin1(kPublicPeer);
@@ -172,12 +199,67 @@ void EasyTierProcess::startJoin(const QString &networkName,
                                 const QString &password)
 {
     m_localVirtualIp.clear();
+    const QString encodedName = encodedNetworkName(networkName);
+    if (encodedName != networkName) {
+        emit logLine(QStringLiteral(
+            "房间名包含非 ASCII 字符，已使用 Base64 URL-safe 编码传给 EasyTier。"));
+    }
     QStringList arguments;
-    arguments << QStringLiteral("--network-name") << networkName
+    arguments << QStringLiteral("--network-name") << encodedName
               << QStringLiteral("--network-secret") << password
               << QStringLiteral("-d")
               << QStringLiteral("-p") << QString::fromLatin1(kPublicPeer);
     startWithArguments(arguments);
+}
+
+void EasyTierProcess::cleanupOldProcesses()
+{
+#ifdef Q_OS_WIN
+    emit logLine(QStringLiteral("正在强制清理旧的 EasyTier 进程..."));
+    try {
+        QString taskkill = QStandardPaths::findExecutable(QStringLiteral("taskkill.exe"));
+        if (taskkill.isEmpty()) {
+            taskkill = QStringLiteral("taskkill.exe");
+        }
+        QProcess process;
+        process.setProgram(taskkill);
+        process.setArguments({QStringLiteral("/F"),
+                              QStringLiteral("/IM"),
+                              QStringLiteral("easytier-core.exe")});
+        process.setProcessChannelMode(QProcess::MergedChannels);
+        process.start();
+        if (!process.waitForStarted(2000)) {
+            emit logLine(QStringLiteral("无法启动 taskkill，跳过旧进程清理。"));
+            return;
+        }
+        if (!process.waitForFinished(5000)) {
+            process.kill();
+            process.waitForFinished(1000);
+            emit logLine(QStringLiteral("清理 EasyTier 旧进程超时，继续尝试启动。"));
+            return;
+        }
+
+        const QString output = QString::fromLocal8Bit(process.readAll()).trimmed();
+        if (process.exitCode() == 0) {
+            emit logLine(QStringLiteral("已强制结束残留的 EasyTier 进程。"));
+        } else if (output.contains(QStringLiteral("not found"), Qt::CaseInsensitive)
+                   || output.contains(QStringLiteral("没有运行"))
+                   || output.contains(QStringLiteral("找不到"))) {
+            emit logLine(QStringLiteral("没有发现需要清理的 EasyTier 旧进程。"));
+        } else {
+            emit logLine(QStringLiteral("EasyTier 旧进程清理返回代码 %1：%2")
+                             .arg(process.exitCode())
+                             .arg(output));
+        }
+    } catch (const std::exception &exception) {
+        emit logLine(QStringLiteral("清理 EasyTier 旧进程时出错：%1")
+                         .arg(QString::fromLocal8Bit(exception.what())));
+    } catch (...) {
+        emit logLine(QStringLiteral("清理 EasyTier 旧进程时发生未知错误，继续尝试启动。"));
+    }
+#else
+    emit logLine(QStringLiteral("当前平台不使用 taskkill 清理 EasyTier。"));
+#endif
 }
 
 void EasyTierProcess::startWithArguments(const QStringList &arguments)
@@ -202,13 +284,35 @@ void EasyTierProcess::startWithArguments(const QStringList &arguments)
         emit logLine(QStringLiteral(
             "未找到 easytier-cli.exe，无法查询真实对端节点；将暂时使用日志状态判断。"));
     }
-    m_process.setWorkingDirectory(QFileInfo(m_binaryPath).absolutePath());
-    m_process.setProgram(m_binaryPath);
-    m_process.setArguments(arguments);
-    emit logLine(QStringLiteral("启动 EasyTier：%1 %2")
-                     .arg(QFileInfo(m_binaryPath).fileName(),
-                          arguments.join(QLatin1Char(' '))));
-    m_process.start();
+
+    try {
+        cleanupOldProcesses();
+
+        m_process.setWorkingDirectory(QFileInfo(m_binaryPath).absolutePath());
+        m_process.setProgram(m_binaryPath);
+
+        QStringList finalArguments = arguments;
+        const int listenPort = QRandomGenerator::global()->bounded(20000, 60001);
+        finalArguments << QStringLiteral("-l") << QString::number(listenPort);
+        emit logLine(QStringLiteral("EasyTier 本地监听端口：%1").arg(listenPort));
+
+        m_process.setArguments(finalArguments);
+        emit logLine(QStringLiteral("启动 EasyTier：%1 %2")
+                         .arg(QFileInfo(m_binaryPath).fileName(),
+                              finalArguments.join(QLatin1Char(' '))));
+        m_process.start();
+    } catch (const std::exception &exception) {
+        const QString message = QStringLiteral("启动 EasyTier 时出错：%1")
+                                    .arg(QString::fromLocal8Bit(exception.what()));
+        emit logLine(message);
+        emit errorOccurred(message);
+        setState(QStringLiteral("error"));
+    } catch (...) {
+        const QString message = QStringLiteral("启动 EasyTier 时发生未知错误。");
+        emit logLine(message);
+        emit errorOccurred(message);
+        setState(QStringLiteral("error"));
+    }
 }
 
 void EasyTierProcess::stop()
