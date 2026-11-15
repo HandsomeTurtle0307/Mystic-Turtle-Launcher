@@ -35,9 +35,7 @@
 #include "settings/VersionSettings.h"
 
 #include <QAbstractAnimation>
-#include <QAction>
 #include <QApplication>
-#include <QCloseEvent>
 #include <QDialog>
 #include <QDir>
 #include <QEnterEvent>
@@ -52,12 +50,10 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLinearGradient>
-#include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
-#include <QPixmap>
 #include <QPointer>
 #include <QProcess>
 #include <QPushButton>
@@ -70,7 +66,6 @@
 #include <QShortcut>
 #include <QShowEvent>
 #include <QStringList>
-#include <QSystemTrayIcon>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -415,7 +410,6 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     setupUi();
-    setupSystemTray();
     updateWindowChrome();
     if (!backgroundImage.isEmpty() && m_backgroundImage.isNull()) {
         showToast(QStringLiteral("无法加载已保存的背景图片，请重新选择或清除。"));
@@ -426,176 +420,7 @@ MainWindow::MainWindow(QWidget *parent)
     });
 }
 
-MainWindow::~MainWindow()
-{
-    if (m_trayIcon) {
-        m_trayIcon->hide();
-    }
-}
-
-void MainWindow::setupSystemTray()
-{
-    if (m_trayIcon) {
-        return;
-    }
-    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-        // Explorer may still be starting when the launcher is opened at login.
-        if (m_traySetupAttempts++ < 10) {
-            QTimer::singleShot(1000, this, &MainWindow::setupSystemTray);
-        }
-        return;
-    }
-
-    m_trayBaseIcon = LogoMark::appIcon();
-    if (m_trayBaseIcon.isNull()) {
-        return;
-    }
-
-    m_trayIcon = new QSystemTrayIcon(m_trayBaseIcon, this);
-    m_trayIcon->setToolTip(QStringLiteral("MysticTurtle\nP2P 联机：未连接"));
-
-    m_trayMenu = new QMenu(this);
-    QAction *showAction = m_trayMenu->addAction(QStringLiteral("显示主界面"));
-    connect(showAction, &QAction::triggered, this, &MainWindow::showMainWindow);
-
-    m_trayStatusAction = m_trayMenu->addAction(
-        QStringLiteral("P2P 联机状态：未连接"));
-    connect(m_trayStatusAction, &QAction::triggered, this, [this]() {
-        showMainWindow();
-        navigateTo(3);
-    });
-
-    m_trayMenu->addSeparator();
-    QAction *quitAction = m_trayMenu->addAction(QStringLiteral("退出"));
-    connect(quitAction, &QAction::triggered, this, &MainWindow::quitApplication);
-
-    m_trayIcon->setContextMenu(m_trayMenu);
-    connect(m_trayIcon, &QSystemTrayIcon::activated, this,
-            [this](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::DoubleClick) {
-            showMainWindow();
-        }
-    });
-
-    if (m_multiplayerPage) {
-        connect(m_multiplayerPage, &MultiplayerPage::connectionStateChanged,
-                this, &MainWindow::updateTrayP2PState);
-    }
-
-    // QApplication::quit() from elsewhere still gets a chance to stop EasyTier.
-    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
-        if (m_multiplayerPage) {
-            m_multiplayerPage->shutdown();
-        }
-        if (m_trayIcon) {
-            m_trayIcon->hide();
-        }
-    });
-
-    // Keep the process alive after the last window is hidden/closed.
-    qApp->setQuitOnLastWindowClosed(false);
-    m_trayIcon->show();
-}
-
-void MainWindow::showMainWindow()
-{
-    if (isMinimized()) {
-        showNormal();
-    } else {
-        show();
-    }
-    raise();
-    activateWindow();
-}
-
-void MainWindow::quitApplication()
-{
-    if (m_quitRequested) {
-        return;
-    }
-    m_quitRequested = true;
-    if (m_multiplayerPage) {
-        m_multiplayerPage->shutdown();
-    }
-    if (m_trayIcon) {
-        m_trayIcon->hide();
-    }
-    qApp->quit();
-}
-
-void MainWindow::updateTrayP2PState(const QString &state)
-{
-    const QString status = state.trimmed().isEmpty()
-        ? QStringLiteral("未连接") : state.trimmed();
-    if (m_trayStatusAction) {
-        m_trayStatusAction->setText(
-            QStringLiteral("P2P 联机状态：%1").arg(status));
-    }
-    if (m_trayIcon) {
-        m_trayIcon->setToolTip(QStringLiteral("MysticTurtle\nP2P 联机：%1")
-                                   .arg(status));
-    }
-
-    const bool connected = status.contains(QStringLiteral("已连接对端节点"))
-        || (status.contains(QStringLiteral("已连接"))
-            && !status.contains(QStringLiteral("未连接"))
-            && !status.contains(QStringLiteral("连接失败")));
-    setTrayConnectedIcon(connected);
-
-    if (connected && !m_trayConnected && m_trayIcon
-        && m_trayIcon->supportsMessages()) {
-        m_trayIcon->showMessage(
-            QStringLiteral("P2P 联机已连接"),
-            QStringLiteral("已经连接到对端节点，可以进入游戏直连了。"),
-            QSystemTrayIcon::Information, 3500);
-    }
-    m_trayConnected = connected;
-}
-
-void MainWindow::setTrayConnectedIcon(bool connected)
-{
-    if (!m_trayIcon) {
-        return;
-    }
-    if (!connected) {
-        m_trayIcon->setIcon(m_trayBaseIcon);
-        return;
-    }
-
-    QPixmap pixmap = m_trayBaseIcon.pixmap(64, 64);
-    if (pixmap.isNull()) {
-        m_trayIcon->setIcon(m_trayBaseIcon);
-        return;
-    }
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(QColor(7, 17, 12, 230), 3));
-    painter.setBrush(QColor(QStringLiteral("#4ADE80")));
-    painter.drawEllipse(QPointF(49, 49), 10, 10);
-    painter.end();
-    m_trayIcon->setIcon(QIcon(pixmap));
-}
-
-void MainWindow::closeEvent(QCloseEvent *event)
-{
-    const bool trayReady = m_trayIcon && m_trayIcon->isVisible()
-        && QSystemTrayIcon::isSystemTrayAvailable();
-    if (m_quitRequested || !trayReady) {
-        qApp->setQuitOnLastWindowClosed(true);
-        event->accept();
-        return;
-    }
-
-    event->ignore();
-    hide();
-    if (!m_trayHintShown && m_trayIcon->supportsMessages()) {
-        m_trayHintShown = true;
-        m_trayIcon->showMessage(
-            QStringLiteral("MysticTurtle"),
-            QStringLiteral("已最小化到托盘运行，双击托盘图标可重新打开。"),
-            QSystemTrayIcon::Information, 3000);
-    }
-}
+MainWindow::~MainWindow() = default;
 
 void MainWindow::setupUi()
 {

@@ -52,6 +52,7 @@
 #include <QPixmap>
 #include <QProgressBar>
 #include <QProgressDialog>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QVersionNumber>
@@ -744,8 +745,45 @@ void requestProjectVersions(const QString &projectId,
             groupLayout->addWidget(items);
             QObject::connect(toggle, &QToolButton::toggled, group,
                              [items, toggle](bool expanded) {
-                items->setVisible(expanded);
                 toggle->setArrowType(expanded ? Qt::UpArrow : Qt::DownArrow);
+                if (!Theme::animationsEnabled()) {
+                    items->setVisible(expanded);
+                    items->setMaximumHeight(QWIDGETSIZE_MAX);
+                    return;
+                }
+
+                if (auto *running = items->findChild<QPropertyAnimation *>(
+                        QStringLiteral("versionListAnimation"))) {
+                    running->stop();
+                    running->deleteLater();
+                }
+
+                const int startHeight = items->isVisible() ? items->height() : 0;
+                // sizeHint must be measured without the temporary height limit,
+                // otherwise a rapid re-expand would collapse to the old height.
+                items->setMaximumHeight(QWIDGETSIZE_MAX);
+                const int targetHeight = expanded ? items->sizeHint().height() : 0;
+                if (expanded) {
+                    items->setVisible(true);
+                    items->setMaximumHeight(startHeight);
+                }
+                auto *animation = new QPropertyAnimation(items, "maximumHeight", items);
+                animation->setObjectName(QStringLiteral("versionListAnimation"));
+                animation->setDuration(180);
+                animation->setStartValue(startHeight);
+                animation->setEndValue(targetHeight);
+                animation->setEasingCurve(QEasingCurve::OutCubic);
+                QObject::connect(animation, &QPropertyAnimation::finished, items,
+                                 [items, expanded, animation]() {
+                    if (expanded) {
+                        items->setMaximumHeight(QWIDGETSIZE_MAX);
+                    } else {
+                        items->setVisible(false);
+                        items->setMaximumHeight(QWIDGETSIZE_MAX);
+                    }
+                    animation->deleteLater();
+                });
+                animation->start();
             });
             targetLayout->addWidget(group);
         };
