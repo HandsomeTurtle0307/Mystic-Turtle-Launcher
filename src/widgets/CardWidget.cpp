@@ -129,12 +129,10 @@ void CardWidget::paintEvent(QPaintEvent *event)
     painter.setClipPath(clip);
 
     // Flat surface: one solid translucent layer, no bloom or specular shine.
-    QColor fill = dark ? QColor(255, 255, 255,
-                                Theme::liquidGlassEnabled() ? 7 : 5)
+    QColor fill = dark ? QColor(255, 255, 255, 7)
                        : QColor(255, 255, 255, 226);
     if (m_interactive && hover > 0.01) {
-        fill = dark ? QColor(255, 255, 255,
-                             Theme::liquidGlassEnabled() ? 11 : 8)
+        fill = dark ? QColor(255, 255, 255, 11)
                     : QColor(255, 255, 255, 238);
     }
     painter.fillRect(cardRect, fill);

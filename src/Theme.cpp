@@ -31,8 +31,6 @@ namespace {
 // the main window is constructed.
 bool g_darkMode = true;
 bool g_animationsEnabled = true;
-bool g_liquidGlassEnabled = true;
-bool g_buttonSpotlightEnabled = true;
 QHash<QProgressBar *, QPointer<QPropertyAnimation>> g_progressAnimations;
 QPointer<QObject> g_smoothScrollFilter;
 
@@ -434,26 +432,6 @@ namespace Theme {
 bool animationsEnabled()
 {
     return g_animationsEnabled;
-}
-
-bool liquidGlassEnabled()
-{
-    return g_liquidGlassEnabled;
-}
-
-void setLiquidGlassEnabled(bool enabled)
-{
-    g_liquidGlassEnabled = enabled;
-}
-
-bool buttonSpotlightEnabled()
-{
-    return g_buttonSpotlightEnabled;
-}
-
-void setButtonSpotlightEnabled(bool enabled)
-{
-    g_buttonSpotlightEnabled = enabled;
 }
 
 void setAnimationsEnabled(bool enabled)

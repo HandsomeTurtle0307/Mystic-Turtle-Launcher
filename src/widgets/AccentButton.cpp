@@ -225,12 +225,8 @@ void AccentButton::animateSpotlight(qreal target)
 void AccentButton::enterEvent(QEnterEvent *event)
 {
     QPushButton::enterEvent(event);
-    m_spotlightPosition = mapFromGlobal(QCursor::pos());
     if (isEnabled()) {
         animateHover(1.0);
-        if (Theme::buttonSpotlightEnabled()) {
-            animateSpotlight(1.0);
-        }
     }
 }
 
@@ -238,15 +234,10 @@ void AccentButton::leaveEvent(QEvent *event)
 {
     QPushButton::leaveEvent(event);
     animateHover(0.0);
-    animateSpotlight(0.0);
 }
 
 void AccentButton::mouseMoveEvent(QMouseEvent *event)
 {
-    m_spotlightPosition = event->position();
-    if (Theme::buttonSpotlightEnabled()) {
-        update();
-    }
     QPushButton::mouseMoveEvent(event);
 }
 
@@ -320,22 +311,6 @@ void AccentButton::paintEvent(QPaintEvent *event)
     painter.setBrush(background);
     painter.setPen(QPen(border, 1.0));
     painter.drawRoundedRect(buttonRect, radius, radius);
-
-    if (enabled && Theme::buttonSpotlightEnabled()
-        && m_spotlightProgress > 0.001) {
-        painter.save();
-        QPainterPath clip;
-        clip.addRoundedRect(buttonRect, radius, radius);
-        painter.setClipPath(clip);
-        QRadialGradient light(m_spotlightPosition,
-                              qMax(52.0, qMax(width(), height()) * 0.9));
-        light.setColorAt(0.0, QColor(255, 255, 255,
-                                     static_cast<int>(12 * m_spotlightProgress)));
-        light.setColorAt(1.0, QColor(255, 255, 255, 0));
-        painter.setPen(Qt::NoPen);
-        painter.fillRect(buttonRect, light);
-        painter.restore();
-    }
 
     if (hasFocus() && focusPolicy() != Qt::NoFocus) {
         painter.setBrush(Qt::NoBrush);

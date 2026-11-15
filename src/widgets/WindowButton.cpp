@@ -116,24 +116,16 @@ void WindowButton::enterEvent(QEnterEvent *event)
     QAbstractButton::enterEvent(event);
     m_spotlightPosition = mapFromGlobal(QCursor::pos());
     animateHover(1.0);
-    if (Theme::buttonSpotlightEnabled()) {
-        animateSpotlight(1.0);
-    }
 }
 
 void WindowButton::leaveEvent(QEvent *event)
 {
     QAbstractButton::leaveEvent(event);
     animateHover(0.0);
-    animateSpotlight(0.0);
 }
 
 void WindowButton::mouseMoveEvent(QMouseEvent *event)
 {
-    m_spotlightPosition = event->position();
-    if (Theme::buttonSpotlightEnabled()) {
-        update();
-    }
     QAbstractButton::mouseMoveEvent(event);
 }
 

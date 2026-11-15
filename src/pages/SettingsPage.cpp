@@ -129,10 +129,6 @@ SettingsPage::SettingsPage(QWidget *parent)
         initialSettings.value(QStringLiteral("ui/acrylic"), false).toBool();
     const bool animationsEnabled =
         initialSettings.value(QStringLiteral("ui/animations"), true).toBool();
-    const bool liquidGlassEnabled =
-        initialSettings.value(QStringLiteral("ui/liquidGlass"), true).toBool();
-    const bool buttonSpotlightEnabled =
-        initialSettings.value(QStringLiteral("ui/buttonSpotlight"), true).toBool();
     const QString backgroundImage =
         initialSettings.value(QStringLiteral("ui/backgroundImage")).toString();
     m_backgroundOpacity = qBound(
@@ -216,28 +212,6 @@ SettingsPage::SettingsPage(QWidget *parent)
         Icons::Type::Refresh, QStringLiteral("丝滑动画"),
         QStringLiteral("控制平滑滚动、按钮点击、页面切换、进度条、下拉菜单及其他界面动效。"),
         animationsSwitch, appearance));
-    appearanceLayout->addSpacing(11);
-
-    auto *liquidGlassSwitch = new ToggleSwitch(appearance);
-    liquidGlassSwitch->setChecked(liquidGlassEnabled);
-    liquidGlassSwitch->setAccessibleName(QStringLiteral("液态玻璃"));
-    connect(liquidGlassSwitch, &QAbstractButton::toggled,
-            this, &SettingsPage::liquidGlassChanged);
-    appearanceLayout->addWidget(settingRow(
-        Icons::Type::Sparkles, QStringLiteral("液态玻璃"),
-        QStringLiteral("为卡片、导航栏和按钮叠加半透明高光与玻璃边缘，更接近 iOS 26 液态玻璃质感。"),
-        liquidGlassSwitch, appearance));
-    appearanceLayout->addSpacing(11);
-
-    auto *spotlightSwitch = new ToggleSwitch(appearance);
-    spotlightSwitch->setChecked(buttonSpotlightEnabled);
-    spotlightSwitch->setAccessibleName(QStringLiteral("按钮光标光效"));
-    connect(spotlightSwitch, &QAbstractButton::toggled,
-            this, &SettingsPage::buttonSpotlightChanged);
-    appearanceLayout->addWidget(settingRow(
-        Icons::Type::Sparkles, QStringLiteral("按钮光标光效"),
-        QStringLiteral("鼠标悬停按钮时，光斑跟随光标移动，类似手电筒照在玻璃上的高光。"),
-        spotlightSwitch, appearance));
     appearanceLayout->addSpacing(11);
 
     m_backgroundPathEdit = new ModernLineEdit(appearance);

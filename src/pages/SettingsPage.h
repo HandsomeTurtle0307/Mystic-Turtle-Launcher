@@ -28,8 +28,6 @@ public:
 signals:
     void acrylicEnabledChanged(bool enabled);
     void animationsEnabledChanged(bool enabled);
-    void liquidGlassChanged(bool enabled);
-    void buttonSpotlightChanged(bool enabled);
     void backgroundChanged(const QString &imagePath, int opacity);
     void gameDirectoryChanged(const QString &directory);
     void notifyRequested(const QString &message);

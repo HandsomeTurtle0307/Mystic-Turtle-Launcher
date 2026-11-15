@@ -97,8 +97,6 @@ private:
     int m_backgroundOpacity = 35;
     bool m_acrylicEnabled = false;
     bool m_animationsEnabled = true;
-    bool m_liquidGlassEnabled = true;
-    bool m_buttonSpotlightEnabled = true;
     bool m_nativeEffectsApplied = false;
 
     QLabel *m_toast = nullptr;

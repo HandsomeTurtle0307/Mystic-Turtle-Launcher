@@ -193,8 +193,7 @@ void HeaderBar::paintEvent(QPaintEvent *event)
     Q_UNUSED(event)
     QPainter painter(this);
     painter.fillRect(rect(), Theme::isDarkMode()
-                                ? QColor(255, 255, 255,
-                                         Theme::liquidGlassEnabled() ? 3 : 2)
+                                ? QColor(255, 255, 255, 3)
                                 : QColor(255, 255, 255, 150));
     painter.setPen(QPen(Theme::isDarkMode() ? QColor(255, 255, 255, 14)
                                            : QColor(23, 36, 58, 26), 1.0));

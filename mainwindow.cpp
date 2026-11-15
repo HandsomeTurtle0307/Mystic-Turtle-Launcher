@@ -383,13 +383,7 @@ MainWindow::MainWindow(QWidget *parent)
     const QSettings settings;
     m_acrylicEnabled = settings.value(QStringLiteral("ui/acrylic"), false).toBool();
     m_animationsEnabled = settings.value(QStringLiteral("ui/animations"), true).toBool();
-    m_liquidGlassEnabled =
-        settings.value(QStringLiteral("ui/liquidGlass"), true).toBool();
-    m_buttonSpotlightEnabled =
-        settings.value(QStringLiteral("ui/buttonSpotlight"), true).toBool();
     Theme::setAnimationsEnabled(m_animationsEnabled);
-    Theme::setLiquidGlassEnabled(m_liquidGlassEnabled);
-    Theme::setButtonSpotlightEnabled(m_buttonSpotlightEnabled);
     m_backgroundOpacity =
         qBound(0, settings.value(QStringLiteral("ui/backgroundOpacity"), 35).toInt(), 100);
     const QString backgroundImage =
@@ -535,30 +529,6 @@ void MainWindow::setupUi()
                 settings.setValue(QStringLiteral("ui/animations"), enabled);
                 showToast(enabled ? QStringLiteral("已启用丝滑动画。")
                                   : QStringLiteral("已关闭丝滑动画。"));
-            });
-    connect(m_settingsPage, &SettingsPage::liquidGlassChanged,
-            this, [this](bool enabled) {
-                m_liquidGlassEnabled = enabled;
-                Theme::setLiquidGlassEnabled(enabled);
-                for (QWidget *widget : findChildren<QWidget *>()) {
-                    widget->update();
-                }
-                QSettings settings;
-                settings.setValue(QStringLiteral("ui/liquidGlass"), enabled);
-                showToast(enabled ? QStringLiteral("已启用液态玻璃质感。")
-                                  : QStringLiteral("已关闭液态玻璃质感。"));
-            });
-    connect(m_settingsPage, &SettingsPage::buttonSpotlightChanged,
-            this, [this](bool enabled) {
-                m_buttonSpotlightEnabled = enabled;
-                Theme::setButtonSpotlightEnabled(enabled);
-                for (QWidget *widget : findChildren<QWidget *>()) {
-                    widget->update();
-                }
-                QSettings settings;
-                settings.setValue(QStringLiteral("ui/buttonSpotlight"), enabled);
-                showToast(enabled ? QStringLiteral("已启用按钮光标光效。")
-                                  : QStringLiteral("已关闭按钮光标光效。"));
             });
     connect(m_settingsPage, &SettingsPage::gameDirectoryChanged, this,
             [this](const QString &directory) {

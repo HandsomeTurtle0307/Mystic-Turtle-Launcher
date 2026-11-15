@@ -213,9 +213,6 @@ bool NavigationBar::eventFilter(QObject *watched, QEvent *event)
         switch (event->type()) {
         case QEvent::Enter:
             updateSpotlightPosition(QCursor::pos());
-            if (Theme::buttonSpotlightEnabled()) {
-                animateSpotlight(1.0);
-            }
             break;
         case QEvent::MouseMove:
             updateSpotlightPosition(
@@ -265,10 +262,8 @@ void NavigationBar::paintEvent(QPaintEvent *event)
 
     // Single flat surface with a quiet border; no glass or spotlight layers.
     painter.setPen(Qt::NoPen);
-    painter.setBrush(Theme::isDarkMode()
-                         ? QColor(255, 255, 255,
-                                  Theme::liquidGlassEnabled() ? 6 : 4)
-                         : QColor(255, 255, 255, 224));
+    painter.setBrush(Theme::isDarkMode() ? QColor(255, 255, 255, 6)
+                                         : QColor(255, 255, 255, 224));
     painter.drawRoundedRect(bounds, radius, radius);
 
     painter.setBrush(Qt::NoBrush);
