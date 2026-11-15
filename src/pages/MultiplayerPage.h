@@ -22,6 +22,7 @@ class QLineEdit;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QPlainTextEdit;
+class QStackedWidget;
 class QTimer;
 
 class MultiplayerPage : public QWidget
@@ -55,7 +56,7 @@ private:
     void ensureEasyTier(std::function<void(bool)> callback);
     void startEasyTierDownload();
     void finishEasyTierArchive();
-     void finishEnsure(bool success);
+    void finishEnsure(bool success);
     void startCreateRoom(const QString &roomName, const QString &password,
                          const QString &virtualIp);
     void startJoinRoom(const QString &target);
@@ -67,7 +68,7 @@ private:
                          QWidget *parent);
     QWidget *buildCreateCard();
     QWidget *buildJoinCard();
-    QWidget *buildStepGuide();
+    QWidget *buildGuidePage();
     QWidget *buildConsole();
 
     QLabel *m_connectionState = nullptr;
@@ -82,6 +83,7 @@ private:
     QLabel *m_createHint = nullptr;
     QLabel *m_easyTierPathLabel = nullptr;
     QPlainTextEdit *m_log = nullptr;
+    QStackedWidget *m_modeStack = nullptr;
     QTimer *m_connectTimeout = nullptr;
     AccentButton *m_createButton = nullptr;
     AccentButton *m_joinButton = nullptr;

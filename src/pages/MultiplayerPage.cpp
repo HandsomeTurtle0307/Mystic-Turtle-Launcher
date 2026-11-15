@@ -17,6 +17,7 @@
 #include "Theme.h"
 #include "ModernInputs.h"
 
+#include <QButtonGroup>
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -43,6 +44,7 @@
 #include <QRandomGenerator>
 #include <QSaveFile>
 #include <QScrollArea>
+#include <QStackedWidget>
 #include <QStandardPaths>
 #include <QTime>
 #include <QTimer>
@@ -54,8 +56,8 @@
 
 namespace {
 
-const QColor kCreateAccent(QStringLiteral("#60A5FA"));
-const QColor kJoinAccent(QStringLiteral("#A78BFA"));
+const QColor kCreateAccent = Theme::Accent;
+const QColor kJoinAccent = Theme::Blue;
 
 QString generateRoomCode()
 {
@@ -78,19 +80,6 @@ QString bareVirtualIp(const QString &value)
         ip = ip.left(slash);
     }
     return ip.isEmpty() ? QStringLiteral("10.126.126.1") : ip;
-}
-
-QLabel *makeHintLabel(const QString &text, QWidget *parent)
-{
-    auto *label = Theme::label(text, 8, QFont::Normal,
-                               Theme::TextMuted, parent);
-    label->setWordWrap(true);
-    label->setStyleSheet(QStringLiteral(
-        "background: rgba(255, 255, 255, 3);"
-        "border: 1px solid rgba(255, 255, 255, 13);"
-        "border-radius: 8px; padding: 6px 8px; color: %1;")
-        .arg(Theme::TextMuted.name()));
-    return label;
 }
 
 } // namespace
@@ -169,13 +158,13 @@ MultiplayerPage::MultiplayerPage(QWidget *parent)
     auto *titleBlock = new QVBoxLayout();
     titleBlock->setContentsMargins(0, 0, 0, 0);
     titleBlock->setSpacing(2);
-    titleBlock->addWidget(Theme::label(QStringLiteral("P2P 联机"), 23,
+    titleBlock->addWidget(Theme::label(QStringLiteral("P2P 联机"), 21,
                                        QFont::DemiBold,
                                        Theme::TextPrimary, this, true));
     titleBlock->addWidget(Theme::label(
         QStringLiteral("通过 EasyTier 组建虚拟局域网；创建虚拟网卡需要管理员权限。"),
         9, QFont::Normal, Theme::TextMuted, this));
-    m_easyTierPathLabel = Theme::label(QString(), 8, QFont::Normal,
+    m_easyTierPathLabel = Theme::label(QString(), 9, QFont::Normal,
                                        Theme::TextMuted, this);
     m_easyTierPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_easyTierPathLabel->setWordWrap(true);
@@ -193,16 +182,56 @@ MultiplayerPage::MultiplayerPage(QWidget *parent)
         .arg(Theme::TextMuted.name()));
     header->addWidget(m_connectionState, 0, Qt::AlignVCenter);
     root->addLayout(header);
-    root->addWidget(buildStepGuide());
 
-    auto *body = new QHBoxLayout();
-    body->setContentsMargins(0, 0, 0, 0);
-    body->setSpacing(14);
-    body->addWidget(buildCreateCard(), 1);
-    body->addWidget(buildJoinCard(), 1);
-    root->addLayout(body, 1);
+    auto *tabs = new QHBoxLayout();
+    tabs->setContentsMargins(0, 0, 0, 0);
+    tabs->setSpacing(6);
+    const auto makeTab = [this](const QString &text, Icons::Type icon,
+                                const QColor &accent) {
+        auto *button = new AccentButton(text, icon, this);
+        button->setVariant(AccentButton::Variant::Secondary);
+        button->setAccentColor(accent);
+        button->setCompact(true);
+        button->setCheckable(true);
+        button->setAccessibleName(text);
+        return button;
+    };
+    auto *createTab = makeTab(QStringLiteral("创建房间"), Icons::Type::Play,
+                              Theme::Accent);
+    auto *joinTab = makeTab(QStringLiteral("加入房间"), Icons::Type::External,
+                            Theme::Blue);
+    auto *guideTab = makeTab(QStringLiteral("使用说明"), Icons::Type::Info,
+                             Theme::Amber);
+    auto *logTab = makeTab(QStringLiteral("运行日志"), Icons::Type::Package,
+                           Theme::Purple);
+    tabs->addWidget(createTab);
+    tabs->addWidget(joinTab);
+    tabs->addWidget(guideTab);
+    tabs->addWidget(logTab);
+    tabs->addStretch();
+    root->addLayout(tabs);
 
-    root->addWidget(buildConsole());
+    m_modeStack = new QStackedWidget(this);
+    m_modeStack->setAttribute(Qt::WA_NoSystemBackground);
+    m_modeStack->addWidget(buildCreateCard());
+    m_modeStack->addWidget(buildJoinCard());
+    m_modeStack->addWidget(buildGuidePage());
+    m_modeStack->addWidget(buildConsole());
+    root->addWidget(m_modeStack, 1);
+
+    auto *tabGroup = new QButtonGroup(this);
+    tabGroup->setExclusive(true);
+    tabGroup->addButton(createTab, 0);
+    tabGroup->addButton(joinTab, 1);
+    tabGroup->addButton(guideTab, 2);
+    tabGroup->addButton(logTab, 3);
+    createTab->setChecked(true);
+    connect(tabGroup, &QButtonGroup::idClicked, this, [this](int index) {
+        if (m_modeStack) {
+            m_modeStack->setCurrentIndex(index);
+        }
+    });
+
     updateEasyTierPathLabel();
     appendLog(QStringLiteral("P2P 页面已就绪，等待启动 EasyTier。"));
     appendLog(QStringLiteral("提示：EasyTier 需要管理员权限；首次运行请允许 EasyTier 和 Java 通过防火墙。"));
@@ -229,7 +258,7 @@ QLineEdit *MultiplayerPage::makeInput(const QString &placeholder,
     auto *input = new ModernLineEdit(text, parent);
     input->setObjectName(QStringLiteral("p2pInput"));
     input->setPlaceholderText(placeholder);
-    input->setFixedHeight(34);
+    input->setFixedHeight(36);
     input->setFont(Theme::font(11));
     input->setClearButtonEnabled(false);
     return input;
@@ -239,33 +268,34 @@ QWidget *MultiplayerPage::buildCreateCard()
 {
     auto *card = new CardWidget(this);
     card->setAccentColor(kCreateAccent);
-    card->setCornerRadius(20);
+    card->setCornerRadius(16);
     card->setInteractive(false);
-    auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(16, 13, 16, 13);
-    layout->setSpacing(6);
 
-    auto *heading = new QHBoxLayout();
-    heading->setContentsMargins(0, 0, 0, 0);
-    heading->addWidget(Theme::label(QStringLiteral("创建房间"), 15,
-                                    QFont::DemiBold, Theme::TextPrimary, card));
-    heading->addStretch();
-    heading->addWidget(Theme::badge(QStringLiteral("CREATE ROOM"),
-                                    kCreateAccent,
-                                    QColor(kCreateAccent.red(), kCreateAccent.green(),
-                                           kCreateAccent.blue(), 20),
-                                    card));
-    layout->addLayout(heading);
-    layout->addSpacing(2);
+    auto *outer = new QVBoxLayout(card);
+    outer->setContentsMargins(20, 18, 20, 18);
+    outer->setSpacing(12);
 
-    layout->addWidget(Theme::label(QStringLiteral("房间名称"), 9,
-                                   QFont::DemiBold, Theme::TextSecondary, card));
+    outer->addWidget(Theme::label(QStringLiteral("创建房间"), 16,
+                                  QFont::DemiBold, Theme::TextPrimary, card));
+    outer->addWidget(Theme::label(
+        QStringLiteral("设置房间信息，开启一个虚拟局域网。"),
+        10, QFont::Normal, Theme::TextMuted, card));
+
+    auto *content = new QHBoxLayout();
+    content->setContentsMargins(0, 0, 0, 0);
+    content->setSpacing(28);
+
+    auto *left = new QVBoxLayout();
+    left->setContentsMargins(0, 0, 0, 0);
+    left->setSpacing(8);
+    left->addWidget(Theme::label(QStringLiteral("房间名称"), 10,
+                                 QFont::DemiBold, Theme::TextSecondary, card));
     m_roomName = makeInput(QStringLiteral("输入房间名称"),
                            QStringLiteral("MysticTurtle 房间"), card);
-    layout->addWidget(m_roomName);
+    left->addWidget(m_roomName);
 
-    layout->addWidget(Theme::label(QStringLiteral("房间密码"), 9,
-                                   QFont::DemiBold, Theme::TextSecondary, card));
+    left->addWidget(Theme::label(QStringLiteral("房间密码"), 10,
+                                 QFont::DemiBold, Theme::TextSecondary, card));
     auto *passwordRow = new QHBoxLayout();
     passwordRow->setContentsMargins(0, 0, 0, 0);
     passwordRow->setSpacing(6);
@@ -274,56 +304,47 @@ QWidget *MultiplayerPage::buildCreateCard()
     m_refreshButton = new AccentButton(QString(), Icons::Type::Refresh, card);
     m_refreshButton->setVariant(AccentButton::Variant::Ghost);
     m_refreshButton->setToolTip(QStringLiteral("重新生成房间密码"));
-    m_refreshButton->setFixedSize(38, 38);
+    m_refreshButton->setFixedSize(36, 36);
     connect(m_refreshButton, &QAbstractButton::clicked,
             this, &MultiplayerPage::refreshRoomCode);
     passwordRow->addWidget(m_roomPassword, 1);
     passwordRow->addWidget(m_refreshButton);
-    layout->addLayout(passwordRow);
+    left->addLayout(passwordRow);
 
-    layout->addWidget(Theme::label(QStringLiteral("虚拟 IP 网段"), 9,
-                                   QFont::DemiBold, Theme::TextSecondary, card));
+    left->addWidget(Theme::label(QStringLiteral("虚拟 IP 网段"), 10,
+                                 QFont::DemiBold, Theme::TextSecondary, card));
     m_virtualIp = makeInput(QStringLiteral("例如 10.126.126.1"),
                             QStringLiteral("10.126.126.1"), card);
     m_virtualIp->setToolTip(
         QStringLiteral("推荐保持 10.126.126.1；如与本地网络冲突，可改为 "
                        "10.126.127.1 或 10.126.128.1。"));
-    layout->addWidget(m_virtualIp);
-    layout->addWidget(makeHintLabel(
-        QStringLiteral("虚拟 IP 是 EasyTier 房间内的局域网地址，不是公网 IP，"
-                       "同一房间内每台设备必须不同。推荐保持默认 10.126.126.1；"
-                       "若你所在网络也使用 10.126.126.x，请改成 10.126.127.1。"
-                       "IP 冲突可能导致朋友找不到房间、连接超时或只能单向通信。"),
-        card));
+    left->addWidget(m_virtualIp);
+    auto *ipHint = Theme::label(
+        QStringLiteral("房间内网段地址，不是公网 IP；冲突时改用 10.126.127.1。"),
+        9, QFont::Normal, Theme::TextMuted, card);
+    ipHint->setWordWrap(true);
+    left->addWidget(ipHint);
+    left->addStretch(1);
 
-    m_copyIpButton = new AccentButton(QStringLiteral("复制我的虚拟 IP"),
-                                      Icons::Type::Check, card);
-    m_copyIpButton->setVariant(AccentButton::Variant::Ghost);
-    m_copyIpButton->setCompact(true);
-    m_copyIpButton->setToolTip(QStringLiteral("复制当前虚拟 IP"));
-    m_copyIpButton->hide();
-    connect(m_copyIpButton, &QAbstractButton::clicked, this, [this]() {
-        const QString ip = bareVirtualIp(m_virtualIp->text());
-        QGuiApplication::clipboard()->setText(ip);
-        setCreateStatus(QStringLiteral("已复制虚拟 IP：%1").arg(ip));
-        appendLog(QStringLiteral("已复制虚拟 IP：%1").arg(ip));
-    });
-    layout->addWidget(m_copyIpButton);
+    auto *right = new QVBoxLayout();
+    right->setContentsMargins(0, 0, 0, 0);
+    right->setSpacing(8);
+    right->addWidget(Theme::label(QStringLiteral("房间创建后"), 10,
+                                  QFont::DemiBold, Theme::TextSecondary, card));
+    auto *createTip = Theme::label(
+        QStringLiteral("把虚拟 IP 和房间密码发给朋友。进入游戏开放局域网后，"
+                       "再告诉朋友游戏端口。"),
+        10, QFont::Normal, Theme::TextMuted, card);
+    createTip->setWordWrap(true);
+    right->addWidget(createTip);
+    right->addStretch(1);
 
-    m_createHint = makeHintLabel(
-        QStringLiteral("提示：请进入游戏 -> 对局域网开放 -> 将上方 IP 发送给你的朋友，"
-                       "并告诉朋友你在游戏里生成的端口号（如 54321）。"),
-        card);
-    m_createHint->hide();
-    layout->addWidget(m_createHint);
-
-    layout->addSpacing(4);
     m_createButton = new AccentButton(QStringLiteral("一键开启联机"),
                                       Icons::Type::Play, card);
     m_createButton->setVariant(AccentButton::Variant::Primary);
     m_createButton->setAccentColor(kCreateAccent);
     m_createButton->setFont(Theme::font(14, QFont::DemiBold));
-    m_createButton->setFixedHeight(52);
+    m_createButton->setFixedHeight(50);
     m_createButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     connect(m_createButton, &QAbstractButton::clicked, this, [this]() {
         if (m_easyTier->isRunning()) {
@@ -363,13 +384,37 @@ QWidget *MultiplayerPage::buildCreateCard()
             m_easyTier->startCreate(roomName, password, virtualIp);
         });
     });
-    layout->addWidget(m_createButton);
+    right->addWidget(m_createButton);
 
-    m_createStatus = Theme::label(QStringLiteral("等待操作"), 9,
+    m_copyIpButton = new AccentButton(QStringLiteral("复制虚拟 IP"),
+                                      Icons::Type::Check, card);
+    m_copyIpButton->setVariant(AccentButton::Variant::Ghost);
+    m_copyIpButton->setCompact(true);
+    m_copyIpButton->setToolTip(QStringLiteral("复制当前虚拟 IP"));
+    m_copyIpButton->hide();
+    connect(m_copyIpButton, &QAbstractButton::clicked, this, [this]() {
+        const QString ip = bareVirtualIp(m_virtualIp->text());
+        QGuiApplication::clipboard()->setText(ip);
+        setCreateStatus(QStringLiteral("已复制虚拟 IP：%1").arg(ip));
+        appendLog(QStringLiteral("已复制虚拟 IP：%1").arg(ip));
+    });
+    right->addWidget(m_copyIpButton);
+
+    m_createHint = Theme::label(
+        QStringLiteral("开放局域网后，复制上方 IP 并告诉朋友端口。"),
+        9, QFont::Normal, Theme::TextMuted, card);
+    m_createHint->setWordWrap(true);
+    m_createHint->hide();
+    right->addWidget(m_createHint);
+
+    m_createStatus = Theme::label(QStringLiteral("等待操作"), 10,
                                   QFont::Normal, Theme::TextMuted, card);
     m_createStatus->setWordWrap(true);
-    layout->addWidget(m_createStatus);
+    right->addWidget(m_createStatus);
 
+    content->addLayout(left, 1);
+    content->addLayout(right, 1);
+    outer->addLayout(content, 1);
     return card;
 }
 
@@ -377,35 +422,36 @@ QWidget *MultiplayerPage::buildJoinCard()
 {
     auto *card = new CardWidget(this);
     card->setAccentColor(kJoinAccent);
-    card->setCornerRadius(20);
+    card->setCornerRadius(16);
     card->setInteractive(false);
-    auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(16, 13, 16, 13);
-    layout->setSpacing(6);
 
-    auto *heading = new QHBoxLayout();
-    heading->setContentsMargins(0, 0, 0, 0);
-    heading->addWidget(Theme::label(QStringLiteral("加入房间"), 15,
-                                    QFont::DemiBold, Theme::TextPrimary, card));
-    heading->addStretch();
-    heading->addWidget(Theme::badge(QStringLiteral("JOIN ROOM"),
-                                    kJoinAccent,
-                                    QColor(kJoinAccent.red(), kJoinAccent.green(),
-                                           kJoinAccent.blue(), 20),
-                                    card));
-    layout->addLayout(heading);
-    layout->addSpacing(2);
+    auto *outer = new QVBoxLayout(card);
+    outer->setContentsMargins(20, 18, 20, 18);
+    outer->setSpacing(12);
 
-    layout->addWidget(Theme::label(QStringLiteral("房间码或虚拟 IP"), 9,
-                                   QFont::DemiBold, Theme::TextSecondary, card));
-    m_joinCode = makeInput(QStringLiteral("房间名#密码，或对方的虚拟 IP"),
-                           QString(), card);
-    layout->addWidget(m_joinCode);
-    layout->addSpacing(2);
-    layout->addWidget(Theme::label(
-        QStringLiteral("房间码格式：房间名#密码。只填密码时使用默认房间名。"),
-        8, QFont::Normal, Theme::TextMuted, card));
-    layout->addSpacing(4);
+    outer->addWidget(Theme::label(QStringLiteral("加入房间"), 16,
+                                  QFont::DemiBold, Theme::TextPrimary, card));
+    outer->addWidget(Theme::label(
+        QStringLiteral("使用房间码加入，再复制游戏直连地址。"),
+        10, QFont::Normal, Theme::TextMuted, card));
+
+    auto *content = new QHBoxLayout();
+    content->setContentsMargins(0, 0, 0, 0);
+    content->setSpacing(28);
+
+    auto *left = new QVBoxLayout();
+    left->setContentsMargins(0, 0, 0, 0);
+    left->setSpacing(8);
+    left->addWidget(Theme::label(QStringLiteral("EasyTier 网络"), 10,
+                                 QFont::DemiBold, Theme::TextSecondary, card));
+    m_joinCode = makeInput(QStringLiteral("房间名#密码"), QString(), card);
+    left->addWidget(m_joinCode);
+    auto *formatHint = Theme::label(
+        QStringLiteral("输入房主分享的“房间名#密码”。"),
+        9, QFont::Normal, Theme::TextMuted, card);
+    formatHint->setWordWrap(true);
+    left->addWidget(formatHint);
+    left->addSpacing(4);
 
     m_joinButton = new AccentButton(QStringLiteral("加入联机"),
                                     Icons::Type::External, card);
@@ -421,7 +467,7 @@ QWidget *MultiplayerPage::buildJoinCard()
         }
         const QString target = m_joinCode->text().trimmed();
         if (target.isEmpty()) {
-            setJoinStatus(QStringLiteral("请先输入房间码或虚拟 IP。"));
+            setJoinStatus(QStringLiteral("请先输入房间码。"));
             return;
         }
         if (m_ensureInProgress) {
@@ -445,16 +491,31 @@ QWidget *MultiplayerPage::buildJoinCard()
             startJoinRoom(target);
         });
     });
-    layout->addWidget(m_joinButton);
-
-    m_joinStatus = Theme::label(QStringLiteral("等待操作"), 9,
+    left->addWidget(m_joinButton);
+    m_joinStatus = Theme::label(QStringLiteral("等待操作"), 10,
                                 QFont::Normal, Theme::TextMuted, card);
     m_joinStatus->setWordWrap(true);
-    layout->addWidget(m_joinStatus);
-    layout->addSpacing(2);
+    left->addWidget(m_joinStatus);
+    left->addStretch(1);
 
-    layout->addWidget(Theme::label(QStringLiteral("游戏直连信息"), 9,
-                                   QFont::DemiBold, Theme::TextSecondary, card));
+    auto *divider = new QFrame(card);
+    divider->setFrameShape(QFrame::VLine);
+    divider->setStyleSheet(QStringLiteral("QFrame { color: rgba(255, 255, 255, 18); }"));
+    divider->setFixedWidth(1);
+    content->addLayout(left, 1);
+    content->addWidget(divider);
+
+    auto *right = new QVBoxLayout();
+    right->setContentsMargins(0, 0, 0, 0);
+    right->setSpacing(8);
+    right->addWidget(Theme::label(QStringLiteral("游戏直连"), 10,
+                                  QFont::DemiBold, Theme::TextSecondary, card));
+    auto *directHint = Theme::label(
+        QStringLiteral("加入网络后，填写房主虚拟 IP 和游戏端口。"),
+        9, QFont::Normal, Theme::TextMuted, card);
+    directHint->setWordWrap(true);
+    right->addWidget(directHint);
+
     auto *directRow = new QHBoxLayout();
     directRow->setContentsMargins(0, 0, 0, 0);
     directRow->setSpacing(6);
@@ -463,7 +524,7 @@ QWidget *MultiplayerPage::buildJoinCard()
     m_gamePort->setFixedWidth(82);
     directRow->addWidget(m_hostIp, 1);
     directRow->addWidget(m_gamePort);
-    layout->addLayout(directRow);
+    right->addLayout(directRow);
 
     m_connectHostButton = new AccentButton(QStringLiteral("复制 IP:端口"),
                                             Icons::Type::External, card);
@@ -484,91 +545,114 @@ QWidget *MultiplayerPage::buildJoinCard()
         setJoinStatus(QStringLiteral("已复制连接地址：%1").arg(endpoint));
         appendLog(QStringLiteral("已复制游戏直连地址：%1").arg(endpoint));
     });
-    layout->addWidget(m_connectHostButton);
+    right->addWidget(m_connectHostButton);
 
-    layout->addWidget(makeHintLabel(
-        QStringLiteral("提示：复制后，请在游戏内的“多人游戏 -> 直接连接”中粘贴并加入。"),
-        card));
+    auto *directNote = Theme::label(
+        QStringLiteral("复制后，在游戏内“多人游戏 → 直接连接”中粘贴加入。"),
+        9, QFont::Normal, Theme::TextMuted, card);
+    directNote->setWordWrap(true);
+    right->addWidget(directNote);
+    right->addStretch(1);
+
+    content->addLayout(right, 1);
+    outer->addLayout(content, 1);
     return card;
 }
 
-QWidget *MultiplayerPage::buildStepGuide()
+QWidget *MultiplayerPage::buildGuidePage()
 {
-    auto *panel = new QFrame(this);
-    panel->setObjectName(QStringLiteral("p2pStepGuide"));
-    panel->setStyleSheet(QStringLiteral(
-        "QFrame#p2pStepGuide {"
-        "  background: rgba(96, 165, 250, 9);"
-        "  border: 1px solid rgba(96, 165, 250, 52);"
-        "  border-radius: 12px;"
-        "}"));
-    auto *layout = new QHBoxLayout(panel);
-    layout->setContentsMargins(13, 9, 13, 9);
-    layout->setSpacing(8);
+    auto *page = new QWidget(this);
+    page->setAttribute(Qt::WA_NoSystemBackground);
+    auto *pageLayout = new QVBoxLayout(page);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
 
-    auto *lead = new QVBoxLayout();
-    lead->setContentsMargins(0, 0, 0, 0);
-    lead->setSpacing(1);
-    lead->addWidget(Theme::label(QStringLiteral("P2P 联机四步走"), 10,
-                                 QFont::DemiBold, Theme::Blue, panel));
-    lead->addWidget(Theme::label(QStringLiteral("按顺序操作"), 8,
-                                 QFont::Normal, Theme::TextMuted, panel));
-    layout->addLayout(lead);
+    auto *card = new CardWidget(page);
+    card->setAccentColor(Theme::Amber);
+    card->setCornerRadius(16);
+    card->setInteractive(false);
+    auto *outer = new QVBoxLayout(card);
+    outer->setContentsMargins(22, 18, 22, 18);
+    outer->setSpacing(12);
+
+    outer->addWidget(Theme::label(QStringLiteral("使用说明"), 16,
+                                  QFont::DemiBold, Theme::TextPrimary, card));
+    outer->addWidget(Theme::label(
+        QStringLiteral("按顺序完成四步，就可以和朋友进入同一个世界。"),
+        10, QFont::Normal, Theme::TextMuted, card));
 
     const struct {
         const char *number;
         const char *title;
         const char *description;
     } steps[] = {
-        {"1", "加入同一房间", "双方输入相同房间名和密码"},
-        {"2", "开放局域网", "房主进入游戏并开放"},
-        {"3", "复制 IP:端口", "房主把连接地址发给朋友"},
-        {"4", "直接连接", "朋友在多人游戏中粘贴加入"}
+        {"1", "双方加入同一房间", "输入相同的房间名和密码，等待状态变为已连接对端节点。"},
+        {"2", "房主开放局域网", "房主进入 Minecraft，在游戏菜单中点击“对局域网开放”。"},
+        {"3", "复制 IP 和端口", "房主复制虚拟 IP 和游戏生成的端口，发给朋友。"},
+        {"4", "朋友直接连接", "朋友在“多人游戏 → 直接连接”中输入 IP:端口并加入。"}
     };
 
-    bool first = true;
     for (const auto &step : steps) {
-        if (!first) {
-            auto *arrow = Theme::label(QStringLiteral("→"), 11, QFont::DemiBold,
-                                       Theme::TextMuted, panel);
-            arrow->setAlignment(Qt::AlignCenter);
-            arrow->setFixedWidth(14);
-            layout->addWidget(arrow);
-        }
-        first = false;
-
-        auto *stepWidget = new QWidget(panel);
-        auto *stepLayout = new QHBoxLayout(stepWidget);
-        stepLayout->setContentsMargins(0, 0, 0, 0);
-        stepLayout->setSpacing(7);
-
-        auto *number = Theme::label(QString::fromLatin1(step.number), 9,
-                                    QFont::DemiBold, Theme::Blue, stepWidget);
+        auto *row = new QHBoxLayout();
+        row->setContentsMargins(0, 2, 0, 2);
+        row->setSpacing(12);
+        auto *number = Theme::label(QString::fromLatin1(step.number), 11,
+                                    QFont::DemiBold, Theme::Amber, card);
         number->setAlignment(Qt::AlignCenter);
-        number->setFixedSize(22, 22);
+        number->setFixedSize(26, 26);
         number->setStyleSheet(QStringLiteral(
-            "background: rgba(96, 165, 250, 20);"
-            "border: 1px solid rgba(96, 165, 250, 66);"
-            "border-radius: 11px; color: %1;")
-            .arg(Theme::Blue.name()));
-        stepLayout->addWidget(number, 0, Qt::AlignTop);
-
-        auto *textLayout = new QVBoxLayout();
-        textLayout->setContentsMargins(0, 0, 0, 0);
-        textLayout->setSpacing(1);
-        textLayout->addWidget(Theme::label(QString::fromUtf8(step.title), 9,
-                                           QFont::DemiBold, Theme::TextPrimary,
-                                           stepWidget));
-        auto *description = Theme::label(QString::fromUtf8(step.description), 8,
-                                         QFont::Normal, Theme::TextMuted,
-                                         stepWidget);
+            "background: rgba(255, 198, 109, 16);"
+            "border: 1px solid rgba(255, 198, 109, 38);"
+            "border-radius: 13px; color: %1;")
+            .arg(Theme::Amber.name()));
+        row->addWidget(number, 0, Qt::AlignTop);
+        auto *text = new QVBoxLayout();
+        text->setContentsMargins(0, 0, 0, 0);
+        text->setSpacing(1);
+        text->addWidget(Theme::label(QString::fromUtf8(step.title), 11,
+                                     QFont::DemiBold, Theme::TextPrimary, card));
+        auto *description = Theme::label(QString::fromUtf8(step.description), 10,
+                                         QFont::Normal, Theme::TextMuted, card);
         description->setWordWrap(true);
-        textLayout->addWidget(description);
-        stepLayout->addLayout(textLayout, 1);
-        layout->addWidget(stepWidget, 1);
+        text->addWidget(description);
+        row->addLayout(text, 1);
+        outer->addLayout(row);
     }
 
-    return panel;
+    outer->addSpacing(4);
+    outer->addWidget(Theme::divider(card));
+    outer->addSpacing(4);
+
+    outer->addWidget(Theme::label(QStringLiteral("虚拟 IP 怎么填"), 11,
+                                  QFont::DemiBold, Theme::TextSecondary, card));
+    auto *ipHelp = Theme::label(
+        QStringLiteral("虚拟 IP 是 EasyTier 房间内的局域网地址，不是公网 IP。"
+                       "推荐保持 10.126.126.1；如果本地网络也使用这个网段，"
+                       "请改成 10.126.127.1。IP 冲突会导致朋友找不到房间或连接超时。"),
+        10, QFont::Normal, Theme::TextMuted, card);
+    ipHelp->setWordWrap(true);
+    outer->addWidget(ipHelp);
+
+    outer->addWidget(Theme::label(QStringLiteral("游戏直连怎么连"), 11,
+                                  QFont::DemiBold, Theme::TextSecondary, card));
+    auto *gameHelp = Theme::label(
+        QStringLiteral("加入方需要先进入同一个 EasyTier 房间，再填写房主的虚拟 IP "
+                       "和游戏端口。复制 IP:端口后，到 Minecraft 的“直接连接”中粘贴。"),
+        10, QFont::Normal, Theme::TextMuted, card);
+    gameHelp->setWordWrap(true);
+    outer->addWidget(gameHelp);
+
+    outer->addWidget(Theme::label(QStringLiteral("权限与防火墙"), 11,
+                                  QFont::DemiBold, Theme::TextSecondary, card));
+    auto *permissionHelp = Theme::label(
+        QStringLiteral("EasyTier 创建虚拟网卡需要管理员权限。首次运行时请允许 "
+                       "EasyTier 和 Java 通过 Windows 防火墙，否则可能显示已连接但游戏无法进入。"),
+        10, QFont::Normal, Theme::TextMuted, card);
+    permissionHelp->setWordWrap(true);
+    outer->addWidget(permissionHelp);
+
+    outer->addStretch(1);
+    pageLayout->addWidget(card, 1);
+    return page;
 }
 
 QWidget *MultiplayerPage::buildConsole()
@@ -583,14 +667,11 @@ QWidget *MultiplayerPage::buildConsole()
 
     auto *header = new QHBoxLayout();
     header->setContentsMargins(0, 0, 0, 0);
-    header->addWidget(Theme::label(QStringLiteral("运行日志"), 11,
+    header->addWidget(Theme::label(QStringLiteral("运行日志"), 10,
                                    QFont::DemiBold, Theme::TextSecondary, card));
     header->addSpacing(8);
-    header->addWidget(Theme::badge(QStringLiteral("EASYTIER / STDOUT"),
-                                   Theme::Accent,
-                                   QColor(Theme::Accent.red(), Theme::Accent.green(),
-                                          Theme::Accent.blue(), 18),
-                                   card));
+    header->addWidget(Theme::label(QStringLiteral("EASYTIER"), 8,
+                                   QFont::Normal, Theme::TextMuted, card));
     header->addStretch();
     auto *checkEasyTier = new AccentButton(QStringLiteral("检查 EasyTier 状态"),
                                             Icons::Type::Info, card);
@@ -729,10 +810,10 @@ QWidget *MultiplayerPage::buildConsole()
     m_log->setReadOnly(true);
     m_log->setUndoRedoEnabled(false);
     m_log->setMaximumBlockCount(500);
-    m_log->setFixedHeight(145);
+    m_log->setMinimumHeight(280);
     m_log->setFont(QFont(QStringLiteral("Consolas"), 9));
     m_log->setFrameShape(QFrame::NoFrame);
-    layout->addWidget(m_log);
+    layout->addWidget(m_log, 1);
     return card;
 }
 
@@ -754,9 +835,8 @@ void MultiplayerPage::updateEasyTierPathLabel()
         QStringLiteral("easytier-core.exe"));
     const QString nativePath = QDir::toNativeSeparators(directory);
     QString displayPath = nativePath;
-    if (displayPath.size() > 86) {
-        displayPath = displayPath.left(30) + QStringLiteral("…")
-            + displayPath.right(52);
+    if (displayPath.size() > 52) {
+        displayPath = QStringLiteral("…\\tools\\easytier");
     }
     m_easyTierPathLabel->setText(
         QStringLiteral("EasyTier 安装位置：%1%2")
