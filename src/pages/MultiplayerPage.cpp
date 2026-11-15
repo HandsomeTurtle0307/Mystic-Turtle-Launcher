@@ -213,8 +213,18 @@ MultiplayerPage::MultiplayerPage(QWidget *parent)
 
     m_modeStack = new QStackedWidget(this);
     m_modeStack->setAttribute(Qt::WA_NoSystemBackground);
-    m_modeStack->addWidget(buildCreateCard());
-    m_modeStack->addWidget(buildJoinCard());
+
+    const auto wrapPage = [this](QWidget *content) {
+        auto *page = new QWidget(m_modeStack);
+        page->setAttribute(Qt::WA_NoSystemBackground);
+        auto *layout = new QVBoxLayout(page);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(content);
+        layout->addStretch(1);
+        return page;
+    };
+    m_modeStack->addWidget(wrapPage(buildCreateCard()));
+    m_modeStack->addWidget(wrapPage(buildJoinCard()));
     m_modeStack->addWidget(buildGuidePage());
     m_modeStack->addWidget(buildConsole());
     root->addWidget(m_modeStack, 1);
@@ -259,7 +269,7 @@ QLineEdit *MultiplayerPage::makeInput(const QString &placeholder,
     input->setObjectName(QStringLiteral("p2pInput"));
     input->setPlaceholderText(placeholder);
     input->setFixedHeight(36);
-    input->setFont(Theme::font(11));
+    input->setFont(Theme::font(12));
     input->setClearButtonEnabled(false);
     return input;
 }
@@ -288,13 +298,13 @@ QWidget *MultiplayerPage::buildCreateCard()
     auto *left = new QVBoxLayout();
     left->setContentsMargins(0, 0, 0, 0);
     left->setSpacing(8);
-    left->addWidget(Theme::label(QStringLiteral("房间名称"), 10,
+    left->addWidget(Theme::label(QStringLiteral("房间名称"), 11,
                                  QFont::DemiBold, Theme::TextSecondary, card));
     m_roomName = makeInput(QStringLiteral("输入房间名称"),
                            QStringLiteral("MysticTurtle 房间"), card);
     left->addWidget(m_roomName);
 
-    left->addWidget(Theme::label(QStringLiteral("房间密码"), 10,
+    left->addWidget(Theme::label(QStringLiteral("房间密码"), 11,
                                  QFont::DemiBold, Theme::TextSecondary, card));
     auto *passwordRow = new QHBoxLayout();
     passwordRow->setContentsMargins(0, 0, 0, 0);
@@ -311,7 +321,7 @@ QWidget *MultiplayerPage::buildCreateCard()
     passwordRow->addWidget(m_refreshButton);
     left->addLayout(passwordRow);
 
-    left->addWidget(Theme::label(QStringLiteral("虚拟 IP 网段"), 10,
+    left->addWidget(Theme::label(QStringLiteral("虚拟 IP 网段"), 11,
                                  QFont::DemiBold, Theme::TextSecondary, card));
     m_virtualIp = makeInput(QStringLiteral("例如 10.126.126.1"),
                             QStringLiteral("10.126.126.1"), card);
@@ -321,22 +331,26 @@ QWidget *MultiplayerPage::buildCreateCard()
     left->addWidget(m_virtualIp);
     auto *ipHint = Theme::label(
         QStringLiteral("房间内网段地址，不是公网 IP；冲突时改用 10.126.127.1。"),
-        9, QFont::Normal, Theme::TextMuted, card);
+        10, QFont::Normal, Theme::TextMuted, card);
     ipHint->setWordWrap(true);
     left->addWidget(ipHint);
-    left->addStretch(1);
 
     auto *right = new QVBoxLayout();
     right->setContentsMargins(0, 0, 0, 0);
     right->setSpacing(8);
-    right->addWidget(Theme::label(QStringLiteral("房间创建后"), 10,
+    right->addWidget(Theme::label(QStringLiteral("房间创建后"), 11,
                                   QFont::DemiBold, Theme::TextSecondary, card));
     auto *createTip = Theme::label(
         QStringLiteral("把虚拟 IP 和房间密码发给朋友。进入游戏开放局域网后，"
                        "再告诉朋友游戏端口。"),
-        10, QFont::Normal, Theme::TextMuted, card);
+        11, QFont::Normal, Theme::TextMuted, card);
     createTip->setWordWrap(true);
     right->addWidget(createTip);
+    auto *createTip2 = Theme::label(
+        QStringLiteral("创建成功后，这里会显示复制虚拟 IP 和联机状态。"),
+        10, QFont::Normal, Theme::TextMuted, card);
+    createTip2->setWordWrap(true);
+    right->addWidget(createTip2);
     right->addStretch(1);
 
     m_createButton = new AccentButton(QStringLiteral("一键开启联机"),
@@ -402,19 +416,25 @@ QWidget *MultiplayerPage::buildCreateCard()
 
     m_createHint = Theme::label(
         QStringLiteral("开放局域网后，复制上方 IP 并告诉朋友端口。"),
-        9, QFont::Normal, Theme::TextMuted, card);
+        10, QFont::Normal, Theme::TextMuted, card);
     m_createHint->setWordWrap(true);
     m_createHint->hide();
     right->addWidget(m_createHint);
 
-    m_createStatus = Theme::label(QStringLiteral("等待操作"), 10,
+    m_createStatus = Theme::label(QStringLiteral("等待操作"), 11,
                                   QFont::Normal, Theme::TextMuted, card);
     m_createStatus->setWordWrap(true);
-    right->addWidget(m_createStatus);
+
+    left->addSpacing(6);
+    left->addWidget(m_createButton);
+    left->addWidget(m_copyIpButton);
+    left->addWidget(m_createHint);
+    left->addWidget(m_createStatus);
+    left->addStretch(1);
 
     content->addLayout(left, 1);
     content->addLayout(right, 1);
-    outer->addLayout(content, 1);
+    outer->addLayout(content);
     return card;
 }
 
@@ -442,13 +462,13 @@ QWidget *MultiplayerPage::buildJoinCard()
     auto *left = new QVBoxLayout();
     left->setContentsMargins(0, 0, 0, 0);
     left->setSpacing(8);
-    left->addWidget(Theme::label(QStringLiteral("EasyTier 网络"), 10,
+    left->addWidget(Theme::label(QStringLiteral("EasyTier 网络"), 11,
                                  QFont::DemiBold, Theme::TextSecondary, card));
     m_joinCode = makeInput(QStringLiteral("房间名#密码"), QString(), card);
     left->addWidget(m_joinCode);
     auto *formatHint = Theme::label(
         QStringLiteral("输入房主分享的“房间名#密码”。"),
-        9, QFont::Normal, Theme::TextMuted, card);
+        10, QFont::Normal, Theme::TextMuted, card);
     formatHint->setWordWrap(true);
     left->addWidget(formatHint);
     left->addSpacing(4);
@@ -492,7 +512,7 @@ QWidget *MultiplayerPage::buildJoinCard()
         });
     });
     left->addWidget(m_joinButton);
-    m_joinStatus = Theme::label(QStringLiteral("等待操作"), 10,
+    m_joinStatus = Theme::label(QStringLiteral("等待操作"), 11,
                                 QFont::Normal, Theme::TextMuted, card);
     m_joinStatus->setWordWrap(true);
     left->addWidget(m_joinStatus);
@@ -508,11 +528,11 @@ QWidget *MultiplayerPage::buildJoinCard()
     auto *right = new QVBoxLayout();
     right->setContentsMargins(0, 0, 0, 0);
     right->setSpacing(8);
-    right->addWidget(Theme::label(QStringLiteral("游戏直连"), 10,
+    right->addWidget(Theme::label(QStringLiteral("游戏直连"), 11,
                                   QFont::DemiBold, Theme::TextSecondary, card));
     auto *directHint = Theme::label(
         QStringLiteral("加入网络后，填写房主虚拟 IP 和游戏端口。"),
-        9, QFont::Normal, Theme::TextMuted, card);
+        10, QFont::Normal, Theme::TextMuted, card);
     directHint->setWordWrap(true);
     right->addWidget(directHint);
 
@@ -549,7 +569,7 @@ QWidget *MultiplayerPage::buildJoinCard()
 
     auto *directNote = Theme::label(
         QStringLiteral("复制后，在游戏内“多人游戏 → 直接连接”中粘贴加入。"),
-        9, QFont::Normal, Theme::TextMuted, card);
+        10, QFont::Normal, Theme::TextMuted, card);
     directNote->setWordWrap(true);
     right->addWidget(directNote);
     right->addStretch(1);
@@ -667,7 +687,7 @@ QWidget *MultiplayerPage::buildConsole()
 
     auto *header = new QHBoxLayout();
     header->setContentsMargins(0, 0, 0, 0);
-    header->addWidget(Theme::label(QStringLiteral("运行日志"), 10,
+    header->addWidget(Theme::label(QStringLiteral("运行日志"), 11,
                                    QFont::DemiBold, Theme::TextSecondary, card));
     header->addSpacing(8);
     header->addWidget(Theme::label(QStringLiteral("EASYTIER"), 8,
@@ -811,7 +831,7 @@ QWidget *MultiplayerPage::buildConsole()
     m_log->setUndoRedoEnabled(false);
     m_log->setMaximumBlockCount(500);
     m_log->setMinimumHeight(280);
-    m_log->setFont(QFont(QStringLiteral("Consolas"), 9));
+    m_log->setFont(QFont(QStringLiteral("Consolas"), 10));
     m_log->setFrameShape(QFrame::NoFrame);
     layout->addWidget(m_log, 1);
     return card;
