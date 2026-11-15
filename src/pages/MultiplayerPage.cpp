@@ -849,18 +849,17 @@ void MultiplayerPage::updateEasyTierPathLabel()
     if (!m_easyTierPathLabel) {
         return;
     }
-    const QString directory = QDir(QCoreApplication::applicationDirPath())
-                                  .filePath(QStringLiteral("tools/easytier"));
+    QString directory = QDir(QCoreApplication::applicationDirPath())
+                            .filePath(QStringLiteral("tools/easytier"));
+    if (!m_easytierBinaryPath.trimmed().isEmpty()) {
+        directory = QFileInfo(m_easytierBinaryPath).absolutePath();
+    }
+    const QString nativePath = QDir::toNativeSeparators(directory);
     const QString binary = QDir(directory).filePath(
         QStringLiteral("easytier-core.exe"));
-    const QString nativePath = QDir::toNativeSeparators(directory);
-    QString displayPath = nativePath;
-    if (displayPath.size() > 52) {
-        displayPath = QStringLiteral("…\\tools\\easytier");
-    }
     m_easyTierPathLabel->setText(
         QStringLiteral("EasyTier 安装位置：%1%2")
-            .arg(displayPath,
+            .arg(nativePath,
                  QFileInfo::exists(binary)
                      ? QStringLiteral("（已安装）")
                      : QStringLiteral("（未安装，首次使用自动下载）")));
