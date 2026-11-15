@@ -18,9 +18,11 @@
 #include "Theme.h"
 
 #include <QAbstractButton>
+#include <QDesktopServices>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <functional>
 
@@ -188,6 +190,49 @@ MorePage::MorePage(QWidget *parent)
     tiles->setColumnStretch(0, 1);
     tiles->setColumnStretch(1, 1);
     overviewLayout->addLayout(tiles);
+    overviewLayout->addSpacing(14);
+
+    auto *feedbackCard = new CardWidget(overview);
+    feedbackCard->setAccentColor(Theme::Blue);
+    feedbackCard->setCornerRadius(16);
+    feedbackCard->setInteractive(false);
+    auto *feedbackLayout = new QHBoxLayout(feedbackCard);
+    feedbackLayout->setContentsMargins(18, 14, 16, 14);
+    feedbackLayout->setSpacing(14);
+
+    auto *feedbackIcon = new QLabel(feedbackCard);
+    feedbackIcon->setAlignment(Qt::AlignCenter);
+    feedbackIcon->setFixedSize(34, 34);
+    feedbackIcon->setPixmap(Icons::icon(Icons::Type::Info, Theme::Blue, 18)
+                                .pixmap(18, 18));
+    feedbackIcon->setStyleSheet(QStringLiteral(
+        "background: rgba(96, 165, 250, 20);"
+        "border: 1px solid rgba(96, 165, 250, 52);"
+        "border-radius: 9px;"));
+    feedbackLayout->addWidget(feedbackIcon);
+
+    auto *feedbackText = new QVBoxLayout();
+    feedbackText->setContentsMargins(0, 0, 0, 0);
+    feedbackText->setSpacing(2);
+    feedbackText->addWidget(Theme::label(QStringLiteral("快捷反馈"), 13,
+                                         QFont::DemiBold, Theme::TextPrimary,
+                                         feedbackCard));
+    feedbackText->addWidget(Theme::label(
+        QStringLiteral("遇到 Bug 或有功能建议？欢迎在 GitHub Issues 中告诉我！"),
+        10, QFont::Normal, Theme::TextMuted, feedbackCard));
+    feedbackLayout->addLayout(feedbackText, 1);
+
+    auto *feedbackButton = new AccentButton(QStringLiteral("打开 Issues"),
+                                             Icons::Type::External, feedbackCard);
+    feedbackButton->setVariant(AccentButton::Variant::Secondary);
+    feedbackButton->setCompact(true);
+    connect(feedbackButton, &QAbstractButton::clicked, this, []() {
+        QDesktopServices::openUrl(QUrl(
+            QStringLiteral("https://github.com/HandsomeTurtle0307/Mystic-Turtle-Launcher/issues")));
+    });
+    feedbackLayout->addWidget(feedbackButton, 0, Qt::AlignVCenter);
+    overviewLayout->addWidget(feedbackCard);
+
     overviewLayout->addStretch(1);
 
     m_pages->addPage(overview);
