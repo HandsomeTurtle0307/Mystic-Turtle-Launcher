@@ -35,6 +35,9 @@ public:
                           const QString &versionDirectory,
                           QWidget *parent = nullptr);
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private:
     QWidget *buildContent();
     QWidget *buildSection(const QString &title, const QString &description,

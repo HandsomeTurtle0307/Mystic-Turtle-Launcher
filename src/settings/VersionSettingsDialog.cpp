@@ -10,6 +10,8 @@
 #include "VersionSettingsDialog.h"
 
 #include "AccentButton.h"
+#include "BackgroundStore.h"
+#include "DialogBackground.h"
 #include "IconFactory.h"
 #include "Theme.h"
 #include "ModernInputs.h"
@@ -24,6 +26,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QOverload>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QSlider>
@@ -62,8 +65,9 @@ VersionSettingsDialog::VersionSettingsDialog(const VersionSettings &settings,
     setModal(true);
     setMinimumSize(700, 620);
     resize(780, 760);
+    setAttribute(Qt::WA_NoSystemBackground);
+    setAutoFillBackground(false);
     setStyleSheet(QStringLiteral(
-        "QDialog { background: #0B1118; }"
         "QFrame#versionGlassCard {"
         "  background: rgba(255,255,255,9);"
         "  border: 1px solid rgba(255,255,255,20);"
@@ -149,6 +153,17 @@ VersionSettingsDialog::VersionSettingsDialog(const VersionSettings &settings,
     updateJavaControls();
     updateWindowControls();
     updateGameArgsControls();
+
+    connect(&BackgroundStore::instance(), &BackgroundStore::changed,
+            this, [this]() { update(); });
+}
+
+void VersionSettingsDialog::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event)
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    DialogBackground::paint(this, painter);
 }
 
 QWidget *VersionSettingsDialog::buildContent()

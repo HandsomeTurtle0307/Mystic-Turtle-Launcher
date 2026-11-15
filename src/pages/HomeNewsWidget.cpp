@@ -10,6 +10,8 @@
 #include "HomeNewsWidget.h"
 
 #include "AccentButton.h"
+#include "BackgroundStore.h"
+#include "DialogBackground.h"
 #include "IconFactory.h"
 #include "LoadingIndicator.h"
 #include "Theme.h"
@@ -27,6 +29,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPainter>
 #include <QProcess>
 #include <QPushButton>
 #include <QSet>
@@ -625,12 +628,29 @@ void HomeNewsWidget::openUrl(const QUrl &url)
 
 void HomeNewsWidget::showDisclaimer()
 {
-    QDialog dialog(window() ? window() : this);
+    class BackgroundNewsDialog : public QDialog
+    {
+    public:
+        using QDialog::QDialog;
+
+    protected:
+        void paintEvent(QPaintEvent *event) override
+        {
+            Q_UNUSED(event)
+            QPainter painter(this);
+            DialogBackground::paint(this, painter);
+        }
+    };
+
+    BackgroundNewsDialog dialog(window() ? window() : this);
     dialog.setWindowTitle(QStringLiteral("免责声明"));
     dialog.setModal(true);
     dialog.setMinimumWidth(540);
+    dialog.setAttribute(Qt::WA_NoSystemBackground);
+    dialog.setAutoFillBackground(false);
+    connect(&BackgroundStore::instance(), &BackgroundStore::changed,
+            &dialog, [&dialog]() { dialog.update(); });
     dialog.setStyleSheet(QStringLiteral(
-        "QDialog { background: #111821; }"
         "QTextBrowser { background: transparent; border: none;"
         "color: #A4B1B9; }"));
 

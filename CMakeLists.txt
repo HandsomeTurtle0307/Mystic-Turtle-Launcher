@@ -83,6 +83,8 @@ set(MYSTIC_TURTLE_SOURCES
     src/widgets/BackgroundStore.h
     src/widgets/CardWidget.cpp
     src/widgets/CardWidget.h
+    src/widgets/DialogBackground.cpp
+    src/widgets/DialogBackground.h
     src/widgets/HeaderBar.cpp
     src/widgets/HeaderBar.h
     src/widgets/LogoMark.cpp

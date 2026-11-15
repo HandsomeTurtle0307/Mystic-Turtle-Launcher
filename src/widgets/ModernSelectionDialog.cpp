@@ -6,18 +6,20 @@
 #include "ModernSelectionDialog.h"
 
 #include "AccentButton.h"
+#include "BackgroundStore.h"
 #include "CardWidget.h"
+#include "DialogBackground.h"
 #include "ModernInputs.h"
 #include "Theme.h"
 
 #include <QAbstractItemView>
 #include <QAbstractAnimation>
 #include <QFrame>
-#include <QGraphicsOpacityEffect>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QPainter>
 #include <QPropertyAnimation>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -30,7 +32,8 @@ ModernSelectionDialog::ModernSelectionDialog(QWidget *parent,
     : QDialog(parent)
 {
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_NoSystemBackground);
+    setAutoFillBackground(false);
     setModal(true);
     resize(460, qBound(300, 230 + qMin(items.size(), 9) * 36, 600));
 
@@ -130,15 +133,16 @@ ModernSelectionDialog::ModernSelectionDialog(QWidget *parent,
 
     QTimer::singleShot(0, m_search, [this]() { m_search->setFocus(); });
 
-    auto *fade = new QGraphicsOpacityEffect(this);
-    fade->setOpacity(0.0);
-    setGraphicsEffect(fade);
-    auto *fadeIn = new QPropertyAnimation(fade, "opacity", this);
-    fadeIn->setDuration(Theme::animationsEnabled() ? 140 : 0);
-    fadeIn->setStartValue(0.0);
-    fadeIn->setEndValue(1.0);
-    fadeIn->setEasingCurve(QEasingCurve::OutCubic);
-    fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
+    connect(&BackgroundStore::instance(), &BackgroundStore::changed,
+            this, [this]() { update(); });
+}
+
+void ModernSelectionDialog::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event)
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    DialogBackground::paint(this, painter);
 }
 
 QString ModernSelectionDialog::getItem(QWidget *parent,
