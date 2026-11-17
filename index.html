@@ -749,45 +749,72 @@
     margin-top: 18px;
   }
 
-  .stars {
+  .repo-stats {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .repo-stat {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    margin-top: 16px;
-    padding: 6px 10px;
+    padding: 6px 12px 6px 10px;
     border: 1px solid var(--line-soft);
     border-radius: 999px;
     color: #a9b9ae;
-    background: rgba(255, 255, 255, 0.025);
+    background: #0e1318;
     font-size: 11px;
+    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
   }
 
-  .stars svg {
+  .repo-stat:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: #131a1f;
+    color: #d6e3db;
+  }
+
+  .repo-stat svg {
     width: 14px;
     height: 14px;
+    color: #8fa89a;
+    flex: none;
+  }
+
+  .repo-stat:first-child svg {
     color: #f4d36a;
     fill: currentColor;
     stroke: currentColor;
     stroke-width: 1.2;
   }
 
-  .stars strong {
+  .repo-stat-value {
     color: #f3f9f5;
     font-family: var(--mono);
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
 
-  .stars-loading {
-    display: inline-block;
-    width: 28px;
+  .repo-stat-label {
+    color: #8d9b93;
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+  }
+
+  .repo-stat-value[hidden] { display: none; }
+
+  .repo-stat.is-loading .repo-stat-value {
+    width: 16px;
     height: 6px;
     border-radius: 999px;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(74, 222, 128, 0.35), rgba(255, 255, 255, 0.12));
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(110, 231, 183, 0.35), rgba(255, 255, 255, 0.12));
     background-size: 200% 100%;
     animation: loading 1.2s linear infinite;
+    font-size: 0;
+    color: transparent;
   }
-
-  .stars-loading[hidden], #star-count[hidden] { display: none; }
 
   @keyframes loading {
     from { background-position: 200% 0; }
@@ -1920,26 +1947,35 @@
       goTo(next);
     }, { passive: false });
 
-    // Live GitHub stars. Try the official API first, then a lightweight
+    // Live GitHub repository metrics. Try the official API first, then a
     // CORS-friendly mirror when the unauthenticated API is rate-limited.
-    const loading = document.getElementById('stars-loading');
-    const count = document.getElementById('star-count');
-    const renderStars = (value) => {
-      const stars = Number(value);
-      loading.hidden = true;
-      count.hidden = false;
-      count.textContent = Number.isFinite(stars)
-        ? new Intl.NumberFormat('zh-CN').format(stars)
-        : '—';
+    const metrics = [
+      { item: document.getElementById('stat-stars'), value: document.getElementById('stars-count') },
+      { item: document.getElementById('stat-forks'), value: document.getElementById('forks-count') },
+      { item: document.getElementById('stat-watchers'), value: document.getElementById('watchers-count') }
+    ];
+    const renderMetrics = (stars, forks, watchers) => {
+      const values = [stars, forks, watchers];
+      metrics.forEach(({ item, value }, index) => {
+        if (!item || !value) return;
+        const number = Number(values[index]);
+        item.classList.remove('is-loading');
+        value.hidden = false;
+        value.textContent = Number.isFinite(number)
+          ? new Intl.NumberFormat('zh-CN').format(number)
+          : '—';
+      });
     };
-    const loadStarsFromMirror = () =>
+    metrics.forEach(({ item }) => item && item.classList.add('is-loading'));
+    const loadMetricsFromMirror = () =>
       fetch('https://ungh.cc/repos/HandsomeTurtle0307/Mystic-Turtle-Launcher')
         .then((response) => {
           if (!response.ok) throw new Error('ungh ' + response.status);
           return response.json();
         })
         .then((data) => {
-          renderStars(data.repo && data.repo.stars);
+          const repo = data.repo || {};
+          renderMetrics(repo.stars, repo.forks, repo.watchers);
         });
     fetch('https://api.github.com/repos/HandsomeTurtle0307/Mystic-Turtle-Launcher', {
       headers: { 'Accept': 'application/vnd.github+json' },
@@ -1950,11 +1986,13 @@
         return response.json();
       })
       .then((data) => {
-        renderStars(data.stargazers_count);
+        // subscribers_count is the real "Watch" count; watchers_count is a
+        // legacy alias of stargazers_count.
+        renderMetrics(data.stargazers_count, data.forks_count, data.subscribers_count);
       })
-      .catch(loadStarsFromMirror)
+      .catch(loadMetricsFromMirror)
       .catch(() => {
-        renderStars(NaN);
+        renderMetrics(NaN, NaN, NaN);
       });
   })();
 
