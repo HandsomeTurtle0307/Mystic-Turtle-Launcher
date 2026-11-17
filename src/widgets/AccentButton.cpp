@@ -51,9 +51,9 @@ AccentButton::AccentButton(const QString &text, QWidget *parent)
     setFixedHeight(38);
     setFont(paintFont());
 
-    m_hoverAnimation->setDuration(170);
+    m_hoverAnimation->setDuration(Theme::MotionFast);
     m_hoverAnimation->setEasingCurve(QEasingCurve::OutCubic);
-    m_pressAnimation->setDuration(90);
+    m_pressAnimation->setDuration(80);
     m_pressAnimation->setEasingCurve(QEasingCurve::OutCubic);
     m_spotlightAnimation->setDuration(240);
     m_spotlightAnimation->setEasingCurve(QEasingCurve::OutCubic);
@@ -251,7 +251,7 @@ void AccentButton::paintEvent(QPaintEvent *event)
     painter.scale(scale, scale);
     painter.translate(-width() / 2.0, -height() / 2.0);
 
-    const qreal radius = m_compact ? height() / 2.0 : 9.0;
+    const qreal radius = m_compact ? height() / 2.0 : 10.0;
     const QRectF buttonRect = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
     const bool checked = isChecked();
     const bool enabled = isEnabled();

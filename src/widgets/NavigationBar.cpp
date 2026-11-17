@@ -83,7 +83,7 @@ NavigationBar::NavigationBar(QWidget *parent)
 
     m_buttons.first()->setActive(true, false);
 
-    m_indicatorAnimation->setDuration(300);
+    m_indicatorAnimation->setDuration(Theme::MotionSlow);
     m_indicatorAnimation->setEasingCurve(QEasingCurve::OutCubic);
     connect(m_indicatorAnimation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant &value) {

@@ -9,9 +9,12 @@
 
 #include "Theme.h"
 
+#include "platform/WindowEffects.h"
+
 #include <QAbstractAnimation>
 #include <QAbstractScrollArea>
 #include <QApplication>
+#include <QDialog>
 #include <QEvent>
 #include <QFrame>
 #include <QLabel>
@@ -33,6 +36,24 @@ bool g_darkMode = true;
 bool g_animationsEnabled = true;
 QHash<QProgressBar *, QPointer<QPropertyAnimation>> g_progressAnimations;
 QPointer<QObject> g_smoothScrollFilter;
+QPointer<QObject> g_dialogFrameFilter;
+
+class DialogFrameFilter final : public QObject
+{
+public:
+    using QObject::QObject;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::Show) {
+            if (auto *dialog = qobject_cast<QDialog *>(watched)) {
+                WindowEffects::setModernFrame(dialog);
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+};
 
 class SmoothScrollFilter final : public QObject
 {
@@ -164,7 +185,7 @@ QString controlStyleSheet()
                 color: #EAF1F7;
                 background-color: #16202C;
                 border: 1px solid rgba(255, 255, 255, 26);
-                border-radius: 9px;
+                border-radius: 10px;
                 padding: 6px 10px;
             }
             QComboBox QAbstractItemView {
@@ -173,11 +194,38 @@ QString controlStyleSheet()
                 border: 1px solid rgba(255, 255, 255, 28);
                 selection-background-color: #24364D;
             }
+            QCheckBox, QRadioButton {
+                color: #A4B1B9;
+                spacing: 8px;
+            }
+            QCheckBox::indicator, QRadioButton::indicator {
+                width: 15px;
+                height: 15px;
+                border: 1px solid rgba(255, 255, 255, 42);
+                background: rgba(255, 255, 255, 4);
+            }
+            QCheckBox::indicator { border-radius: 4px; }
+            QRadioButton::indicator { border-radius: 8px; }
+            QCheckBox::indicator:hover, QRadioButton::indicator:hover {
+                border-color: rgba(110, 231, 183, 120);
+            }
+            QCheckBox::indicator:checked {
+                background: #6EE7B7;
+                border-color: #6EE7B7;
+            }
+            QRadioButton::indicator:checked {
+                background: #6EE7B7;
+                border: 4px solid #16202C;
+            }
+            QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {
+                background: rgba(255, 255, 255, 3);
+                border-color: rgba(255, 255, 255, 14);
+            }
             QSpinBox {
                 color: #EAF1F7;
                 background-color: rgba(255, 255, 255, 9);
                 border: 1px solid rgba(255, 255, 255, 24);
-                border-radius: 9px;
+                border-radius: 10px;
                 padding: 6px 10px;
             }
             QSpinBox:hover { border-color: rgba(255, 255, 255, 42); }
@@ -280,7 +328,7 @@ QString controlStyleSheet()
             color: #17243A;
             background-color: #FFFFFF;
             border: 1px solid #D7E3F2;
-            border-radius: 9px;
+            border-radius: 10px;
             padding: 6px 10px;
         }
         QComboBox QAbstractItemView {
@@ -291,11 +339,39 @@ QString controlStyleSheet()
             selection-color: #1E6FE0;
         }
 
+        QCheckBox, QRadioButton {
+            color: #17243A;
+            spacing: 8px;
+        }
+        QCheckBox::indicator, QRadioButton::indicator {
+            width: 15px;
+            height: 15px;
+            border: 1px solid #B9CCE3;
+            background: #FFFFFF;
+        }
+        QCheckBox::indicator { border-radius: 4px; }
+        QRadioButton::indicator { border-radius: 8px; }
+        QCheckBox::indicator:hover, QRadioButton::indicator:hover {
+            border-color: #2F80ED;
+        }
+        QCheckBox::indicator:checked {
+            background: #2F80ED;
+            border-color: #2F80ED;
+        }
+        QRadioButton::indicator:checked {
+            background: #2F80ED;
+            border: 4px solid #FFFFFF;
+        }
+        QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {
+            background: #F3F7FC;
+            border-color: #D7E3F2;
+        }
+
         QSpinBox {
             color: #17243A;
             background-color: #FFFFFF;
             border: 1px solid #D7E3F2;
-            border-radius: 9px;
+            border-radius: 10px;
             padding: 6px 10px;
         }
         QSpinBox:hover { border-color: #B9CCE3; }
@@ -575,6 +651,11 @@ void apply(QApplication &app)
     app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
     app.setFont(font(13));
     app.setStyleSheet(controlStyleSheet());
+
+    if (!g_dialogFrameFilter) {
+        g_dialogFrameFilter = new DialogFrameFilter(&app);
+        app.installEventFilter(g_dialogFrameFilter);
+    }
 
     QPalette palette;
     palette.setColor(QPalette::Window, Background);

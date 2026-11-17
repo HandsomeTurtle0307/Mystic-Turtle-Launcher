@@ -609,7 +609,7 @@ void MainWindow::animatePageTo(int index)
 
     m_pendingPageIndex = index;
     auto *fadeOut = new QPropertyAnimation(m_pageOpacityEffect, "opacity", this);
-    fadeOut->setDuration(130);
+    fadeOut->setDuration(Theme::MotionFast);
     fadeOut->setStartValue(1.0);
     fadeOut->setEndValue(0.0);
     fadeOut->setEasingCurve(QEasingCurve::InCubic);
@@ -626,7 +626,7 @@ void MainWindow::animatePageTo(int index)
         fadeOut->deleteLater();
 
         auto *fadeIn = new QPropertyAnimation(m_pageOpacityEffect, "opacity", this);
-        fadeIn->setDuration(220);
+        fadeIn->setDuration(Theme::MotionNormal);
         fadeIn->setStartValue(0.0);
         fadeIn->setEndValue(1.0);
         fadeIn->setEasingCurve(QEasingCurve::OutCubic);
@@ -682,7 +682,7 @@ void MainWindow::updateWindowChrome()
         m_header->setMaximized(maximized);
     }
     if (m_nativeEffectsApplied) {
-        WindowEffects::setRoundedCorners(this, false);
+        WindowEffects::setRoundedCorners(this, !maximized);
     }
     update();
 }
@@ -692,7 +692,7 @@ void MainWindow::showEvent(QShowEvent *event)
     QWidget::showEvent(event);
     if (!m_nativeEffectsApplied) {
         m_nativeEffectsApplied = true;
-        WindowEffects::apply(this, m_acrylicEnabled, false);
+        WindowEffects::apply(this, m_acrylicEnabled, !isMaximized() && !isFullScreen());
     }
 }
 
@@ -1368,8 +1368,9 @@ void MainWindow::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
+    const bool maximized = isMaximized() || isFullScreen();
     const int margin = 0;
-    const qreal radius = 0.0;
+    const qreal radius = maximized ? 0.0 : Theme::CardRadius;
     const QRectF surface = QRectF(rect()).adjusted(margin, margin, -margin, -margin);
 
     QPainterPath surfacePath;

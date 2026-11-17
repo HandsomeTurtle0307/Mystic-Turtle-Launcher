@@ -24,6 +24,7 @@
 #include "settings/GlobalSettings.h"
 #include "ModernInputs.h"
 #include "ModernSelectionDialog.h"
+#include "platform/WindowEffects.h"
 
 #include <QComboBox>
 #include <QDateTime>
@@ -114,6 +115,7 @@ public:
         setAttribute(Qt::WA_NoSystemBackground);
         setAutoFillBackground(false);
         loadBackground();
+        WindowEffects::setModernFrame(this);
         connect(&BackgroundStore::instance(), &BackgroundStore::changed,
                 this, &ModDetailsDialog::loadBackground);
     }
@@ -770,7 +772,7 @@ void requestProjectVersions(const QString &projectId,
                 }
                 auto *animation = new QPropertyAnimation(items, "maximumHeight", items);
                 animation->setObjectName(QStringLiteral("versionListAnimation"));
-                animation->setDuration(220);
+                animation->setDuration(Theme::MotionNormal + 20);
                 animation->setStartValue(startHeight);
                 animation->setEndValue(targetHeight);
                 animation->setEasingCurve(QEasingCurve::InOutCubic);

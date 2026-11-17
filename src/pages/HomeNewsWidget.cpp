@@ -15,6 +15,7 @@
 #include "IconFactory.h"
 #include "LoadingIndicator.h"
 #include "Theme.h"
+#include "platform/WindowEffects.h"
 
 #include <QDesktopServices>
 #include <QDialog>
@@ -650,6 +651,7 @@ void HomeNewsWidget::showDisclaimer()
     dialog.setAutoFillBackground(false);
     connect(&BackgroundStore::instance(), &BackgroundStore::changed,
             &dialog, [&dialog]() { dialog.update(); });
+    WindowEffects::setModernFrame(&dialog);
     dialog.setStyleSheet(QStringLiteral(
         "QTextBrowser { background: transparent; border: none;"
         "color: #A4B1B9; }"));

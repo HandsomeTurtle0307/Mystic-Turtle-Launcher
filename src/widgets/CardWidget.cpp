@@ -36,7 +36,7 @@ CardWidget::CardWidget(QWidget *parent)
     setAutoFillBackground(false);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-    m_hoverAnimation->setDuration(220);
+    m_hoverAnimation->setDuration(Theme::MotionNormal);
     m_hoverAnimation->setEasingCurve(QEasingCurve::OutCubic);
 }
 
@@ -66,7 +66,8 @@ bool CardWidget::isInteractive() const
 
 void CardWidget::setCornerRadius(qreal radius)
 {
-    m_cornerRadius = radius;
+    Q_UNUSED(radius)
+    m_cornerRadius = Theme::CardRadius;
     update();
 }
 

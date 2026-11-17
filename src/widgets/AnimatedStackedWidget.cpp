@@ -140,25 +140,25 @@ void AnimatedStackedWidget::animateTo(int index, bool animated)
     m_animation = new QParallelAnimationGroup(this);
 
     auto *oldPosition = new QPropertyAnimation(outgoing, "pos", m_animation);
-    oldPosition->setDuration(260);
+    oldPosition->setDuration(Theme::MotionNormal);
     oldPosition->setStartValue(QPoint(0, 0));
     oldPosition->setEndValue(QPoint(-direction * 18, 0));
     oldPosition->setEasingCurve(QEasingCurve::OutCubic);
 
     auto *newPosition = new QPropertyAnimation(incoming, "pos", m_animation);
-    newPosition->setDuration(320);
+    newPosition->setDuration(Theme::MotionNormal);
     newPosition->setStartValue(QPoint(direction * 28, 0));
     newPosition->setEndValue(QPoint(0, 0));
     newPosition->setEasingCurve(QEasingCurve::OutCubic);
 
     auto *oldOpacity = new QPropertyAnimation(oldEffect, "opacity", m_animation);
-    oldOpacity->setDuration(180);
+    oldOpacity->setDuration(Theme::MotionFast);
     oldOpacity->setStartValue(1.0);
     oldOpacity->setEndValue(0.0);
     oldOpacity->setEasingCurve(QEasingCurve::InOutQuad);
 
     auto *newOpacity = new QPropertyAnimation(newEffect, "opacity", m_animation);
-    newOpacity->setDuration(250);
+    newOpacity->setDuration(Theme::MotionNormal);
     newOpacity->setStartValue(0.0);
     newOpacity->setEndValue(1.0);
     newOpacity->setEasingCurve(QEasingCurve::OutCubic);

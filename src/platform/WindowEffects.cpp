@@ -36,6 +36,9 @@
 #ifndef DWMWCP_ROUND
 #define DWMWCP_ROUND 2
 #endif
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
 #ifndef DWMSBT_NONE
 #define DWMSBT_NONE 1
 #endif
@@ -186,6 +189,22 @@ void setAcrylic(QWidget *window, bool enabled)
 #else
     Q_UNUSED(window)
     Q_UNUSED(enabled)
+#endif
+}
+
+void setModernFrame(QWidget *window)
+{
+#ifdef Q_OS_WIN
+    HWND hwnd = nativeHandle(window);
+    if (!hwnd) {
+        return;
+    }
+    setDarkMode(hwnd);
+    configureCorners(hwnd, true);
+    const COLORREF borderColor = RGB(35, 42, 51);
+    DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &borderColor, sizeof(borderColor));
+#else
+    Q_UNUSED(window)
 #endif
 }
 

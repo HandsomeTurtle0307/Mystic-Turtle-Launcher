@@ -21,5 +21,8 @@ void apply(QWidget *window, bool acrylic, bool roundedCorners);
 
 void setAcrylic(QWidget *window, bool enabled);
 void setRoundedCorners(QWidget *window, bool rounded);
+// Applies the same dark title bar, rounded frame and quiet border used by the
+// launcher to a native dialog.
+void setModernFrame(QWidget *window);
 
 } // namespace WindowEffects

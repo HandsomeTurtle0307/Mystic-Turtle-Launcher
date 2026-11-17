@@ -33,6 +33,7 @@ private:
     void accept() override;
     void selectFirstVisible();
     void paintEvent(QPaintEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
     QListWidget *m_list = nullptr;
     ModernLineEdit *m_search = nullptr;

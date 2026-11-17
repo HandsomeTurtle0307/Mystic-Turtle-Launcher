@@ -77,7 +77,7 @@ QWidget *moreTile(const QString &eyebrow, const QString &title,
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLabel->setStyleSheet(QStringLiteral(
         "background: rgba(%1, %2, %3, 26);"
-        "border: 1px solid rgba(%1, %2, %3, 42); border-radius: 14px;")
+        "border: 1px solid rgba(%1, %2, %3, 42); border-radius: 12px;")
         .arg(accent.red()).arg(accent.green()).arg(accent.blue()));
     heading->addWidget(iconLabel, 0, Qt::AlignTop);
 

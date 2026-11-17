@@ -69,7 +69,7 @@ DonationPage::DonationPage(QWidget *parent)
     panel->setObjectName(QStringLiteral("donationPanel"));
     panel->setStyleSheet(QStringLiteral(
         "QFrame#donationPanel { background: rgba(8, 16, 24, 232);"
-        "border: 1px solid rgba(135, 205, 190, 50); border-radius: 16px; }"));
+        "border: 1px solid rgba(135, 205, 190, 50); border-radius: 12px; }"));
     auto *content = new QHBoxLayout(panel);
     content->setContentsMargins(28, 24, 28, 24);
     content->setSpacing(24);
@@ -124,7 +124,7 @@ DonationPage::DonationPage(QWidget *parent)
     qrFrame->setFixedSize(300, 300);
     qrFrame->setStyleSheet(QStringLiteral(
         "QFrame#donationQrFrame { background: #FFFFFF; border: 3px solid #65DFA7;"
-        "border-radius: 16px; }"));
+        "border-radius: 12px; }"));
     auto *qrLayout = new QVBoxLayout(qrFrame);
     qrLayout->setContentsMargins(10, 10, 10, 10);
     auto *qr = new QLabel(qrFrame);

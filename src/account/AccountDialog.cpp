@@ -12,6 +12,7 @@
 #include "AccountManager.h"
 #include "AccentButton.h"
 #include "BackgroundStore.h"
+#include "platform/WindowEffects.h"
 #include "CardWidget.h"
 #include "Theme.h"
 #include "WindowButton.h"
@@ -100,6 +101,7 @@ AccountDialog::AccountDialog(QWidget *parent)
     setWindowTitle(QStringLiteral("账户管理"));
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
+    WindowEffects::setModernFrame(this);
     setModal(true);
     setFixedSize(680, 690);
 
@@ -280,7 +282,7 @@ void AccountDialog::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     QPainterPath clipPath;
-    clipPath.addRoundedRect(QRectF(rect()), 20.0, 20.0);
+    clipPath.addRoundedRect(QRectF(rect()), Theme::CardRadius, Theme::CardRadius);
     painter.setClipPath(clipPath);
     painter.fillRect(rect(), Theme::BackgroundDeep);
 

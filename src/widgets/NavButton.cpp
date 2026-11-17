@@ -44,9 +44,9 @@ NavButton::NavButton(const QString &text, Icons::Type icon, QWidget *parent)
     setFont(Theme::font(13, QFont::DemiBold));
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    m_hoverAnimation->setDuration(160);
+    m_hoverAnimation->setDuration(Theme::MotionFast);
     m_hoverAnimation->setEasingCurve(QEasingCurve::OutCubic);
-    m_activeAnimation->setDuration(260);
+    m_activeAnimation->setDuration(Theme::MotionSlow);
     m_activeAnimation->setEasingCurve(QEasingCurve::OutCubic);
 }
 

@@ -21,6 +21,11 @@ class QWidget;
 
 namespace Theme {
 
+inline constexpr qreal CardRadius = 12.0;
+inline constexpr int MotionFast = 130;
+inline constexpr int MotionNormal = 180;
+inline constexpr int MotionSlow = 230;
+
 inline QColor BackgroundDeep(QStringLiteral("#080B10"));
 inline QColor Background(QStringLiteral("#0D1117"));
 inline QColor Surface(QStringLiteral("#111821"));

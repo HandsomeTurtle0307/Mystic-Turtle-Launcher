@@ -45,7 +45,7 @@ private:
 
     QColor m_accent = QColor(QStringLiteral("#6EE7B7"));
     qreal m_hoverProgress = 0.0;
-    qreal m_cornerRadius = 18.0;
+    qreal m_cornerRadius = 12.0;
     bool m_interactive = true;
     QPropertyAnimation *m_hoverAnimation = nullptr;
 };

@@ -86,7 +86,7 @@ public:
             "QFrame#loaderRow {"
             "background: transparent;"
             "border: 1px solid %1;"
-            "border-radius: 14px; }"
+            "border-radius: 12px; }"
             "QFrame#loaderRow:hover {"
             "background: rgba(110, 231, 183, 12);"
             "border-color: %2; }"

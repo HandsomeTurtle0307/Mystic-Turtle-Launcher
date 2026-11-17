@@ -11,6 +11,7 @@
 #include "DialogBackground.h"
 #include "ModernInputs.h"
 #include "Theme.h"
+#include "platform/WindowEffects.h"
 
 #include <QAbstractItemView>
 #include <QAbstractAnimation>
@@ -143,6 +144,12 @@ void ModernSelectionDialog::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     DialogBackground::paint(this, painter);
+}
+
+void ModernSelectionDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    WindowEffects::setModernFrame(this);
 }
 
 QString ModernSelectionDialog::getItem(QWidget *parent,

@@ -576,7 +576,7 @@ void ModsDrawer::paintEvent(QPaintEvent *event)
 
     painter.save();
     QPainterPath clip;
-    clip.addRoundedRect(panelRect, 22, 22);
+    clip.addRoundedRect(panelRect, Theme::CardRadius, Theme::CardRadius);
     painter.setClipPath(clip);
 
     painter.fillRect(panelRect, Theme::BackgroundDeep);

@@ -63,7 +63,7 @@ ModernLineEdit::ModernLineEdit(QWidget *parent)
     setPalette(palette);
 
     m_animation = new QVariantAnimation(this);
-    m_animation->setDuration(150);
+    m_animation->setDuration(Theme::MotionFast);
     m_animation->setEasingCurve(QEasingCurve::OutCubic);
     connect(m_animation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant &value) {
@@ -149,7 +149,7 @@ void ModernLineEdit::paintEvent(QPaintEvent *event)
 
     painter.setBrush(fill);
     painter.setPen(QPen(border, 1.0));
-    painter.drawRoundedRect(bounds, 9.0, 9.0);
+    painter.drawRoundedRect(bounds, 10.0, 10.0);
     painter.end();
 
     QLineEdit::paintEvent(event);
@@ -181,7 +181,7 @@ ModernComboBox::ModernComboBox(QWidget *parent)
     setPalette(palette);
 
     m_animation = new QVariantAnimation(this);
-    m_animation->setDuration(150);
+    m_animation->setDuration(Theme::MotionFast);
     m_animation->setEasingCurve(QEasingCurve::OutCubic);
     connect(m_animation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant &value) {
@@ -285,7 +285,7 @@ void ModernComboBox::paintEvent(QPaintEvent *event)
     }
     painter.setBrush(fill);
     painter.setPen(QPen(border, 1.0));
-    painter.drawRoundedRect(bounds, 9.0, 9.0);
+    painter.drawRoundedRect(bounds, 10.0, 10.0);
 
     const int leftPadding = 11;
     int contentLeft = leftPadding;

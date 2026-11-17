@@ -15,6 +15,7 @@
 #include "IconFactory.h"
 #include "Theme.h"
 #include "ModernInputs.h"
+#include "platform/WindowEffects.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -71,7 +72,7 @@ VersionSettingsDialog::VersionSettingsDialog(const VersionSettings &settings,
         "QFrame#versionGlassCard {"
         "  background: rgba(255,255,255,9);"
         "  border: 1px solid rgba(255,255,255,20);"
-        "  border-radius: 16px;"
+        "  border-radius: 12px;"
         "}"
         "QLabel { background: transparent; }"
         "QCheckBox { color: #DCE6EC; spacing: 8px; }"
@@ -164,6 +165,12 @@ void VersionSettingsDialog::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     DialogBackground::paint(this, painter);
+}
+
+void VersionSettingsDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    WindowEffects::setModernFrame(this);
 }
 
 QWidget *VersionSettingsDialog::buildContent()
