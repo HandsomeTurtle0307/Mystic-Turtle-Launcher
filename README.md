@@ -594,8 +594,6 @@ MysticTurtle 不是 Mojang Studios 或 Microsoft 的官方产品，也未获得�
 
 ---
 
-#### 不知道怎么形容
-
 <table>
   <tr>
     <td width="150" valign="middle" align="center">
