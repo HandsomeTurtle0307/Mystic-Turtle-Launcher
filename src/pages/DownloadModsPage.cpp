@@ -1026,7 +1026,7 @@ DownloadModsPage::DownloadModsPage(const QString &projectType,
     versionLoadingLayout->setContentsMargins(0, 0, 0, 0);
     versionLoadingLayout->setSpacing(7);
     m_versionLoadingIndicator = new LoadingIndicator(versionLoadingRow, Theme::Accent);
-    m_versionLoadingIndicator->setFixedSize(17, 17);
+    m_versionLoadingIndicator->setFixedSize(22, 22);
     versionLoadingLayout->addWidget(m_versionLoadingIndicator);
     m_versionLoadingLabel = mutedLabel(
         QStringLiteral("正在获取 Minecraft 版本清单…"), versionLoadingRow);

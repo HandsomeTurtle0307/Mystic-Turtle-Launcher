@@ -322,7 +322,7 @@ DownloadGamePage::DownloadGamePage(QWidget *parent)
     manifestRow->setContentsMargins(2, 0, 2, 0);
     manifestRow->setSpacing(8);
     m_manifestLoadingIndicator = new LoadingIndicator(m_listPage, Theme::Accent);
-    m_manifestLoadingIndicator->setFixedSize(17, 17);
+    m_manifestLoadingIndicator->setFixedSize(22, 22);
     manifestRow->addWidget(m_manifestLoadingIndicator);
     m_manifestStatusLabel = Theme::label(QStringLiteral("正在获取官方版本清单…"),
                                          10, QFont::Normal, Theme::TextMuted, m_listPage);

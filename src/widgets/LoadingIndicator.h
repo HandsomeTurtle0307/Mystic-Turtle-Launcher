@@ -33,5 +33,6 @@ private:
     QTimer *m_timer = nullptr;
     QColor m_color;
     int m_angle = 0;
+    qreal m_ripplePhase = 0.0;
     bool m_animationsEnabled = true;
 };
