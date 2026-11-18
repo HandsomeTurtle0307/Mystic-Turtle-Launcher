@@ -1,16 +1,18 @@
+# MysticTurtle Launcher
+
 ![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=c%2B%2B)
 ![Qt](https://img.shields.io/badge/Qt-6.11.2-41CD52?logo=qt)
 ![CMake](https://img.shields.io/badge/CMake-3.19%2B-064F8C?logo=cmake)
 ![Minecraft](https://img.shields.io/badge/Minecraft-Launcher-62B47A?logo=minecraft)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 
-# MysticTurtle Launcher
+![](C:\Users\Handsome%20Turtle\Desktop\index.png)
 
-MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。采用GNU General Public License v3.0许可证，致力于给广大MC玩家打造简便的游戏体验，并汲取了PCL启动器的设计理念，让广大玩家可以方便的从PCL启动器迁移至MysticTurtle Launcher。
+MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。采用GNU General Public License v3.0许可证，致力于给广大MC玩家打造简便的游戏体验。
 
 > **非官方声明**：MysticTurtle 是独立开发的第三方 Minecraft 启动器，与 Mojang Studios、Microsoft 及其关联公司没有隶属、赞助、授权或认可关系。Minecraft 是 Mojang Studios 的商标。本项目不存储、不打包、不分发 Minecraft 游戏本体或资源文件；游戏文件仅由用户在本机通过官方或第三方镜像下载。请支持正版游戏，并遵守 [Minecraft EULA](https://www.minecraft.net/en-us/eula) 与 [使用指南](https://www.minecraft.net/en-us/usage-guidelines)。
 
-> 注意：由于作者还是学生，并且心理状况有些欠佳，不能保证此项目可以持续开发，请大家见谅啦ovo~
+> 注意：由于作者还是学生，并且心理状况有些欠佳，不能保证此项目可以持续开发，请大家见谅啦~
 >
 > 同时，如果有好心人想进行捐助，请参阅[赞助说明](#关于赞赏和更新)
 
