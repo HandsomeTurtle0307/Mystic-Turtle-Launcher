@@ -6,7 +6,7 @@
 ![Minecraft](https://img.shields.io/badge/Minecraft-Launcher-62B47A?logo=minecraft)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 
-![](C:\Users\Handsome%20Turtle\Desktop\index.png)
+<img width="1724" height="906" alt="index" src="https://github.com/user-attachments/assets/689fe6ee-27f5-4aa0-bb2c-d70c5c965de2" />
 
 MysticTurtle 是一个基于 **Qt 6 / C++17 / CMake** 的 Minecraft 启动器。采用GNU General Public License v3.0许可证，致力于给广大MC玩家打造简便的游戏体验。
 
